@@ -29,7 +29,10 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
-            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8080/\"")
+            val devBaseUrl = (project.findProperty("vyavsa.baseUrl") as? String)
+                ?: System.getenv("VYAVSA_BASE_URL")
+                ?: "http://10.0.2.2:8080/"
+            buildConfigField("String", "BASE_URL", "\"$devBaseUrl\"")
         }
         release {
             isMinifyEnabled = false
