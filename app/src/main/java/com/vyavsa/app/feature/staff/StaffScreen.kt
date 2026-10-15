@@ -17,12 +17,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,6 +34,7 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -78,11 +82,13 @@ fun StaffScreen(
     val attendanceState by viewModel.attendanceState.collectAsState()
     val salariesState by viewModel.salariesState.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
-    val isAdmin = viewModel.tokenManager.isTenantAdmin()
+    val isAdmin = viewModel.isAdmin
 
     var showAddEmployeeDialog by remember { mutableStateOf(false) }
     var markingAttendanceEmployee by remember { mutableStateOf<Employee?>(null) }
     var disbursingSalaryItem by remember { mutableStateOf<EmployeeSalary?>(null) }
+    var employeeToEdit by remember { mutableStateOf<Employee?>(null) }
+    var employeeToDelete by remember { mutableStateOf<Employee?>(null) }
 
     val visibleTabs = if (isAdmin) {
         listOf(StaffTab.ATTENDANCE, StaffTab.SALARIES, StaffTab.ROSTER)
@@ -160,7 +166,10 @@ fun StaffScreen(
                 StaffTab.ROSTER -> {
                     RosterTabContent(
                         employeesState = employeesState,
-                        onAddEmployee = { showAddEmployeeDialog = true }
+                        isAdmin = isAdmin,
+                        onAddEmployee = { showAddEmployeeDialog = true },
+                        onEditEmployee = { employeeToEdit = it },
+                        onDeleteEmployee = { employeeToDelete = it }
                     )
                 }
             }
@@ -208,6 +217,53 @@ fun StaffScreen(
                     note = note
                 )
                 disbursingSalaryItem = null
+            }
+        )
+    }
+
+    // Edit Employee Dialog
+    if (employeeToEdit != null) {
+        EditEmployeeDialog(
+            employee = employeeToEdit!!,
+            onDismiss = { employeeToEdit = null },
+            onConfirm = { name, phone, salary, otRate, status ->
+                viewModel.updateEmployee(
+                    id = employeeToEdit!!.id,
+                    name = name,
+                    phone = phone,
+                    salary = salary,
+                    otRate = otRate,
+                    status = status
+                )
+                employeeToEdit = null
+            }
+        )
+    }
+
+    // Delete Employee Confirmation Dialog
+    if (employeeToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { employeeToDelete = null },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Delete Employee Record") },
+            text = {
+                Text("Are you sure you want to remove ${employeeToDelete!!.name}? This will remove the employee from the roster.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteEmployee(employeeToDelete!!.id)
+                        employeeToDelete = null
+                    }
+                ) {
+                    Text("Delete Permanently", color = Crimson600, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { employeeToDelete = null }) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -433,7 +489,10 @@ private fun SalariesTabContent(
 @Composable
 private fun RosterTabContent(
     employeesState: UiState<List<Employee>>,
-    onAddEmployee: () -> Unit
+    isAdmin: Boolean,
+    onAddEmployee: () -> Unit,
+    onEditEmployee: (Employee) -> Unit,
+    onDeleteEmployee: (Employee) -> Unit
 ) {
     val employees = (employeesState as? UiState.Success)?.data ?: emptyList()
 
@@ -488,13 +547,35 @@ private fun RosterTabContent(
                         }
                     }
 
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = FormatUtils.formatCurrency(employee.salary),
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        StatBadge(text = employee.status.uppercase())
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = FormatUtils.formatCurrency(employee.salary),
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            StatBadge(text = employee.status.uppercase())
+                        }
+
+                        if (isAdmin) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(onClick = { onEditEmployee(employee) }) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Employee",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            IconButton(onClick = { onDeleteEmployee(employee) }) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete Employee",
+                                    tint = Crimson600,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -671,3 +752,67 @@ fun DisburseSalaryDialog(
         }
     )
 }
+
+@Composable
+fun EditEmployeeDialog(
+    employee: Employee,
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, phone: String?, salary: String, otRate: String, status: String) -> Unit
+) {
+    var name by remember { mutableStateOf(employee.name) }
+    var phone by remember { mutableStateOf(employee.phone ?: "") }
+    var salary by remember { mutableStateOf(employee.salary) }
+    var otRate by remember { mutableStateOf(employee.otRate) }
+    var status by remember { mutableStateOf(employee.status) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Edit Employee", fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                VyavsaTextField(value = name, onValueChange = { name = it }, label = "Full Name *")
+                VyavsaTextField(value = phone, onValueChange = { phone = it }, label = "Phone Number", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
+                VyavsaTextField(value = salary, onValueChange = { salary = it }, label = "Monthly Base Salary (₹) *", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                VyavsaTextField(value = otRate, onValueChange = { otRate = it }, label = "Overtime Rate (₹/hr)", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = status == "active",
+                        onClick = { status = "active" },
+                        label = { Text("Active") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Emerald50,
+                            selectedLabelColor = Emerald600
+                        )
+                    )
+                    FilterChip(
+                        selected = status == "inactive",
+                        onClick = { status = "inactive" },
+                        label = { Text("Inactive") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Crimson50,
+                            selectedLabelColor = Crimson600
+                        )
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(name.trim(), phone.trim().ifBlank { null }, salary.trim(), otRate.trim(), status) },
+                enabled = name.isNotBlank() && salary.isNotBlank()
+            ) {
+                Text("Save Changes", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+

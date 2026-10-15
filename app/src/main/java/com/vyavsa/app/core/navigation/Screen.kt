@@ -25,6 +25,14 @@ sealed class Screen(val route: String) {
     }
     object CashDrawer : Screen("cash_drawer")
     object BankAccounts : Screen("bank_accounts")
+    object SaleDetails : Screen("sale_details/{saleType}/{saleId}") {
+        fun createRoute(saleType: String, saleId: String) = "sale_details/$saleType/$saleId"
+    }
+    object CustomerDetails : Screen("customer_details/{customerId}") {
+        fun createRoute(customerId: String) = "customer_details/$customerId"
+    }
+    object Plans : Screen("plans")
+    object TenantUsers : Screen("tenant_users")
 }
 
 enum class BottomBarDestination(

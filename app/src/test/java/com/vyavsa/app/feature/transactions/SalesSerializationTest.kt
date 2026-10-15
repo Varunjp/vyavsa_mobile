@@ -1,6 +1,7 @@
 package com.vyavsa.app.feature.transactions
 
 import com.vyavsa.app.core.model.ApiResponse
+import com.vyavsa.app.core.model.BankPaymentSplit
 import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.CreateCounterSaleRequest
 import com.vyavsa.app.core.model.CreateLineSaleRequest
@@ -78,6 +79,68 @@ class SalesSerializationTest {
         assertTrue(serialized.contains("\"cash\":\"140.00\""))
         assertTrue(serialized.contains("\"bank_amount\":\"100.00\""))
         assertTrue(serialized.contains("\"bank_id\":\"bank-789\""))
+    }
+
+    @Test
+    fun testCreateLineSaleRequestSerializationWithMultipleBanks() {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "bank-1", bankName = "HDFC Bank", amount = "600.00", note = "Cheque"),
+            BankPaymentSplit(bankId = "bank-2", bankName = "SBI Bank", amount = "400.00")
+        )
+        val req = CreateLineSaleRequest(
+            customerId = "cust-123",
+            route = "East Sector",
+            salesman = "Sunil",
+            totalAmount = "1500.00",
+            totalCashIn = "500.00",
+            cashAmount = "500.00",
+            bankAmount = "1000.00",
+            bankId = "bank-1",
+            bankPayments = splits,
+            note = "Multiple bank allocations"
+        )
+
+        val serialized = json.encodeToString(req)
+        assertTrue(serialized.contains("\"customer_id\":\"cust-123\""))
+        assertTrue(serialized.contains("\"bank_amount\":\"1000.00\""))
+        assertTrue(serialized.contains("\"bank_payments\":["))
+        assertTrue(serialized.contains("\"bank_id\":\"bank-1\""))
+        assertTrue(serialized.contains("\"bank_name\":\"HDFC Bank\""))
+        assertTrue(serialized.contains("\"amount\":\"600.00\""))
+        assertTrue(serialized.contains("\"note\":\"Cheque\""))
+        assertTrue(serialized.contains("\"bank_id\":\"bank-2\""))
+        assertTrue(serialized.contains("\"bank_name\":\"SBI Bank\""))
+        assertTrue(serialized.contains("\"amount\":\"400.00\""))
+    }
+
+    @Test
+    fun testCreateCounterSaleRequestSerializationWithMultipleBanks() {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "bank-1", bankName = "HDFC", amount = "150.00"),
+            BankPaymentSplit(bankId = "bank-3", bankName = "ICICI", amount = "250.00")
+        )
+        val req = CreateCounterSaleRequest(
+            item = "Bulk Rice",
+            price = "500.00",
+            totalAmount = "500.00",
+            paymentMethod = "split",
+            cash = "100.00",
+            cashAmount = "100.00",
+            bankAmount = "400.00",
+            bankId = "bank-1",
+            bankPayments = splits,
+            account = "counter"
+        )
+
+        val serialized = json.encodeToString(req)
+        assertTrue(serialized.contains("\"item\":\"Bulk Rice\""))
+        assertTrue(serialized.contains("\"payment_method\":\"split\""))
+        assertTrue(serialized.contains("\"account\":\"counter\""))
+        assertTrue(serialized.contains("\"bank_amount\":\"400.00\""))
+        assertTrue(serialized.contains("\"bank_payments\":["))
+        assertTrue(serialized.contains("\"bank_id\":\"bank-1\""))
+        assertTrue(serialized.contains("\"bank_id\":\"bank-3\""))
+        assertTrue(serialized.contains("\"amount\":\"250.00\""))
     }
 
     @Test

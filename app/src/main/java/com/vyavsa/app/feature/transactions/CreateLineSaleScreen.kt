@@ -2,6 +2,7 @@
 package com.vyavsa.app.feature.transactions
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -16,20 +17,26 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -64,11 +71,20 @@ import com.vyavsa.app.core.designsystem.Emerald600
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaButton
+import com.vyavsa.app.core.designsystem.VyavsaOutlinedButton
 import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
+import com.vyavsa.app.core.model.BankPaymentSplit
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.TenantBank
+
+data class BankPaymentEntry(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val bank: TenantBank? = null,
+    val amount: String = "",
+    val note: String? = null
+)
 
 @Composable
 fun CreateLineSaleScreen(
@@ -104,6 +120,7 @@ fun CreateSaleScreen(
 
     val customers = (customersState as? UiState.Success)?.data ?: emptyList()
     val availableBanks = (banksState as? UiState.Success)?.data?.filter { it.status == "active" || it.status.isBlank() } ?: emptyList()
+    val isLoadingBanks = banksState is UiState.Loading
 
     // Form fields for Line Sale
     var selectedCustomer by remember { mutableStateOf<Customer?>(null) }
@@ -112,10 +129,8 @@ fun CreateSaleScreen(
     var salesman by remember { mutableStateOf("") }
     var lineTotalAmount by remember { mutableStateOf("") }
     var lineCashIn by remember { mutableStateOf("0.00") }
-    var lineBankAmount by remember { mutableStateOf("0.00") }
-    var lineSelectedBank by remember { mutableStateOf<TenantBank?>(null) }
-    var lineBankDropdownExpanded by remember { mutableStateOf(false) }
     var lineIncludeBank by remember { mutableStateOf(false) }
+    var lineBankEntries by remember { mutableStateOf<List<BankPaymentEntry>>(emptyList()) }
     var note by remember { mutableStateOf("") }
 
     // Form fields for Counter Sale
@@ -123,10 +138,8 @@ fun CreateSaleScreen(
     var counterPrice by remember { mutableStateOf("") }
     var counterTotalAmount by remember { mutableStateOf("") }
     var counterCash by remember { mutableStateOf("0.00") }
-    var counterBankAmount by remember { mutableStateOf("0.00") }
-    var counterSelectedBank by remember { mutableStateOf<TenantBank?>(null) }
-    var counterBankDropdownExpanded by remember { mutableStateOf(false) }
     var counterIncludeBank by remember { mutableStateOf(false) }
+    var counterBankEntries by remember { mutableStateOf<List<BankPaymentEntry>>(emptyList()) }
 
     LaunchedEffect(createActionState) {
         if (createActionState is UiState.Success) {
@@ -262,12 +275,13 @@ fun CreateSaleScreen(
 
                             // Customer Balance Preview Card
                             selectedCustomer?.let { cust ->
+                                val lineBankTotal = if (lineIncludeBank) lineBankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } else 0.0
                                 Spacer(modifier = Modifier.height(12.dp))
                                 CustomerBalancePreviewBox(
                                     currentBalance = cust.currentBalance,
                                     totalAmount = lineTotalAmount,
                                     cashIn = lineCashIn,
-                                    bankAmount = if (lineIncludeBank) lineBankAmount else "0.00"
+                                    bankAmount = lineBankTotal.toString()
                                 )
                             }
 
@@ -315,17 +329,14 @@ fun CreateSaleScreen(
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // Bank Payment Toggle & Selection
-                            BankPaymentSection(
+                            // Multi-Bank Payment Toggle & Selection
+                            MultiBankPaymentSection(
                                 includeBank = lineIncludeBank,
                                 onIncludeBankChange = { lineIncludeBank = it },
+                                bankEntries = lineBankEntries,
+                                onBankEntriesChange = { lineBankEntries = it },
                                 availableBanks = availableBanks,
-                                selectedBank = lineSelectedBank,
-                                onSelectBank = { lineSelectedBank = it },
-                                bankDropdownExpanded = lineBankDropdownExpanded,
-                                onExpandedChange = { lineBankDropdownExpanded = it },
-                                bankAmount = lineBankAmount,
-                                onBankAmountChange = { lineBankAmount = it }
+                                isLoadingBanks = isLoadingBanks
                             )
 
                             Spacer(modifier = Modifier.height(14.dp))
@@ -334,7 +345,7 @@ fun CreateSaleScreen(
                             SaleCalculationBox(
                                 totalAmount = lineTotalAmount,
                                 cashAmount = lineCashIn,
-                                bankAmount = if (lineIncludeBank) lineBankAmount else "0.00",
+                                bankEntries = if (lineIncludeBank) lineBankEntries else emptyList(),
                                 isLineSale = true
                             )
 
@@ -354,14 +365,27 @@ fun CreateSaleScreen(
                                 text = "Record Line Sale",
                                 onClick = {
                                     focusManager.clearFocus()
+                                    val splits = if (lineIncludeBank) {
+                                        lineBankEntries.map {
+                                            BankPaymentSplit(
+                                                bankId = it.bank?.id ?: "",
+                                                bankName = it.bank?.bankName,
+                                                amount = it.amount.trim()
+                                            )
+                                        }
+                                    } else {
+                                        emptyList()
+                                    }
+                                    val bankTotal = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
                                     viewModel.createLineSale(
                                         customerId = selectedCustomer?.id ?: "",
                                         route = route,
                                         salesman = salesman,
                                         totalAmount = lineTotalAmount,
                                         cashIn = lineCashIn,
-                                        bankAmount = if (lineIncludeBank) lineBankAmount else "0.00",
-                                        bankId = if (lineIncludeBank) lineSelectedBank?.id else null,
+                                        bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
+                                        bankId = splits.firstOrNull()?.bankId,
+                                        bankPayments = splits,
                                         note = note
                                     )
                                 },
@@ -429,16 +453,13 @@ fun CreateSaleScreen(
                             Spacer(modifier = Modifier.height(14.dp))
 
                             // Counter Bank Payment Section
-                            BankPaymentSection(
+                            MultiBankPaymentSection(
                                 includeBank = counterIncludeBank,
                                 onIncludeBankChange = { counterIncludeBank = it },
+                                bankEntries = counterBankEntries,
+                                onBankEntriesChange = { counterBankEntries = it },
                                 availableBanks = availableBanks,
-                                selectedBank = counterSelectedBank,
-                                onSelectBank = { counterSelectedBank = it },
-                                bankDropdownExpanded = counterBankDropdownExpanded,
-                                onExpandedChange = { counterBankDropdownExpanded = it },
-                                bankAmount = counterBankAmount,
-                                onBankAmountChange = { counterBankAmount = it }
+                                isLoadingBanks = isLoadingBanks
                             )
 
                             Spacer(modifier = Modifier.height(14.dp))
@@ -447,7 +468,7 @@ fun CreateSaleScreen(
                             SaleCalculationBox(
                                 totalAmount = counterTotalAmount,
                                 cashAmount = counterCash,
-                                bankAmount = if (counterIncludeBank) counterBankAmount else "0.00",
+                                bankEntries = if (counterIncludeBank) counterBankEntries else emptyList(),
                                 isLineSale = false
                             )
 
@@ -457,13 +478,26 @@ fun CreateSaleScreen(
                                 text = "Record Counter Sale",
                                 onClick = {
                                     focusManager.clearFocus()
+                                    val splits = if (counterIncludeBank) {
+                                        counterBankEntries.map {
+                                            BankPaymentSplit(
+                                                bankId = it.bank?.id ?: "",
+                                                bankName = it.bank?.bankName,
+                                                amount = it.amount.trim()
+                                            )
+                                        }
+                                    } else {
+                                        emptyList()
+                                    }
+                                    val bankTotal = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
                                     viewModel.createCounterSale(
                                         item = counterItem,
                                         price = counterPrice.ifBlank { counterTotalAmount },
                                         totalAmount = counterTotalAmount,
                                         cash = counterCash,
-                                        bankAmount = if (counterIncludeBank) counterBankAmount else "0.00",
-                                        bankId = if (counterIncludeBank) counterSelectedBank?.id else null
+                                        bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
+                                        bankId = splits.firstOrNull()?.bankId,
+                                        bankPayments = splits
                                     )
                                 },
                                 isLoading = createActionState is UiState.Loading
@@ -476,20 +510,24 @@ fun CreateSaleScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BankPaymentSection(
+private fun MultiBankPaymentSection(
     includeBank: Boolean,
     onIncludeBankChange: (Boolean) -> Unit,
+    bankEntries: List<BankPaymentEntry>,
+    onBankEntriesChange: (List<BankPaymentEntry>) -> Unit,
     availableBanks: List<TenantBank>,
-    selectedBank: TenantBank?,
-    onSelectBank: (TenantBank) -> Unit,
-    bankDropdownExpanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    bankAmount: String,
-    onBankAmountChange: (String) -> Unit,
+    isLoadingBanks: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val duplicateBankIds = remember(bankEntries) {
+        bankEntries.mapNotNull { it.bank?.id?.ifBlank { null } }
+            .groupingBy { it }
+            .eachCount()
+            .filter { it.value > 1 }
+            .keys
+    }
+
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -501,7 +539,10 @@ private fun BankPaymentSection(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                ) {
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
@@ -519,11 +560,11 @@ private fun BankPaymentSection(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "Bank / UPI Payment",
+                            text = "Bank / UPI Payments",
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                         )
                         Text(
-                            text = if (includeBank) "Deposit directly to bank ledger" else "Check to record bank / online collection",
+                            text = if (includeBank) "Deposit directly to bank ledger accounts" else "Check to record bank / online collection",
                             style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                         )
                     }
@@ -531,7 +572,14 @@ private fun BankPaymentSection(
 
                 Switch(
                     checked = includeBank,
-                    onCheckedChange = onIncludeBankChange,
+                    onCheckedChange = { checked ->
+                        onIncludeBankChange(checked)
+                        if (checked && bankEntries.isEmpty() && availableBanks.isNotEmpty()) {
+                            onBankEntriesChange(listOf(BankPaymentEntry(bank = availableBanks.first())))
+                        } else if (!checked) {
+                            onBankEntriesChange(emptyList())
+                        }
+                    },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = MaterialTheme.colorScheme.primary,
                         checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
@@ -541,7 +589,26 @@ private fun BankPaymentSection(
 
             AnimatedVisibility(visible = includeBank) {
                 Column(modifier = Modifier.padding(top = 14.dp)) {
-                    if (availableBanks.isEmpty()) {
+                    if (isLoadingBanks) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Loading bank accounts...",
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            )
+                        }
+                    } else if (availableBanks.isEmpty()) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -563,78 +630,244 @@ private fun BankPaymentSection(
                             )
                         }
                     } else {
-                        // Bank Account Dropdown
-                        ExposedDropdownMenuBox(
-                            expanded = bankDropdownExpanded,
-                            onExpandedChange = onExpandedChange,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            OutlinedTextField(
-                                value = selectedBank?.let { "${it.bankName} (${FormatUtils.formatCurrency(it.currentBalance)})" } ?: "",
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Select Bank Account *") },
-                                placeholder = { Text("Choose receiving bank") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = bankDropdownExpanded) },
-                                shape = RoundedCornerShape(18.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor()
-                            )
-
-                            ExposedDropdownMenu(
-                                expanded = bankDropdownExpanded,
-                                onDismissRequest = { onExpandedChange(false) }
-                            ) {
-                                availableBanks.forEach { bank ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Column {
-                                                Text(bank.bankName, fontWeight = FontWeight.Bold)
-                                                Row {
-                                                    if (!bank.accountNumber.isNullOrBlank()) {
-                                                        Text(
-                                                            text = "A/C: ${bank.accountNumber} • ",
-                                                            style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                        )
-                                                    }
-                                                    Text(
-                                                        text = "Balance: ${FormatUtils.formatCurrency(bank.currentBalance)}",
-                                                        style = MaterialTheme.typography.labelSmall.copy(
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Blue600
-                                                        )
-                                                    )
-                                                }
-                                            }
-                                        },
-                                        onClick = {
-                                            onSelectBank(bank)
-                                            onExpandedChange(false)
-                                        }
-                                    )
+                        // Render bank entries
+                        bankEntries.forEachIndexed { index, entry ->
+                            val isDuplicate = entry.bank?.id != null && entry.bank.id in duplicateBankIds
+                            BankPaymentRowItem(
+                                index = index,
+                                entry = entry,
+                                availableBanks = availableBanks,
+                                isDuplicate = isDuplicate,
+                                onSelectBank = { selected ->
+                                    val updated = bankEntries.toMutableList()
+                                    updated[index] = entry.copy(bank = selected)
+                                    onBankEntriesChange(updated)
+                                },
+                                onAmountChange = { newAmount ->
+                                    val updated = bankEntries.toMutableList()
+                                    updated[index] = entry.copy(amount = newAmount)
+                                    onBankEntriesChange(updated)
+                                },
+                                onRemove = {
+                                    val updated = bankEntries.toMutableList()
+                                    updated.removeAt(index)
+                                    onBankEntriesChange(updated)
                                 }
-                            }
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        // Duplicate Warning Banner
+                        if (duplicateBankIds.isNotEmpty()) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Crimson50, RoundedCornerShape(12.dp))
+                                    .border(1.dp, Crimson600.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = Crimson600,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Each bank account can only be selected once per sale.",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = Crimson600,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                        }
 
-                        VyavsaTextField(
-                            value = bankAmount,
-                            onValueChange = onBankAmountChange,
-                            label = "Bank Amount Received (₹) *",
-                            placeholder = "0.00",
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done)
+                        // Add Bank Button
+                        VyavsaOutlinedButton(
+                            text = "+ Add Bank",
+                            leadingIcon = Icons.Default.Add,
+                            onClick = {
+                                val usedBankIds = bankEntries.mapNotNull { it.bank?.id }.toSet()
+                                val nextBank = availableBanks.firstOrNull { it.id !in usedBankIds } ?: availableBanks.firstOrNull()
+                                onBankEntriesChange(bankEntries + BankPaymentEntry(bank = nextBank))
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        // Bank Allocation Total Summary
+                        val bankTotal = bankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                        if (bankTotal > 0.0) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp)
+                            ) {
+                                Text(
+                                    text = "Total Bank Received (${bankEntries.size} ${if (bankEntries.size == 1) "account" else "accounts"}):",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+                                Text(
+                                    text = FormatUtils.formatCurrency(bankTotal.toString()),
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Blue600
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BankPaymentRowItem(
+    index: Int,
+    entry: BankPaymentEntry,
+    availableBanks: List<TenantBank>,
+    isDuplicate: Boolean,
+    onSelectBank: (TenantBank) -> Unit,
+    onAmountChange: (String) -> Unit,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(
+            1.dp,
+            if (isDuplicate) Crimson600.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant
+        ),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(if (isDuplicate) Crimson50 else Blue50)
+                    ) {
+                        Text(
+                            text = "${index + 1}",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (isDuplicate) Crimson600 else Blue600
+                            )
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Bank Allocation #${index + 1}",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+
+                IconButton(
+                    onClick = onRemove,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Remove Bank Entry",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Bank Account Dropdown
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = it },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = entry.bank?.let { "${it.bankName} (${FormatUtils.formatCurrency(it.currentBalance)})" } ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Select Bank Account *") },
+                    placeholder = { Text("Choose receiving bank") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedBorderColor = if (isDuplicate) Crimson600 else MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = if (isDuplicate) Crimson600.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor()
+                )
+
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    availableBanks.forEach { bank ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(bank.bankName, fontWeight = FontWeight.Bold)
+                                    Row {
+                                        if (!bank.accountNumber.isNullOrBlank()) {
+                                            Text(
+                                                text = "A/C: ${bank.accountNumber} • ",
+                                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            )
+                                        }
+                                        Text(
+                                            text = "Balance: ${FormatUtils.formatCurrency(bank.currentBalance)}",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = Blue600
+                                            )
+                                        )
+                                    }
+                                }
+                            },
+                            onClick = {
+                                onSelectBank(bank)
+                                expanded = false
+                            }
                         )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            VyavsaTextField(
+                value = entry.amount,
+                onValueChange = onAmountChange,
+                label = "Bank Amount Received (₹) *",
+                placeholder = "0.00",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done)
+            )
         }
     }
 }
@@ -728,14 +961,14 @@ private fun CustomerBalancePreviewBox(
 private fun SaleCalculationBox(
     totalAmount: String,
     cashAmount: String,
-    bankAmount: String,
+    bankEntries: List<BankPaymentEntry> = emptyList(),
     isLineSale: Boolean,
     modifier: Modifier = Modifier
 ) {
     val total = totalAmount.toDoubleOrNull() ?: 0.0
     val cash = cashAmount.toDoubleOrNull() ?: 0.0
-    val bank = bankAmount.toDoubleOrNull() ?: 0.0
-    val collected = cash + bank
+    val bankTotal = bankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+    val collected = cash + bankTotal
     val due = if (total > collected) total - collected else 0.0
     val exceeds = total > 0.0 && collected > total
 
@@ -763,12 +996,53 @@ private fun SaleCalculationBox(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Bank / UPI Payment:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
-                Text(FormatUtils.formatCurrency(bank.toString()), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold))
+            if (bankEntries.size <= 1) {
+                val bankLabel = if (bankEntries.isNotEmpty() && bankEntries[0].bank != null) {
+                    "Bank / UPI (${bankEntries[0].bank?.bankName}):"
+                } else {
+                    "Bank / UPI Payment:"
+                }
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(bankLabel, style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                    Text(FormatUtils.formatCurrency(bankTotal.toString()), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold))
+                }
+            } else {
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Bank Payments Total (${bankEntries.size} accounts):",
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
+                    )
+                    Text(
+                        FormatUtils.formatCurrency(bankTotal.toString()),
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = Blue600)
+                    )
+                }
+
+                bankEntries.forEach { entry ->
+                    val amt = entry.amount.toDoubleOrNull() ?: 0.0
+                    val name = entry.bank?.bankName ?: "Unselected Bank"
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 12.dp, top = 2.dp)
+                    ) {
+                        Text(
+                            text = "• $name:",
+                            style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        )
+                        Text(
+                            text = FormatUtils.formatCurrency(amt.toString()),
+                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace)
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -809,7 +1083,13 @@ private fun SaleCalculationBox(
             }
 
             if (!isLineSale) {
-                val method = if (cash > 0.0 && bank > 0.0) "SPLIT (Cash + Bank)" else if (bank > 0.0) "BANK / UPI" else "CASH"
+                val method = if (cash > 0.0 && bankTotal > 0.0) {
+                    "SPLIT (Cash + Banks)"
+                } else if (bankTotal > 0.0) {
+                    "BANK / UPI"
+                } else {
+                    "CASH"
+                }
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     horizontalArrangement = Arrangement.SpaceBetween,

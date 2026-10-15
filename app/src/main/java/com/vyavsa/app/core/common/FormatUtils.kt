@@ -39,4 +39,12 @@ object FormatUtils {
             dateString
         }
     }
+
+    fun formatDateTimeForDisplay(dateTimeString: String?): String {
+        return formatDateForDisplay(dateTimeString)
+    }
+
+    fun formatIsoDateTime(dateTimeString: String?): String {
+        return formatDateForDisplay(dateTimeString)
+    }
 }

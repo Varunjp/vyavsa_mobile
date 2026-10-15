@@ -8,6 +8,7 @@ import javax.inject.Singleton
 
 enum class DataMutation {
     SALES,
+    PURCHASES,
     BANK,
     CASH,
     EXPENSES,

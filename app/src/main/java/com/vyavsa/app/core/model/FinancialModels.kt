@@ -73,6 +73,7 @@ data class TenantSubscription(
     @SerialName("current_plan_id") val currentPlanId: String = "",
     @SerialName("current_plan_name") val currentPlanName: String = "",
     val price: String = "0.00",
+    val note: String? = null,
     val status: String = "active",
     @SerialName("start_date") val startDate: String? = null,
     @SerialName("end_date") val endDate: String? = null,
@@ -83,11 +84,40 @@ data class TenantSubscription(
 @Serializable
 data class SubscriptionPlan(
     val id: String = "",
+    @SerialName("plan_name") val planName: String = "",
     val name: String = "",
+    val note: String? = null,
     val price: String = "0.00",
     @SerialName("duration_days") val durationDays: Int = 30,
     val features: List<String> = emptyList(),
     val status: String = "active"
+) {
+    val displayName: String
+        get() = planName.ifBlank { name.ifBlank { "Subscription Plan" } }
+
+    val displayDescription: String
+        get() = note ?: "Full-featured small business billing & operations."
+}
+
+@Serializable
+data class PurchasePlanRequest(
+    @SerialName("plan_id") val planId: String,
+    @SerialName("payment_method") val paymentMethod: String = "upi"
+)
+
+@Serializable
+data class PlanTransaction(
+    val id: String = "",
+    @SerialName("tenant_id") val tenantId: String = "",
+    @SerialName("transaction_id") val transactionId: String = "",
+    @SerialName("payment_method") val paymentMethod: String = "",
+    @SerialName("plan_id") val planId: String = "",
+    @SerialName("plan_name") val planName: String = "",
+    val amount: String = "0.00",
+    val status: String = "completed",
+    @SerialName("failure_reason") val failureReason: String? = null,
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("updated_at") val updatedAt: String = ""
 )
 
 @Serializable
