@@ -7,7 +7,9 @@ import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.CreateCounterSaleRequest
 import com.vyavsa.app.core.model.CreateExpenseRequest
 import com.vyavsa.app.core.model.CreateLineSaleRequest
+import com.vyavsa.app.core.model.CreatePurchaseRequest
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.CashTransaction
@@ -15,8 +17,12 @@ import com.vyavsa.app.core.model.CounterSalePayment
 import com.vyavsa.app.core.model.LineSalePayment
 import com.vyavsa.app.core.model.PlanTransaction
 import com.vyavsa.app.core.model.Purchase
+import com.vyavsa.app.core.model.PurchasePayment
 import com.vyavsa.app.core.model.RecordSalePaymentRequest
+import com.vyavsa.app.core.model.RecordSupplierPaymentRequest
+import com.vyavsa.app.core.model.SupplierPaymentResponse
 import com.vyavsa.app.core.model.TenantBank
+import com.vyavsa.app.core.model.UpdatePurchaseRequest
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import com.vyavsa.app.feature.bank.FakeBankRepository
@@ -519,6 +525,172 @@ class TransactionsViewModelTest {
         assertEquals("200.00", lastReq?.cashAmount)
         assertEquals("300.00", lastReq?.bankAmount)
     }
+
+    @Test
+    fun testLoadEmployeesPopulatesEmployeesState() = runTest {
+        viewModel.loadEmployees()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.employeesState.value
+        assertTrue(state is UiState.Success)
+        val list = (state as UiState.Success).data
+        assertEquals(1, list.size)
+        assertEquals("Suresh Kumar", list[0].name)
+    }
+
+    @Test
+    fun testCreatePurchaseSuccessCashOnly() = runTest {
+        viewModel.createPurchase(
+            customerId = "cust-1",
+            item = "Refined Oil 15L",
+            quantity = "10",
+            totalAmount = "15000.00",
+            cashAmount = "15000.00"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue("Expected Success, got $actionState", actionState is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreatePurchaseRequest
+        assertNotNull(lastReq)
+        assertEquals("Refined Oil 15L", lastReq?.item)
+        assertEquals(10, lastReq?.quantity)
+        assertEquals("15000.00", lastReq?.totalAmount)
+        assertEquals("15000.00", lastReq?.cashAmount)
+        assertEquals("cust-1", lastReq?.customerId)
+    }
+
+    @Test
+    fun testCreatePurchaseSuccessSplitBankAndCash() = runTest {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "bank-1", bankName = "HDFC Bank", amount = "5000.00")
+        )
+        viewModel.createPurchase(
+            customerId = "cust-2",
+            item = "Wheat Flour 50kg",
+            quantity = "20",
+            totalAmount = "24000.00",
+            cashAmount = "10000.00",
+            bankPayments = splits
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue("Expected Success, got $actionState", actionState is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreatePurchaseRequest
+        assertNotNull(lastReq)
+        assertEquals("Wheat Flour 50kg", lastReq?.item)
+        assertEquals(20, lastReq?.quantity)
+        assertEquals("10000.00", lastReq?.cashAmount)
+        assertEquals("15000.00", lastReq?.totalPaid)
+        assertEquals(1, lastReq?.bankPayments?.size)
+    }
+
+    @Test
+    fun testCreatePurchaseValidationMissingItem() = runTest {
+        viewModel.createPurchase(
+            item = "",
+            quantity = "5",
+            totalAmount = "500.00"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue(actionState is UiState.Error)
+        assertEquals("Item description and total amount are required", (actionState as UiState.Error).message)
+    }
+
+    @Test
+    fun testCreatePurchaseValidationOverpayment() = runTest {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "bank-1", bankName = "HDFC Bank", amount = "1000.00")
+        )
+        viewModel.createPurchase(
+            item = "Sugar 50kg",
+            quantity = "1",
+            totalAmount = "2000.00",
+            cashAmount = "1500.00",
+            bankPayments = splits
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue(actionState is UiState.Error)
+        assertEquals("Total paid amount cannot exceed purchase bill amount", (actionState as UiState.Error).message)
+    }
+
+    @Test
+    fun testCreateExpenseEmployeeAdvanceSuccess() = runTest {
+        viewModel.createExpense(
+            item = "Staff Festival Advance",
+            category = "employee_advance",
+            amount = "3000.00",
+            paymentMethod = "cash",
+            employeeId = "emp-1"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue("Expected Success, got $actionState", actionState is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreateExpenseRequest
+        assertNotNull(lastReq)
+        assertEquals("employee_advance", lastReq?.category)
+        assertEquals("emp-1", lastReq?.employeeId)
+        assertEquals("3000.00", lastReq?.amount)
+    }
+
+    @Test
+    fun testCreateExpenseEmployeeAdvanceValidationMissingEmployee() = runTest {
+        viewModel.createExpense(
+            item = "Staff Advance",
+            category = "employee_advance",
+            amount = "2000.00",
+            paymentMethod = "cash",
+            employeeId = null
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue(actionState is UiState.Error)
+        assertEquals("Please select a staff member for the advance payment", (actionState as UiState.Error).message)
+    }
+
+    @Test
+    fun testSetDateFilterLoadsFilteredPurchases() = runTest {
+        fakeRepo.purchases.add(
+            Purchase(
+                id = "p-today",
+                item = "Today Item",
+                quantity = 5,
+                totalAmount = "500.00",
+                paymentStatus = "PAID",
+                createdAt = "2026-10-15T10:00:00Z"
+            )
+        )
+        fakeRepo.purchases.add(
+            Purchase(
+                id = "p-yesterday",
+                item = "Old Item",
+                quantity = 2,
+                totalAmount = "100.00",
+                paymentStatus = "PAID",
+                createdAt = "2026-10-14T10:00:00Z"
+            )
+        )
+
+        viewModel.selectTab(TransactionTab.PURCHASES)
+        viewModel.setDateFilter("2026-10-15")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.purchasesState.value
+        assertTrue(state is UiState.Success)
+        val data = (state as UiState.Success).data
+        assertEquals(1, data.size)
+        assertEquals("Today Item", data[0].item)
+    }
 }
 
 class FakeTransactionsRepository : TransactionsRepository {
@@ -546,14 +718,20 @@ class FakeTransactionsRepository : TransactionsRepository {
         )
     )
 
+    val purchases = mutableListOf<Purchase>()
     val expenses = mutableListOf<Expense>()
     val customers = mutableListOf(
         Customer(id = "cust-1", customerName = "Sharma Stores", currentBalance = "500.00"),
         Customer(id = "cust-2", customerName = "Gupta Mart", currentBalance = "0.00")
     )
+    val employees = mutableListOf(
+        Employee(id = "emp-1", name = "Suresh Kumar", phone = "9876543210")
+    )
 
     var lastCreateLineSaleRequest: CreateLineSaleRequest? = null
     var lastCreateCounterSaleRequest: CreateCounterSaleRequest? = null
+    var lastCreatePurchaseRequest: CreatePurchaseRequest? = null
+    var lastCreateExpenseRequest: CreateExpenseRequest? = null
     var createLineSaleCallCount = 0
     var delayResponse = false
 
@@ -602,6 +780,88 @@ class FakeTransactionsRepository : TransactionsRepository {
         emit(Resource.Success(sale))
     }
 
+    override fun listPurchases(date: String?, search: String?, customerId: String?): Flow<Resource<List<Purchase>>> = flow {
+        emit(Resource.Loading)
+        var filtered = purchases.toList()
+        if (!date.isNullOrBlank()) {
+            filtered = filtered.filter { it.createdAt.startsWith(date) }
+        }
+        if (!search.isNullOrBlank()) {
+            filtered = filtered.filter { it.item.contains(search, ignoreCase = true) || (it.customerName?.contains(search, ignoreCase = true) == true) }
+        }
+        if (!customerId.isNullOrBlank()) {
+            filtered = filtered.filter { it.customerId == customerId }
+        }
+        emit(Resource.Success(filtered))
+    }
+
+    override fun createPurchase(request: CreatePurchaseRequest): Flow<Resource<Purchase>> = flow {
+        emit(Resource.Loading)
+        lastCreatePurchaseRequest = request
+        val paid = request.totalPaid.toDoubleOrNull() ?: 0.0
+        val total = request.totalAmount.toDoubleOrNull() ?: 0.0
+        val p = Purchase(
+            id = "purch-${purchases.size + 1}",
+            item = request.item,
+            quantity = request.quantity,
+            totalAmount = request.totalAmount,
+            customerId = request.customerId,
+            customerName = if (request.customerId == "cust-1") "Sharma Stores" else null,
+            paymentStatus = if (paid >= total) "PAID" else "PARTIAL",
+            totalPaid = request.totalPaid,
+            totalPending = String.format(java.util.Locale.US, "%.2f", (total - paid).coerceAtLeast(0.0)),
+            createdAt = "2026-10-15"
+        )
+        purchases.add(p)
+        emit(Resource.Success(p))
+    }
+
+    override fun getPurchaseById(id: String): Flow<Resource<Purchase>> = flow {
+        emit(Resource.Loading)
+        val p = purchases.firstOrNull { it.id == id }
+        if (p != null) emit(Resource.Success(p)) else emit(Resource.Error("Purchase not found"))
+    }
+
+    override fun updatePurchase(id: String, request: UpdatePurchaseRequest): Flow<Resource<Purchase>> = flow {
+        emit(Resource.Loading)
+        val idx = purchases.indexOfFirst { it.id == id }
+        if (idx != -1) {
+            val existing = purchases[idx]
+            val updated = existing.copy(
+                item = request.item ?: existing.item,
+                quantity = request.quantity ?: existing.quantity,
+                totalAmount = request.totalAmount ?: existing.totalAmount,
+                totalPaid = request.totalPaid ?: existing.totalPaid
+            )
+            purchases[idx] = updated
+            emit(Resource.Success(updated))
+        } else {
+            emit(Resource.Error("Purchase not found"))
+        }
+    }
+
+    override fun deletePurchase(id: String): Flow<Resource<Unit>> = flow {
+        emit(Resource.Loading)
+        val removed = purchases.removeAll { it.id == id }
+        if (removed) emit(Resource.Success(Unit)) else emit(Resource.Error("Purchase not found"))
+    }
+
+    override fun listPurchasePayments(id: String): Flow<Resource<List<PurchasePayment>>> = flow {
+        emit(Resource.Loading)
+        emit(Resource.Success(emptyList()))
+    }
+
+    override fun recordPurchasePayment(id: String, request: RecordSupplierPaymentRequest): Flow<Resource<SupplierPaymentResponse>> = flow {
+        emit(Resource.Loading)
+        emit(Resource.Success(SupplierPaymentResponse(
+            paymentId = "pay-1",
+            customerId = "cust-1",
+            customerName = "Sharma Stores",
+            amount = request.amount,
+            allocations = emptyList()
+        )))
+    }
+
     override fun listExpenses(date: String?, search: String?): Flow<Resource<List<Expense>>> = flow {
         emit(Resource.Loading)
         emit(Resource.Success(expenses.toList()))
@@ -609,12 +869,15 @@ class FakeTransactionsRepository : TransactionsRepository {
 
     override fun createExpense(request: CreateExpenseRequest): Flow<Resource<Expense>> = flow {
         emit(Resource.Loading)
+        lastCreateExpenseRequest = request
         val exp = Expense(
             id = "exp-${expenses.size + 1}",
             item = request.item,
             category = request.category,
             totalAmount = request.totalAmount,
             paymentMethod = request.paymentMethod,
+            employeeId = request.employeeId,
+            employeeName = if (request.employeeId == "emp-1") "Suresh Kumar" else null,
             createdAt = "2026-10-15"
         )
         expenses.add(exp)
@@ -624,6 +887,11 @@ class FakeTransactionsRepository : TransactionsRepository {
     override fun listCustomers(): Flow<Resource<List<Customer>>> = flow {
         emit(Resource.Loading)
         emit(Resource.Success(customers.toList()))
+    }
+
+    override fun listEmployees(): Flow<Resource<List<Employee>>> = flow {
+        emit(Resource.Loading)
+        emit(Resource.Success(employees.toList()))
     }
 
     override fun getLineSaleById(id: String): Flow<Resource<LineSale>> = flow {
@@ -658,11 +926,6 @@ class FakeTransactionsRepository : TransactionsRepository {
         emit(Resource.Loading)
         val p = CounterSalePayment(id = "cpay-1", counterSaleId = id, amount = request.amount, paymentMethod = request.paymentMethod)
         emit(Resource.Success(p))
-    }
-
-    override fun listPurchases(date: String?, search: String?): Flow<Resource<List<Purchase>>> = flow {
-        emit(Resource.Loading)
-        emit(Resource.Success(emptyList()))
     }
 
     override fun listCashTransactions(): Flow<Resource<List<CashTransaction>>> = flow {

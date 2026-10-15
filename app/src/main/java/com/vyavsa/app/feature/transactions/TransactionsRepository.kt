@@ -7,13 +7,19 @@ import com.vyavsa.app.core.model.CounterSalePayment
 import com.vyavsa.app.core.model.CreateCounterSaleRequest
 import com.vyavsa.app.core.model.CreateExpenseRequest
 import com.vyavsa.app.core.model.CreateLineSaleRequest
+import com.vyavsa.app.core.model.CreatePurchaseRequest
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.LineSalePayment
 import com.vyavsa.app.core.model.PlanTransaction
 import com.vyavsa.app.core.model.Purchase
+import com.vyavsa.app.core.model.PurchasePayment
 import com.vyavsa.app.core.model.RecordSalePaymentRequest
+import com.vyavsa.app.core.model.RecordSupplierPaymentRequest
+import com.vyavsa.app.core.model.SupplierPaymentResponse
+import com.vyavsa.app.core.model.UpdatePurchaseRequest
 import com.vyavsa.app.core.network.VyavsaApiService
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
@@ -37,12 +43,20 @@ interface TransactionsRepository {
     fun listCounterSalePayments(id: String): Flow<Resource<List<CounterSalePayment>>>
     fun recordCounterSalePayment(id: String, request: RecordSalePaymentRequest): Flow<Resource<CounterSalePayment>>
 
-    fun listPurchases(date: String?, search: String?): Flow<Resource<List<Purchase>>>
+    fun listPurchases(date: String?, search: String?, customerId: String? = null): Flow<Resource<List<Purchase>>>
+    fun createPurchase(request: CreatePurchaseRequest): Flow<Resource<Purchase>>
+    fun getPurchaseById(id: String): Flow<Resource<Purchase>>
+    fun updatePurchase(id: String, request: UpdatePurchaseRequest): Flow<Resource<Purchase>>
+    fun deletePurchase(id: String): Flow<Resource<Unit>>
+    fun listPurchasePayments(id: String): Flow<Resource<List<PurchasePayment>>>
+    fun recordPurchasePayment(id: String, request: RecordSupplierPaymentRequest): Flow<Resource<SupplierPaymentResponse>>
+
     fun listExpenses(date: String?, search: String?): Flow<Resource<List<Expense>>>
     fun createExpense(request: CreateExpenseRequest): Flow<Resource<Expense>>
     fun listCashTransactions(): Flow<Resource<List<CashTransaction>>>
     fun listSubscriptionTransactions(): Flow<Resource<List<PlanTransaction>>>
     fun listCustomers(): Flow<Resource<List<Customer>>>
+    fun listEmployees(): Flow<Resource<List<Employee>>>
 }
 
 @Singleton
@@ -223,10 +237,10 @@ class TransactionsRepositoryImpl @Inject constructor(
         }
     }.flowOn(Dispatchers.IO)
 
-    override fun listPurchases(date: String?, search: String?): Flow<Resource<List<Purchase>>> = flow {
+    override fun listPurchases(date: String?, search: String?, customerId: String?): Flow<Resource<List<Purchase>>> = flow {
         emit(Resource.Loading)
         try {
-            val response = apiService.listPurchases(date = date, search = search)
+            val response = apiService.listPurchases(date = date, search = search, customerId = customerId)
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
@@ -234,6 +248,114 @@ class TransactionsRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             emit(Resource.Error(e.message ?: "Network error loading purchases"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun createPurchase(request: CreatePurchaseRequest): Flow<Resource<Purchase>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.createPurchase(request)
+            if (response.success && response.data != null) {
+                refreshCoordinator.notifyMutation(DataMutation.PURCHASES)
+                refreshCoordinator.notifyMutation(DataMutation.DUES)
+                val cashVal = request.cashAmount?.toDoubleOrNull() ?: request.totalPaid.toDoubleOrNull() ?: 0.0
+                if (cashVal > 0.0) {
+                    refreshCoordinator.notifyMutation(DataMutation.CASH)
+                }
+                if (request.bankPayments.isNotEmpty()) {
+                    refreshCoordinator.notifyMutation(DataMutation.BANK)
+                }
+                emit(Resource.Success(response.data, response.message))
+            } else {
+                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to record purchase", response.error?.code))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error recording purchase"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun getPurchaseById(id: String): Flow<Resource<Purchase>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.getPurchaseById(id)
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data))
+            } else {
+                emit(Resource.Error(response.error?.message ?: "Failed to load purchase details"))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error loading purchase details"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun updatePurchase(id: String, request: UpdatePurchaseRequest): Flow<Resource<Purchase>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.updatePurchase(id, request)
+            if (response.success && response.data != null) {
+                refreshCoordinator.notifyMutation(DataMutation.PURCHASES)
+                refreshCoordinator.notifyMutation(DataMutation.DUES)
+                refreshCoordinator.notifyMutation(DataMutation.CASH)
+                refreshCoordinator.notifyMutation(DataMutation.BANK)
+                emit(Resource.Success(response.data, response.message))
+            } else {
+                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update purchase", response.error?.code))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error updating purchase"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun deletePurchase(id: String): Flow<Resource<Unit>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.deletePurchase(id)
+            if (response.success) {
+                refreshCoordinator.notifyMutation(DataMutation.PURCHASES)
+                refreshCoordinator.notifyMutation(DataMutation.DUES)
+                refreshCoordinator.notifyMutation(DataMutation.CASH)
+                refreshCoordinator.notifyMutation(DataMutation.BANK)
+                emit(Resource.Success(Unit, response.message))
+            } else {
+                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to delete purchase", response.error?.code))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error deleting purchase"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun listPurchasePayments(id: String): Flow<Resource<List<PurchasePayment>>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.listPurchasePayments(id)
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data))
+            } else {
+                emit(Resource.Error(response.error?.message ?: "Failed to load purchase payments"))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error loading payments"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun recordPurchasePayment(id: String, request: RecordSupplierPaymentRequest): Flow<Resource<SupplierPaymentResponse>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.recordPurchaseSettlementPayment(id, request)
+            if (response.success && response.data != null) {
+                refreshCoordinator.notifyMutation(DataMutation.PURCHASES)
+                refreshCoordinator.notifyMutation(DataMutation.DUES)
+                if (request.paymentMethod == "cash") {
+                    refreshCoordinator.notifyMutation(DataMutation.CASH)
+                } else if (!request.bankId.isNullOrBlank() || request.bankPayments.isNotEmpty()) {
+                    refreshCoordinator.notifyMutation(DataMutation.BANK)
+                }
+                emit(Resource.Success(response.data, response.message))
+            } else {
+                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to record purchase settlement", response.error?.code))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error recording payment"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -257,7 +379,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             val response = apiService.createExpense(request)
             if (response.success && response.data != null) {
                 refreshCoordinator.notifyMutation(DataMutation.EXPENSES)
-                if (request.paymentMethod == "bank") {
+                if (request.category == "employee_advance" || !request.employeeId.isNullOrBlank()) {
+                    refreshCoordinator.notifyMutation(DataMutation.STAFF)
+                }
+                if (request.paymentMethod == "bank" || !request.bankId.isNullOrBlank() || request.bankPayments.isNotEmpty()) {
                     refreshCoordinator.notifyMutation(DataMutation.BANK)
                 } else if (request.paymentMethod == "cash") {
                     refreshCoordinator.notifyMutation(DataMutation.CASH)
@@ -310,6 +435,20 @@ class TransactionsRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             emit(Resource.Error(e.message ?: "Network error"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun listEmployees(): Flow<Resource<List<Employee>>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.listEmployees()
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data))
+            } else {
+                emit(Resource.Error(response.error?.message ?: "Failed to load employees"))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error loading employees"))
         }
     }.flowOn(Dispatchers.IO)
 }
