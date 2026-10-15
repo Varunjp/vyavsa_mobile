@@ -360,7 +360,12 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
     }
     ```
 - **Details**: `GET /api/v1/tenant/purchases/:id`
+- **Update**: `PUT /api/v1/tenant/purchases/:id`
+  - Request: `{"customer_id": "optional-uuid", "item": "Updated Item", "quantity": 10, "total_amount": "5000.00", "total_paid": "2000.00"}`
+- **Delete**: `DELETE /api/v1/tenant/purchases/:id` (`tenant_admin` or creator)
+- **Payment History**: `GET /api/v1/tenant/purchases/:id/payments`
 - **Record Settlement Payment**: `POST /api/v1/tenant/purchases/:id/payments`
+  - Request: `{"amount": "1000.00", "payment_method": "cash", "bank_id": "optional-uuid", "payment_date": "2026-10-15", "note": "Settlement"}`
 
 ### 6.2 Customer & Supplier Ledger (Dues)
 - **List Customers**: `GET /api/v1/tenant/customers?page=1&page_size=20&search=` (`tenant_admin` or `tenant_user`)
@@ -404,7 +409,11 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
       "payment_method": "cash"
     }
     ```
+  - **Employee Advance via Expense**:
+    When `category` is set to `"employee_advance"`, provide `"employee_id": "uuid"`. The backend records the expense, creates a ledger entry in `employee_advances`, updates daily attendance, and adjusts the employee's pending salary balance automatically.
 - **Details**: `GET /api/v1/tenant/expenses/:id`
+- **Update**: `PUT /api/v1/tenant/expenses/:id`
+- **Delete**: `DELETE /api/v1/tenant/expenses/:id`
 
 ---
 

@@ -10,7 +10,9 @@ import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.CreateCounterSaleRequest
 import com.vyavsa.app.core.model.CreateExpenseRequest
 import com.vyavsa.app.core.model.CreateLineSaleRequest
+import com.vyavsa.app.core.model.CreatePurchaseRequest
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.PlanTransaction
@@ -78,6 +80,12 @@ class TransactionsViewModel @Inject constructor(
     private val _banksState = MutableStateFlow<UiState<List<TenantBank>>>(UiState.Idle)
     val banksState: StateFlow<UiState<List<TenantBank>>> = _banksState.asStateFlow()
 
+    private val _employeesState = MutableStateFlow<UiState<List<Employee>>>(UiState.Idle)
+    val employeesState: StateFlow<UiState<List<Employee>>> = _employeesState.asStateFlow()
+
+    private val _dateFilter = MutableStateFlow<String?>(null)
+    val dateFilter: StateFlow<String?> = _dateFilter.asStateFlow()
+
     private val _createActionState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val createActionState: StateFlow<UiState<Unit>> = _createActionState.asStateFlow()
 
@@ -88,6 +96,7 @@ class TransactionsViewModel @Inject constructor(
         loadData()
         loadCustomers()
         loadBanks()
+        loadEmployees()
         observeRefreshEvents()
     }
 
@@ -99,6 +108,7 @@ class TransactionsViewModel @Inject constructor(
                         loadData()
                         loadCustomers()
                         loadBanks()
+                        loadEmployees()
                     }
                     DataMutation.BANK -> {
                         loadBanks()
@@ -106,7 +116,10 @@ class TransactionsViewModel @Inject constructor(
                     DataMutation.DUES -> {
                         loadCustomers()
                     }
-                    else -> Unit
+                    DataMutation.STAFF -> {
+                        loadEmployees()
+                        loadData()
+                    }
                 }
             }
         }
@@ -121,11 +134,17 @@ class TransactionsViewModel @Inject constructor(
         loadData()
     }
 
+    fun setDateFilter(date: String?) {
+        _dateFilter.value = date
+        loadData()
+    }
+
     fun loadData() {
         val query = _searchQuery.value.ifBlank { null }
+        val date = _dateFilter.value?.ifBlank { null }
 
         viewModelScope.launch {
-            repository.listLineSales(date = null, search = query).collect { res ->
+            repository.listLineSales(date = date, search = query).collect { res ->
                 _lineSalesState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
@@ -135,7 +154,7 @@ class TransactionsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            repository.listCounterSales(date = null, search = query).collect { res ->
+            repository.listCounterSales(date = date, search = query).collect { res ->
                 _counterSalesState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
@@ -145,7 +164,7 @@ class TransactionsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            repository.listPurchases(date = null, search = query).collect { res ->
+            repository.listPurchases(date = date, search = query).collect { res ->
                 _purchasesState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
@@ -155,7 +174,7 @@ class TransactionsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            repository.listExpenses(date = null, search = query).collect { res ->
+            repository.listExpenses(date = date, search = query).collect { res ->
                 _expensesState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
@@ -203,6 +222,18 @@ class TransactionsViewModel @Inject constructor(
         viewModelScope.launch {
             bankRepository.listBanks().collect { res ->
                 _banksState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> UiState.Success(res.data)
+                    is Resource.Error -> UiState.Error(res.message)
+                }
+            }
+        }
+    }
+
+    fun loadEmployees() {
+        viewModelScope.launch {
+            repository.listEmployees().collect { res ->
+                _employeesState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
@@ -438,10 +469,110 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 
-    fun createExpense(item: String, category: String?, amount: String, paymentMethod: String) {
+    fun createPurchase(
+        customerId: String? = null,
+        item: String,
+        quantity: String,
+        totalAmount: String,
+        cashAmount: String = "0.00",
+        bankPayments: List<BankPaymentSplit> = emptyList()
+    ) {
         if (_createActionState.value is UiState.Loading) return
 
-        if (item.isBlank() || amount.isBlank()) {
+        val trimmedItem = item.trim()
+        if (trimmedItem.isBlank() || totalAmount.isBlank()) {
+            _createActionState.value = UiState.Error("Item description and total amount are required")
+            return
+        }
+
+        val qty = quantity.trim().toIntOrNull() ?: 1
+        if (qty < 1) {
+            _createActionState.value = UiState.Error("Quantity must be at least 1")
+            return
+        }
+
+        val total = totalAmount.trim().toDoubleOrNull()
+        if (total == null || total <= 0.0) {
+            _createActionState.value = UiState.Error("Total purchase amount must be greater than zero")
+            return
+        }
+
+        val cashVal = cashAmount.trim().ifBlank { "0.00" }.toDoubleOrNull() ?: 0.0
+        if (cashVal < 0.0) {
+            _createActionState.value = UiState.Error("Cash payment cannot be negative")
+            return
+        }
+
+        val effectiveBankSplits = mutableListOf<BankPaymentSplit>()
+        var bankSum = 0.0
+        if (bankPayments.isNotEmpty()) {
+            val seenBanks = mutableSetOf<String>()
+            for (bp in bankPayments) {
+                if (bp.bankId.isBlank()) {
+                    _createActionState.value = UiState.Error("Please select a bank account for all bank payment rows")
+                    return
+                }
+                val amt = bp.amount.trim().toDoubleOrNull()
+                if (amt == null || amt <= 0.0) {
+                    _createActionState.value = UiState.Error("Bank payment amount must be greater than zero")
+                    return
+                }
+                if (!seenBanks.add(bp.bankId.trim())) {
+                    _createActionState.value = UiState.Error("Each bank account can only be selected once per purchase")
+                    return
+                }
+                bankSum += amt
+                effectiveBankSplits.add(bp)
+            }
+        }
+
+        val totalPaidVal = cashVal + bankSum
+        if (totalPaidVal > total) {
+            _createActionState.value = UiState.Error("Total paid amount cannot exceed purchase bill amount")
+            return
+        }
+
+        val formattedTotalPaid = String.format(java.util.Locale.US, "%.2f", totalPaidVal)
+        val formattedCash = String.format(java.util.Locale.US, "%.2f", cashVal)
+
+        viewModelScope.launch {
+            val req = CreatePurchaseRequest(
+                customerId = customerId?.trim()?.ifBlank { null },
+                item = trimmedItem,
+                quantity = qty,
+                totalAmount = totalAmount.trim(),
+                totalPaid = formattedTotalPaid,
+                cashAmount = formattedCash,
+                bankPayments = effectiveBankSplits
+            )
+            repository.createPurchase(req).collect { res ->
+                _createActionState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> {
+                        loadData()
+                        UiState.Success(Unit)
+                    }
+                    is Resource.Error -> UiState.Error(res.message, res.code)
+                }
+            }
+        }
+    }
+
+    fun createExpense(
+        item: String,
+        category: String?,
+        amount: String,
+        paymentMethod: String,
+        employeeId: String? = null,
+        paymentDate: String? = null,
+        bankId: String? = null,
+        referenceId: String? = null,
+        bankPayments: List<BankPaymentSplit> = emptyList()
+    ) {
+        if (_createActionState.value is UiState.Loading) return
+
+        val trimmedItem = item.trim()
+        if (trimmedItem.isBlank() || amount.isBlank()) {
             _createActionState.value = UiState.Error("Expense item name and amount are required")
             return
         }
@@ -452,12 +583,30 @@ class TransactionsViewModel @Inject constructor(
             return
         }
 
+        val isAdvance = category == "employee_advance"
+        if (isAdvance && employeeId.isNullOrBlank()) {
+            _createActionState.value = UiState.Error("Please select a staff member for the advance payment")
+            return
+        }
+
+        if (paymentMethod == "bank" && bankId.isNullOrBlank() && bankPayments.isEmpty()) {
+            _createActionState.value = UiState.Error("Please select a bank account for bank payment")
+            return
+        }
+
         viewModelScope.launch {
             val req = CreateExpenseRequest(
-                item = item.trim(),
+                item = trimmedItem,
                 category = category?.ifBlank { null },
+                employeeId = employeeId?.trim()?.ifBlank { null },
                 totalAmount = amount.trim(),
-                paymentMethod = paymentMethod
+                amount = amount.trim(),
+                paymentMethod = paymentMethod,
+                cashAmount = if (paymentMethod == "cash") amount.trim() else null,
+                bankId = bankId?.trim()?.ifBlank { null },
+                paymentDate = paymentDate?.trim()?.ifBlank { null },
+                referenceId = referenceId?.trim()?.ifBlank { null },
+                bankPayments = bankPayments
             )
             repository.createExpense(req).collect { res ->
                 _createActionState.value = when (res) {

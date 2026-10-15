@@ -33,7 +33,11 @@ import com.vyavsa.app.core.model.LineSalePayment
 import com.vyavsa.app.core.model.PaySalaryRequest
 import com.vyavsa.app.core.model.PlanTransaction
 import com.vyavsa.app.core.model.Purchase
+import com.vyavsa.app.core.model.PurchasePayment
 import com.vyavsa.app.core.model.PurchasePlanRequest
+import com.vyavsa.app.core.model.RecordSupplierPaymentRequest
+import com.vyavsa.app.core.model.SupplierPaymentResponse
+import com.vyavsa.app.core.model.UpdatePurchaseRequest
 import com.vyavsa.app.core.model.RecordAttendanceRequest
 import com.vyavsa.app.core.model.RecordPaymentRequest
 import com.vyavsa.app.core.model.RecordSalePaymentRequest
@@ -184,11 +188,33 @@ interface VyavsaApiService {
         @Query("page") page: Int = 1,
         @Query("page_size") pageSize: Int = 20,
         @Query("date") date: String? = null,
-        @Query("search") search: String? = null
+        @Query("search") search: String? = null,
+        @Query("customer_id") customerId: String? = null
     ): ApiResponse<List<Purchase>>
 
     @POST("api/v1/tenant/purchases")
     suspend fun createPurchase(@Body req: CreatePurchaseRequest): ApiResponse<Purchase>
+
+    @GET("api/v1/tenant/purchases/{id}")
+    suspend fun getPurchaseById(@Path("id") id: String): ApiResponse<Purchase>
+
+    @PUT("api/v1/tenant/purchases/{id}")
+    suspend fun updatePurchase(
+        @Path("id") id: String,
+        @Body req: UpdatePurchaseRequest
+    ): ApiResponse<Purchase>
+
+    @DELETE("api/v1/tenant/purchases/{id}")
+    suspend fun deletePurchase(@Path("id") id: String): ApiResponse<Map<String, Boolean>>
+
+    @GET("api/v1/tenant/purchases/{id}/payments")
+    suspend fun listPurchasePayments(@Path("id") id: String): ApiResponse<List<PurchasePayment>>
+
+    @POST("api/v1/tenant/purchases/{id}/payments")
+    suspend fun recordPurchaseSettlementPayment(
+        @Path("id") id: String,
+        @Body req: RecordSupplierPaymentRequest
+    ): ApiResponse<SupplierPaymentResponse>
 
     @GET("api/v1/tenant/customers")
     suspend fun listCustomers(

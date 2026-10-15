@@ -32,6 +32,9 @@ import com.vyavsa.app.feature.plans.PlansScreen
 import com.vyavsa.app.feature.plans.PlansViewModel
 import com.vyavsa.app.feature.transactions.CreateExpenseScreen
 import com.vyavsa.app.feature.transactions.CreateLineSaleScreen
+import com.vyavsa.app.feature.transactions.CreatePurchaseScreen
+import com.vyavsa.app.feature.transactions.PurchaseDetailsScreen
+import com.vyavsa.app.feature.transactions.PurchaseDetailsViewModel
 import com.vyavsa.app.feature.transactions.SaleDetailsScreen
 import com.vyavsa.app.feature.transactions.SaleDetailsViewModel
 import com.vyavsa.app.feature.transactions.TransactionsViewModel
@@ -163,6 +166,12 @@ fun VyavsaNavGraph(
                 onNavigateToCreateExpense = {
                     navController.navigate(Screen.CreateExpense.route)
                 },
+                onNavigateToCreatePurchase = {
+                    navController.navigate(Screen.CreatePurchase.route)
+                },
+                onNavigateToPurchaseDetails = { purchaseId ->
+                    navController.navigate(Screen.PurchaseDetails.createRoute(purchaseId))
+                },
                 onNavigateToCashDrawer = {
                     navController.navigate(Screen.CashDrawer.route)
                 },
@@ -209,6 +218,28 @@ fun VyavsaNavGraph(
             CreateExpenseScreen(
                 viewModel = transactionsViewModel,
                 onExpenseCreated = { navController.popBackStack() },
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.CreatePurchase.route) {
+            val transactionsViewModel: TransactionsViewModel = hiltViewModel()
+            CreatePurchaseScreen(
+                viewModel = transactionsViewModel,
+                onPurchaseCreated = { navController.popBackStack() },
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.PurchaseDetails.route,
+            arguments = listOf(
+                navArgument("purchaseId") { type = NavType.StringType }
+            )
+        ) { _ ->
+            val purchaseDetailsViewModel: PurchaseDetailsViewModel = hiltViewModel()
+            PurchaseDetailsScreen(
+                viewModel = purchaseDetailsViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

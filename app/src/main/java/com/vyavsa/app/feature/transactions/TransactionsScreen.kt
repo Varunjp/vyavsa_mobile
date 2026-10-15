@@ -30,6 +30,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -73,11 +75,14 @@ fun TransactionsScreen(
     viewModel: TransactionsViewModel,
     onNavigateToCreateSale: () -> Unit,
     onNavigateToCreateExpense: () -> Unit,
+    onNavigateToCreatePurchase: () -> Unit = {},
+    onNavigateToPurchaseDetails: (purchaseId: String) -> Unit = {},
     onNavigateToSaleDetails: (saleType: String, saleId: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val selectedTab by viewModel.selectedTab.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val dateFilter by viewModel.dateFilter.collectAsState()
     val lineSalesState by viewModel.lineSalesState.collectAsState()
     val counterSalesState by viewModel.counterSalesState.collectAsState()
     val purchasesState by viewModel.purchasesState.collectAsState()
@@ -102,6 +107,7 @@ fun TransactionsScreen(
     }
 
     val selectedTabIndex = availableTabs.indexOf(selectedTab).coerceAtLeast(0)
+    val todayDate = java.time.LocalDate.now().toString()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -112,11 +118,14 @@ fun TransactionsScreen(
             )
         },
         floatingActionButton = {
-            if (selectedTab == TransactionTab.SALES || selectedTab == TransactionTab.EXPENSES) {
+            if (selectedTab == TransactionTab.SALES || selectedTab == TransactionTab.PURCHASES || selectedTab == TransactionTab.EXPENSES) {
                 ExtendedFloatingActionButton(
                     onClick = {
-                        if (selectedTab == TransactionTab.SALES) onNavigateToCreateSale()
-                        else onNavigateToCreateExpense()
+                        when (selectedTab) {
+                            TransactionTab.SALES -> onNavigateToCreateSale()
+                            TransactionTab.PURCHASES -> onNavigateToCreatePurchase()
+                            else -> onNavigateToCreateExpense()
+                        }
                     },
                     shape = RoundedCornerShape(20.dp),
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -124,7 +133,11 @@ fun TransactionsScreen(
                     icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) },
                     text = {
                         Text(
-                            text = if (selectedTab == TransactionTab.SALES) "New Sale" else "New Expense",
+                            text = when (selectedTab) {
+                                TransactionTab.SALES -> "New Sale"
+                                TransactionTab.PURCHASES -> "New Purchase"
+                                else -> "New Expense"
+                            },
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -165,6 +178,33 @@ fun TransactionsScreen(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
 
+            // Date Quick Filter Chips
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = dateFilter == null,
+                    onClick = { viewModel.setDateFilter(null) },
+                    label = { Text("All Dates") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                )
+                FilterChip(
+                    selected = dateFilter == todayDate,
+                    onClick = { viewModel.setDateFilter(if (dateFilter == todayDate) null else todayDate) },
+                    label = { Text("Today") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                )
+            }
+
             // Content List based on Selected Tab
             when (selectedTab) {
                 TransactionTab.SALES -> {
@@ -177,7 +217,9 @@ fun TransactionsScreen(
                 }
                 TransactionTab.PURCHASES -> {
                     PurchasesListContent(
-                        purchasesState = purchasesState
+                        purchasesState = purchasesState,
+                        onAddPurchase = onNavigateToCreatePurchase,
+                        onPurchaseClick = onNavigateToPurchaseDetails
                     )
                 }
                 TransactionTab.EXPENSES -> {
@@ -418,7 +460,9 @@ private fun CounterSaleCard(
 
 @Composable
 private fun PurchasesListContent(
-    purchasesState: UiState<List<Purchase>>
+    purchasesState: UiState<List<Purchase>>,
+    onAddPurchase: () -> Unit = {},
+    onPurchaseClick: (purchaseId: String) -> Unit = {}
 ) {
     when (purchasesState) {
         is UiState.Loading -> {
@@ -430,7 +474,9 @@ private fun PurchasesListContent(
             EmptyStateView(
                 title = "No Purchases Recorded",
                 description = "Inventory stock intakes and supplier purchases will appear here",
-                icon = Icons.Default.ShoppingCart
+                icon = Icons.Default.ShoppingCart,
+                actionText = "Record First Purchase",
+                onActionClick = onAddPurchase
             )
         }
         is UiState.Error -> {
@@ -440,20 +486,33 @@ private fun PurchasesListContent(
         }
         is UiState.Success -> {
             val purchases = purchasesState.data
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                item {
-                    VyavsaSectionHeader(
-                        title = "Inventory Purchases & Procurement",
-                        badgeText = "${purchases.size}",
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                }
-                items(purchases) { purchase ->
-                    PurchaseCard(purchase)
+            if (purchases.isEmpty()) {
+                EmptyStateView(
+                    title = "No Purchases Recorded",
+                    description = "Inventory stock intakes and supplier purchases will appear here",
+                    icon = Icons.Default.ShoppingCart,
+                    actionText = "Record First Purchase",
+                    onActionClick = onAddPurchase
+                )
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    item {
+                        VyavsaSectionHeader(
+                            title = "Inventory Purchases & Procurement",
+                            badgeText = "${purchases.size}",
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                    }
+                    items(purchases) { purchase ->
+                        PurchaseCard(
+                            purchase = purchase,
+                            onClick = { onPurchaseClick(purchase.id) }
+                        )
+                    }
                 }
             }
         }
@@ -462,7 +521,10 @@ private fun PurchasesListContent(
 }
 
 @Composable
-private fun PurchaseCard(purchase: Purchase) {
+private fun PurchaseCard(
+    purchase: Purchase,
+    onClick: () -> Unit = {}
+) {
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -470,6 +532,7 @@ private fun PurchaseCard(purchase: Purchase) {
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
+            .clickable { onClick() }
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -505,6 +568,17 @@ private fun PurchaseCard(purchase: Purchase) {
                         text = if (!purchase.customerName.isNullOrBlank()) "Supplier: ${purchase.customerName} • Qty: ${purchase.quantity}" else "Qty: ${purchase.quantity}",
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
+                    val outstanding = purchase.outstandingAmount.toDoubleOrNull() ?: 0.0
+                    if (outstanding > 0.0) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Due: ₹${purchase.outstandingAmount}",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = Crimson600,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
                 }
             }
 
@@ -518,10 +592,19 @@ private fun PurchaseCard(purchase: Purchase) {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 val isPaid = purchase.paymentStatus.equals("PAID", ignoreCase = true)
+                val isPartial = purchase.paymentStatus.equals("PARTIAL", ignoreCase = true)
                 StatBadge(
                     text = purchase.paymentStatus.uppercase(),
-                    backgroundColor = if (isPaid) Emerald50 else Crimson50,
-                    textColor = if (isPaid) Emerald600 else Crimson600
+                    backgroundColor = when {
+                        isPaid -> Emerald50
+                        isPartial -> Amber50
+                        else -> Crimson50
+                    },
+                    textColor = when {
+                        isPaid -> Emerald600
+                        isPartial -> Amber600
+                        else -> Crimson600
+                    }
                 )
             }
         }
@@ -578,6 +661,7 @@ private fun ExpensesListContent(
 
 @Composable
 private fun ExpenseCard(expense: Expense) {
+    val isAdvance = expense.category.equals("employee_advance", ignoreCase = true) || !expense.employeeName.isNullOrBlank()
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -600,24 +684,28 @@ private fun ExpenseCard(expense: Expense) {
                     modifier = Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(15.dp))
-                        .background(Crimson50)
+                        .background(if (isAdvance) Amber50 else Crimson50)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CallMade,
+                        imageVector = if (isAdvance) Icons.Default.Payments else Icons.Default.CallMade,
                         contentDescription = null,
-                        tint = Crimson600,
+                        tint = if (isAdvance) Amber600 else Crimson600,
                         modifier = Modifier.size(20.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(14.dp))
                 Column {
                     Text(
-                        text = expense.item.ifBlank { "Expense" },
+                        text = if (isAdvance && expense.item.isBlank()) "Staff Advance" else expense.item.ifBlank { "Expense" },
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (!expense.employeeName.isNullOrBlank()) "Staff: ${expense.employeeName}" else if (!expense.category.isNullOrBlank()) expense.category.replace('_', ' ').uppercase() else FormatUtils.formatDateForDisplay(expense.createdAt),
+                        text = when {
+                            !expense.employeeName.isNullOrBlank() -> "Staff: ${expense.employeeName} (${FormatUtils.formatDateForDisplay(expense.createdAt)})"
+                            !expense.category.isNullOrBlank() -> "${expense.category.replace('_', ' ').uppercase()} • ${FormatUtils.formatDateForDisplay(expense.createdAt)}"
+                            else -> FormatUtils.formatDateForDisplay(expense.createdAt)
+                        },
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
                 }
@@ -633,11 +721,20 @@ private fun ExpenseCard(expense: Expense) {
                     )
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                StatBadge(
-                    text = expense.paymentMethod.uppercase(),
-                    backgroundColor = Blue50,
-                    textColor = Blue600
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (isAdvance) {
+                        StatBadge(
+                            text = "ADVANCE",
+                            backgroundColor = Amber50,
+                            textColor = Amber600
+                        )
+                    }
+                    StatBadge(
+                        text = expense.paymentMethod.uppercase(),
+                        backgroundColor = Blue50,
+                        textColor = Blue600
+                    )
+                }
             }
         }
     }

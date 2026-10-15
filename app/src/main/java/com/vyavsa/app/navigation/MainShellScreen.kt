@@ -55,6 +55,8 @@ import com.vyavsa.app.feature.transactions.TransactionsViewModel
 fun MainShellScreen(
     onNavigateToCreateSale: () -> Unit,
     onNavigateToCreateExpense: () -> Unit,
+    onNavigateToCreatePurchase: () -> Unit = {},
+    onNavigateToPurchaseDetails: (purchaseId: String) -> Unit = {},
     onNavigateToCashDrawer: () -> Unit,
     onNavigateToBankAccounts: () -> Unit,
     onNavigateToStatement: (customerId: String, customerName: String) -> Unit,
@@ -156,6 +158,8 @@ fun MainShellScreen(
                             viewModel = transactionsViewModel,
                             onNavigateToCreateSale = onNavigateToCreateSale,
                             onNavigateToCreateExpense = onNavigateToCreateExpense,
+                            onNavigateToCreatePurchase = onNavigateToCreatePurchase,
+                            onNavigateToPurchaseDetails = onNavigateToPurchaseDetails,
                             onNavigateToSaleDetails = onNavigateToSaleDetails
                         )
                     }
