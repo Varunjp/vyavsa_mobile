@@ -2,6 +2,7 @@ package com.vyavsa.app.feature.transactions
 
 import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.common.UiState
+import com.vyavsa.app.core.model.BankPaymentSplit
 import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.CreateCounterSaleRequest
 import com.vyavsa.app.core.model.CreateExpenseRequest
@@ -9,6 +10,12 @@ import com.vyavsa.app.core.model.CreateLineSaleRequest
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.LineSale
+import com.vyavsa.app.core.model.CashTransaction
+import com.vyavsa.app.core.model.CounterSalePayment
+import com.vyavsa.app.core.model.LineSalePayment
+import com.vyavsa.app.core.model.PlanTransaction
+import com.vyavsa.app.core.model.Purchase
+import com.vyavsa.app.core.model.RecordSalePaymentRequest
 import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
@@ -278,6 +285,240 @@ class TransactionsViewModelTest {
         assertTrue(updatedState is UiState.Success)
         assertEquals(2, (updatedState as UiState.Success).data.size)
     }
+
+    @Test
+    fun testCreateLineSaleWithMultipleBanksSuccess() = runTest {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "bank-1", bankName = "HDFC Bank", amount = "500.00"),
+            BankPaymentSplit(bankId = "bank-2", bankName = "SBI Bank", amount = "300.00")
+        )
+        viewModel.createLineSale(
+            customerId = "cust-1",
+            totalAmount = "1000.00",
+            cashIn = "200.00",
+            bankAmount = "800.00",
+            bankId = "bank-1",
+            bankPayments = splits,
+            route = "Sector B",
+            salesman = "Sunil",
+            note = "Multi bank payment"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue("Expected Success, got $actionState", actionState is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreateLineSaleRequest
+        assertNotNull(lastReq)
+        assertEquals("cust-1", lastReq?.customerId)
+        assertEquals("1000.00", lastReq?.totalAmount)
+        assertEquals("200.00", lastReq?.cashAmount)
+        assertEquals("800.00", lastReq?.bankAmount)
+        assertEquals("bank-1", lastReq?.bankId)
+        assertEquals(2, lastReq?.bankPayments?.size)
+        assertEquals("bank-1", lastReq?.bankPayments?.get(0)?.bankId)
+        assertEquals("500.00", lastReq?.bankPayments?.get(0)?.amount)
+        assertEquals("bank-2", lastReq?.bankPayments?.get(1)?.bankId)
+        assertEquals("300.00", lastReq?.bankPayments?.get(1)?.amount)
+    }
+
+    @Test
+    fun testCreateCounterSaleWithMultipleBanksSuccess() = runTest {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "bank-1", bankName = "HDFC Bank", amount = "200.00"),
+            BankPaymentSplit(bankId = "bank-2", bankName = "SBI Bank", amount = "300.00")
+        )
+        viewModel.createCounterSale(
+            item = "Cooking Oil",
+            price = "500.00",
+            totalAmount = "500.00",
+            cash = "0.00",
+            bankAmount = "500.00",
+            bankId = "bank-1",
+            bankPayments = splits
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue(actionState is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreateCounterSaleRequest
+        assertNotNull(lastReq)
+        assertEquals("bank", lastReq?.paymentMethod)
+        assertEquals("500.00", lastReq?.bankAmount)
+        assertEquals(2, lastReq?.bankPayments?.size)
+        assertEquals("200.00", lastReq?.bankPayments?.get(0)?.amount)
+        assertEquals("300.00", lastReq?.bankPayments?.get(1)?.amount)
+    }
+
+    @Test
+    fun testCreateCounterSaleWithCashAndMultipleBanksSplitMethod() = runTest {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "bank-1", bankName = "HDFC Bank", amount = "300.00"),
+            BankPaymentSplit(bankId = "bank-2", bankName = "SBI Bank", amount = "100.00")
+        )
+        viewModel.createCounterSale(
+            item = "Flour Bag",
+            price = "500.00",
+            totalAmount = "500.00",
+            cash = "100.00",
+            bankAmount = "400.00",
+            bankId = "bank-1",
+            bankPayments = splits
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue(actionState is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreateCounterSaleRequest
+        assertNotNull(lastReq)
+        assertEquals("split", lastReq?.paymentMethod)
+        assertEquals("100.00", lastReq?.cash)
+        assertEquals("400.00", lastReq?.bankAmount)
+        assertEquals(2, lastReq?.bankPayments?.size)
+    }
+
+    @Test
+    fun testCreateLineSaleValidationDuplicateBanks() = runTest {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "bank-1", bankName = "HDFC Bank", amount = "300.00"),
+            BankPaymentSplit(bankId = "bank-1", bankName = "HDFC Bank Duplicate", amount = "200.00")
+        )
+        viewModel.createLineSale(
+            customerId = "cust-1",
+            totalAmount = "1000.00",
+            cashIn = "500.00",
+            bankAmount = "500.00",
+            bankId = "bank-1",
+            bankPayments = splits
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue(actionState is UiState.Error)
+        assertEquals("Each bank account can only be selected once per sale", (actionState as UiState.Error).message)
+    }
+
+    @Test
+    fun testCreateCounterSaleValidationDuplicateBanks() = runTest {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "bank-2", bankName = "SBI Bank", amount = "200.00"),
+            BankPaymentSplit(bankId = "bank-2", bankName = "SBI Bank", amount = "200.00")
+        )
+        viewModel.createCounterSale(
+            item = "Items",
+            price = "400.00",
+            totalAmount = "400.00",
+            cash = "0.00",
+            bankAmount = "400.00",
+            bankId = "bank-2",
+            bankPayments = splits
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue(actionState is UiState.Error)
+        assertEquals("Each bank account can only be selected once per sale", (actionState as UiState.Error).message)
+    }
+
+    @Test
+    fun testCreateLineSaleValidationZeroOrNegativeBankSplitAmount() = runTest {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "bank-1", bankName = "HDFC Bank", amount = "0.00")
+        )
+        viewModel.createLineSale(
+            customerId = "cust-1",
+            totalAmount = "1000.00",
+            cashIn = "1000.00",
+            bankPayments = splits
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue(actionState is UiState.Error)
+        assertEquals("Bank payment amount must be greater than zero", (actionState as UiState.Error).message)
+    }
+
+    @Test
+    fun testCreateLineSaleValidationMissingBankIdInSplit() = runTest {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "", bankName = "", amount = "200.00")
+        )
+        viewModel.createLineSale(
+            customerId = "cust-1",
+            totalAmount = "1000.00",
+            cashIn = "800.00",
+            bankPayments = splits
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue(actionState is UiState.Error)
+        assertEquals("Please select a bank account for all bank payment rows", (actionState as UiState.Error).message)
+    }
+
+    @Test
+    fun testCreateLineSaleValidationMultipleBanksOverpayment() = runTest {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "bank-1", bankName = "HDFC Bank", amount = "600.00"),
+            BankPaymentSplit(bankId = "bank-2", bankName = "SBI Bank", amount = "500.00")
+        )
+        viewModel.createLineSale(
+            customerId = "cust-1",
+            totalAmount = "1000.00",
+            cashIn = "0.00",
+            bankPayments = splits
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue(actionState is UiState.Error)
+        assertEquals("Collected amount cannot exceed the total invoice amount", (actionState as UiState.Error).message)
+    }
+
+    @Test
+    fun testCreateCounterSaleValidationMultipleBanksOverpayment() = runTest {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "bank-1", bankName = "HDFC Bank", amount = "300.00"),
+            BankPaymentSplit(bankId = "bank-2", bankName = "SBI Bank", amount = "300.00")
+        )
+        viewModel.createCounterSale(
+            item = "Snacks",
+            price = "500.00",
+            totalAmount = "500.00",
+            cash = "0.00",
+            bankPayments = splits
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue(actionState is UiState.Error)
+        assertEquals("Collected amount cannot exceed the total sale amount", (actionState as UiState.Error).message)
+    }
+
+    @Test
+    fun testCreateLineSalePartialPaymentAllowed() = runTest {
+        val splits = listOf(
+            BankPaymentSplit(bankId = "bank-1", bankName = "HDFC Bank", amount = "300.00")
+        )
+        viewModel.createLineSale(
+            customerId = "cust-1",
+            totalAmount = "1000.00",
+            cashIn = "200.00",
+            bankPayments = splits
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue("Partial payment should be allowed. Got $actionState", actionState is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreateLineSaleRequest
+        assertNotNull(lastReq)
+        assertEquals("1000.00", lastReq?.totalAmount)
+        assertEquals("200.00", lastReq?.cashAmount)
+        assertEquals("300.00", lastReq?.bankAmount)
+    }
 }
 
 class FakeTransactionsRepository : TransactionsRepository {
@@ -383,5 +624,54 @@ class FakeTransactionsRepository : TransactionsRepository {
     override fun listCustomers(): Flow<Resource<List<Customer>>> = flow {
         emit(Resource.Loading)
         emit(Resource.Success(customers.toList()))
+    }
+
+    override fun getLineSaleById(id: String): Flow<Resource<LineSale>> = flow {
+        emit(Resource.Loading)
+        val sale = lineSales.firstOrNull { it.id == id }
+        if (sale != null) emit(Resource.Success(sale)) else emit(Resource.Error("Sale not found"))
+    }
+
+    override fun listLineSalePayments(id: String): Flow<Resource<List<LineSalePayment>>> = flow {
+        emit(Resource.Loading)
+        emit(Resource.Success(emptyList()))
+    }
+
+    override fun recordLineSalePayment(id: String, request: RecordSalePaymentRequest): Flow<Resource<LineSalePayment>> = flow {
+        emit(Resource.Loading)
+        val p = LineSalePayment(id = "pay-1", lineSaleId = id, amount = request.amount, paymentMethod = request.paymentMethod)
+        emit(Resource.Success(p))
+    }
+
+    override fun getCounterSaleById(id: String): Flow<Resource<CounterSale>> = flow {
+        emit(Resource.Loading)
+        val sale = counterSales.firstOrNull { it.id == id }
+        if (sale != null) emit(Resource.Success(sale)) else emit(Resource.Error("Sale not found"))
+    }
+
+    override fun listCounterSalePayments(id: String): Flow<Resource<List<CounterSalePayment>>> = flow {
+        emit(Resource.Loading)
+        emit(Resource.Success(emptyList()))
+    }
+
+    override fun recordCounterSalePayment(id: String, request: RecordSalePaymentRequest): Flow<Resource<CounterSalePayment>> = flow {
+        emit(Resource.Loading)
+        val p = CounterSalePayment(id = "cpay-1", counterSaleId = id, amount = request.amount, paymentMethod = request.paymentMethod)
+        emit(Resource.Success(p))
+    }
+
+    override fun listPurchases(date: String?, search: String?): Flow<Resource<List<Purchase>>> = flow {
+        emit(Resource.Loading)
+        emit(Resource.Success(emptyList()))
+    }
+
+    override fun listCashTransactions(): Flow<Resource<List<CashTransaction>>> = flow {
+        emit(Resource.Loading)
+        emit(Resource.Success(emptyList()))
+    }
+
+    override fun listSubscriptionTransactions(): Flow<Resource<List<PlanTransaction>>> = flow {
+        emit(Resource.Loading)
+        emit(Resource.Success(emptyList()))
     }
 }

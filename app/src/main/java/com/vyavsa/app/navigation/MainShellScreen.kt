@@ -58,6 +58,10 @@ fun MainShellScreen(
     onNavigateToCashDrawer: () -> Unit,
     onNavigateToBankAccounts: () -> Unit,
     onNavigateToStatement: (customerId: String, customerName: String) -> Unit,
+    onNavigateToSaleDetails: (saleType: String, saleId: String) -> Unit = { _, _ -> },
+    onNavigateToCustomerDetails: (customerId: String) -> Unit = {},
+    onNavigateToPlans: () -> Unit = {},
+    onNavigateToTenantUsers: () -> Unit = {},
     onLogoutSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -151,13 +155,15 @@ fun MainShellScreen(
                         TransactionsScreen(
                             viewModel = transactionsViewModel,
                             onNavigateToCreateSale = onNavigateToCreateSale,
-                            onNavigateToCreateExpense = onNavigateToCreateExpense
+                            onNavigateToCreateExpense = onNavigateToCreateExpense,
+                            onNavigateToSaleDetails = onNavigateToSaleDetails
                         )
                     }
                     BottomBarDestination.DUES -> {
                         DuesScreen(
                             viewModel = duesViewModel,
-                            onNavigateToStatement = onNavigateToStatement
+                            onNavigateToStatement = onNavigateToStatement,
+                            onNavigateToCustomerDetails = onNavigateToCustomerDetails
                         )
                     }
                     BottomBarDestination.STAFF -> {
@@ -169,7 +175,9 @@ fun MainShellScreen(
                         ProfileScreen(
                             viewModel = profileViewModel,
                             onLogoutSuccess = onLogoutSuccess,
-                            onNavigateToBankAccounts = onNavigateToBankAccounts
+                            onNavigateToBankAccounts = onNavigateToBankAccounts,
+                            onNavigateToPlans = onNavigateToPlans,
+                            onNavigateToTenantUsers = onNavigateToTenantUsers
                         )
                     }
                 }

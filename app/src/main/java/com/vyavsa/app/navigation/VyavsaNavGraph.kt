@@ -25,11 +25,18 @@ import com.vyavsa.app.feature.bank.BankAccountsScreen
 import com.vyavsa.app.feature.bank.BankViewModel
 import com.vyavsa.app.feature.cash.CashDrawerScreen
 import com.vyavsa.app.feature.cash.CashViewModel
+import com.vyavsa.app.feature.dues.CustomerDetailsScreen
 import com.vyavsa.app.feature.dues.CustomerStatementScreen
 import com.vyavsa.app.feature.dues.DuesViewModel
+import com.vyavsa.app.feature.plans.PlansScreen
+import com.vyavsa.app.feature.plans.PlansViewModel
 import com.vyavsa.app.feature.transactions.CreateExpenseScreen
 import com.vyavsa.app.feature.transactions.CreateLineSaleScreen
+import com.vyavsa.app.feature.transactions.SaleDetailsScreen
+import com.vyavsa.app.feature.transactions.SaleDetailsViewModel
 import com.vyavsa.app.feature.transactions.TransactionsViewModel
+import com.vyavsa.app.feature.users.TenantUsersScreen
+import com.vyavsa.app.feature.users.TenantUsersViewModel
 
 @Composable
 fun VyavsaNavGraph(
@@ -165,6 +172,18 @@ fun VyavsaNavGraph(
                 onNavigateToStatement = { customerId, customerName ->
                     navController.navigate(Screen.CustomerStatement.createRoute(customerId, customerName))
                 },
+                onNavigateToSaleDetails = { saleType, saleId ->
+                    navController.navigate(Screen.SaleDetails.createRoute(saleType, saleId))
+                },
+                onNavigateToCustomerDetails = { customerId ->
+                    navController.navigate(Screen.CustomerDetails.createRoute(customerId))
+                },
+                onNavigateToPlans = {
+                    navController.navigate(Screen.Plans.route)
+                },
+                onNavigateToTenantUsers = {
+                    navController.navigate(Screen.TenantUsers.route)
+                },
                 onLogoutSuccess = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.MainShell.route) { inclusive = true }
@@ -216,6 +235,54 @@ fun VyavsaNavGraph(
                 customerId = customerId,
                 customerName = customerName,
                 viewModel = duesViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.CustomerDetails.route,
+            arguments = listOf(
+                navArgument("customerId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val customerId = backStackEntry.arguments?.getString("customerId") ?: ""
+            val duesViewModel: DuesViewModel = hiltViewModel()
+            CustomerDetailsScreen(
+                customerId = customerId,
+                viewModel = duesViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToStatement = { cid, cname ->
+                    navController.navigate(Screen.CustomerStatement.createRoute(cid, cname))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.SaleDetails.route,
+            arguments = listOf(
+                navArgument("saleType") { type = NavType.StringType },
+                navArgument("saleId") { type = NavType.StringType }
+            )
+        ) { _ ->
+            val saleDetailsViewModel: SaleDetailsViewModel = hiltViewModel()
+            SaleDetailsScreen(
+                viewModel = saleDetailsViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Plans.route) {
+            val plansViewModel: PlansViewModel = hiltViewModel()
+            PlansScreen(
+                viewModel = plansViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.TenantUsers.route) {
+            val tenantUsersViewModel: TenantUsersViewModel = hiltViewModel()
+            TenantUsersScreen(
+                viewModel = tenantUsersViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

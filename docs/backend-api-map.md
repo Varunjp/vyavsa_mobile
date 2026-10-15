@@ -291,9 +291,23 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
       "salesman": "Ramesh",
       "note": "Morning delivery",
       "total_amount": "1500.00",
-      "total_cash_in": "1000.00",
-      "bank_amount": "500.00",
-      "bank_id": "optional-uuid-null-if-no-bank"
+      "total_cash_in": "500.00",
+      "cash_amount": "500.00",
+      "bank_amount": "1000.00",
+      "bank_id": "optional-uuid-primary-bank",
+      "bank_payments": [
+        {
+          "bank_id": "uuid-bank-1",
+          "bank_name": "HDFC Bank",
+          "amount": "600.00",
+          "note": "Cheque #123"
+        },
+        {
+          "bank_id": "uuid-bank-2",
+          "bank_name": "State Bank of India",
+          "amount": "400.00"
+        }
+      ]
     }
     ```
 - **Details**: `GET /api/v1/tenant/line-sales/:id`
@@ -309,13 +323,24 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
       "item": "Product A",
       "price": "250.00",
       "total_amount": "250.00",
-      "payment_method": "cash",
-      "cash": "200.00",
-      "bank_amount": "50.00",
-      "bank_id": "optional-uuid-null-if-no-bank"
+      "payment_method": "split",
+      "cash": "100.00",
+      "cash_amount": "100.00",
+      "bank_amount": "150.00",
+      "bank_id": "optional-uuid-primary-bank",
+      "bank_payments": [
+        {
+          "bank_id": "uuid-bank-1",
+          "bank_name": "HDFC Bank",
+          "amount": "150.00"
+        }
+      ],
+      "account": "counter"
     }
     ```
 - **Details**: `GET /api/v1/tenant/counter-sales/:id`
+- **Payments**: `GET /api/v1/tenant/counter-sales/:id/payments`
+- **Add Payment**: `POST /api/v1/tenant/counter-sales/:id/payments`
 
 ---
 
@@ -338,11 +363,21 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
 - **Record Settlement Payment**: `POST /api/v1/tenant/purchases/:id/payments`
 
 ### 6.2 Customer & Supplier Ledger (Dues)
-- **List Customers**: `GET /api/v1/tenant/customers?page=1&page_size=20&search=` (`tenant_admin`)
+- **List Customers**: `GET /api/v1/tenant/customers?page=1&page_size=20&search=` (`tenant_admin` or `tenant_user`)
+- **Customer Details**: `GET /api/v1/tenant/customers/:id`
+- **Create Customer**: `POST /api/v1/tenant/customers`
+- **Update Customer**: `PUT /api/v1/tenant/customers/:id`
+- **Delete Customer**: `DELETE /api/v1/tenant/customers/:id` (`tenant_admin` only)
 - **Customer Balance**: `GET /api/v1/tenant/customers/:id/balance`
   - Returns: `current_balance`, `total_purchases`, `total_paid`, `outstanding_payable`
 - **Customer Statement**: `GET /api/v1/tenant/customers/:id/statement`
-  - Returns chronological statement with running balance.
+  - Returns chronological statement with running balance and entries.
+- **Customer Previous Sales**: `GET /api/v1/tenant/customers/:id/sales`
+  - Returns array of customer `LineSale` records.
+- **Manual Balance Adjustment**: `POST /api/v1/tenant/customers/:id/adjust-balance` (`tenant_admin` only)
+  - Request: `{"new_balance": "500.00", "reason": "Audit adjustment"}`
+- **List Adjustments**: `GET /api/v1/tenant/customers/:id/adjustments`
+  - Returns audit trail of customer balance adjustments with previous balance, new balance, and reason.
 - **Record Settlement Payment**: `POST /api/v1/tenant/customers/:id/payments`
   - Request:
     ```json
@@ -373,23 +408,17 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
 
 ---
 
-## 8. Employees, Attendance & Salary
+## 8. Employees, Attendance & Salary (Operational Staff)
+
+*Employees are physical staff members on payroll. They do not have system login credentials unless explicitly created as Tenant Users.*
 
 ### 8.1 Employees
-- **List**: `GET /api/v1/tenant/employees?page=1&page_size=20&search=` (`tenant_admin`)
-- **Create**: `POST /api/v1/tenant/employees`
-  - Request:
-    ```json
-    {
-      "name": "Sunil Kumar",
-      "phone": "9876501234",
-      "salary": "15000.00",
-      "ot_rate": "100.00",
-      "status": "active"
-    }
-    ```
+- **List**: `GET /api/v1/tenant/employees?page=1&page_size=20&search=`
+- **Create**: `POST /api/v1/tenant/employees` (`tenant_admin`)
+- **Update**: `PUT /api/v1/tenant/employees/:id` (`tenant_admin`)
+- **Delete**: `DELETE /api/v1/tenant/employees/:id` (`tenant_admin`)
 
-### 8.2 Attendance
+### 8.2 Attendance & Advances
 - **List**: `GET /api/v1/tenant/attendance?date=YYYY-MM-DD`
 - **Record**: `POST /api/v1/tenant/attendance`
   - Request:
@@ -403,23 +432,56 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
     }
     ```
 
-### 8.3 Salary Management (`tenant_admin`)
+### 8.3 Salary Management (`tenant_admin` only)
 - **Pending Salaries**: `GET /api/v1/tenant/salaries/pending`
 - **Employee Statement**: `GET /api/v1/tenant/salaries/:employee_id/statement`
 - **Disburse Salary**: `POST /api/v1/tenant/salaries/:employee_id/pay`
-  - Request:
-    ```json
-    {
-      "payment_method": "cash",
-      "amount": "12000.00",
-      "payment_date": "2026-10-14",
-      "note": "Monthly payout"
-    }
-    ```
 
 ---
 
-## 9. Cash Book Management
+## 9. Tenant Users & RBAC (System Accounts)
+
+*Tenant users are application authentication accounts. Strictly separated from physical employees.*
+
+- **List Tenant Users**: `GET /api/v1/tenant/users?page=1&page_size=100&search=&role=&status=` (`tenant_admin` only)
+- **Create Tenant User**: `POST /api/v1/tenant/users` (`tenant_admin` only)
+  - Request:
+    ```json
+    {
+      "name": "Branch Manager",
+      "email": "manager@store.com",
+      "password": "strongPassword123",
+      "role": "admin"
+    }
+    ```
+- **User Details**: `GET /api/v1/tenant/users/:id` (`tenant_admin` only)
+- **Update Tenant User**: `PUT /api/v1/tenant/users/:id` (`tenant_admin` only)
+  - Request:
+    ```json
+    {
+      "name": "Updated Name",
+      "role": "user",
+      "status": "inactive"
+    }
+    ```
+- **Delete Tenant User**: `DELETE /api/v1/tenant/users/:id` (`tenant_admin` only)
+
+---
+
+## 10. Subscriptions & Plans
+
+- **Public Plans Catalog**: `GET /api/v1/plans`
+  - Lists available subscription tiers (`plan_name`, `price`, `duration_days`, `features`).
+- **Active Tenant Subscription**: `GET /api/v1/tenant/subscription`
+  - Returns current active subscription (`current_plan_name`, `status`, `days_remaining`, `is_expired`, `price`).
+- **Purchase / Upgrade Plan**: `POST /api/v1/tenant/subscription/purchase` (`tenant_admin` only)
+  - Request: `{"plan_id": "uuid-plan", "payment_method": "upi"}`
+- **Billing History Transactions**: `GET /api/v1/tenant/subscription/transactions` (`tenant_admin` only)
+  - Returns subscription ledger (`transaction_id`, `plan_name`, `amount`, `payment_method`, `status`, `created_at`).
+
+---
+
+## 11. Cash Book Management
 
 - **Get Authoritative Cash Balance**: `GET /api/v1/tenant/cash/balance`
 - **List Cash Transactions**: `GET /api/v1/tenant/cash/transactions?page=1&page_size=20`
@@ -430,7 +492,7 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
 
 ---
 
-## 10. Reports
+## 12. Reports
 
 - **Daily Operations Report**: `GET /api/v1/tenant/reports/daily?date=YYYY-MM-DD`
 - **Daily Report PDF**: `GET /api/v1/tenant/reports/daily/pdf?date=YYYY-MM-DD`

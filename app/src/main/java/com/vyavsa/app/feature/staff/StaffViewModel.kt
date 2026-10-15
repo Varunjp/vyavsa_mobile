@@ -28,8 +28,13 @@ enum class StaffTab {
 class StaffViewModel @Inject constructor(
     private val repository: StaffRepository,
     private val refreshCoordinator: DataRefreshCoordinator,
-    val tokenManager: TokenManager
+    val tokenManager: TokenManager? = null
 ) : ViewModel() {
+
+    var adminOverrideForTesting: Boolean? = null
+
+    val isAdmin: Boolean
+        get() = adminOverrideForTesting ?: (tokenManager?.isTenantAdmin() ?: false)
 
     private val _selectedTab = MutableStateFlow(StaffTab.ATTENDANCE)
     val selectedTab: StateFlow<StaffTab> = _selectedTab.asStateFlow()
@@ -72,7 +77,7 @@ class StaffViewModel @Inject constructor(
     fun loadData() {
         loadEmployees()
         loadAttendance()
-        if (tokenManager.isTenantAdmin()) {
+        if (isAdmin) {
             loadSalaries()
         }
     }
@@ -180,6 +185,48 @@ class StaffViewModel @Inject constructor(
                             refreshCoordinator.notifyMutation(DataMutation.CASH)
                         }
                         loadSalaries()
+                        UiState.Success(Unit)
+                    }
+                    is Resource.Error -> UiState.Error(res.message)
+                }
+            }
+        }
+    }
+
+    fun updateEmployee(id: String, name: String?, phone: String?, salary: String?, otRate: String?, status: String?) {
+        if (!isAdmin) {
+            _actionState.value = UiState.Error("Access Denied: Administrator role required")
+            return
+        }
+
+        viewModelScope.launch {
+            repository.updateEmployee(id, name, phone, salary, otRate, status).collect { res ->
+                _actionState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> {
+                        refreshCoordinator.notifyMutation(DataMutation.STAFF)
+                        loadEmployees()
+                        UiState.Success(Unit)
+                    }
+                    is Resource.Error -> UiState.Error(res.message)
+                }
+            }
+        }
+    }
+
+    fun deleteEmployee(id: String) {
+        if (!isAdmin) {
+            _actionState.value = UiState.Error("Access Denied: Administrator role required")
+            return
+        }
+
+        viewModelScope.launch {
+            repository.deleteEmployee(id).collect { res ->
+                _actionState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> {
+                        refreshCoordinator.notifyMutation(DataMutation.STAFF)
+                        loadEmployees()
                         UiState.Success(Unit)
                     }
                     is Resource.Error -> UiState.Error(res.message)

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -72,6 +73,8 @@ fun ProfileScreen(
     viewModel: ProfileViewModel,
     onLogoutSuccess: () -> Unit,
     onNavigateToBankAccounts: () -> Unit = {},
+    onNavigateToPlans: () -> Unit = {},
+    onNavigateToTenantUsers: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val profileState by viewModel.profileState.collectAsState()
@@ -284,6 +287,7 @@ fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+                    .clickable { onNavigateToPlans() }
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Row(
@@ -307,26 +311,29 @@ fun ProfileScreen(
                                 )
                             }
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Active Subscription",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                            )
+                            Column {
+                                Text(
+                                    text = "Subscription & Plans",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                                Text(
+                                    text = "View tiers, features & invoices",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                )
+                            }
                         }
 
-                        val sub = (subscriptionState as? UiState.Success)?.data
-                        if (sub != null) {
-                            StatBadge(
-                                text = if (sub.isExpired) "EXPIRED" else "${sub.daysRemaining} days left",
-                                backgroundColor = if (sub.isExpired) Crimson50 else Emerald50,
-                                textColor = if (sub.isExpired) Crimson600 else Emerald600
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = "View Plans",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
-
-                    Spacer(modifier = Modifier.height(14.dp))
 
                     val sub = (subscriptionState as? UiState.Success)?.data
                     if (sub != null) {
+                        Spacer(modifier = Modifier.height(14.dp))
                         Surface(
                             shape = RoundedCornerShape(16.dp),
                             color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -334,23 +341,80 @@ fun ProfileScreen(
                         ) {
                             Row(
                                 horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(14.dp)
                             ) {
                                 Text(
                                     text = "Plan: ${sub.currentPlanName}",
                                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
                                 )
-                                Text(
-                                    text = sub.status.uppercase(),
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
+                                StatBadge(
+                                    text = if (sub.isExpired) "EXPIRED" else "${sub.daysRemaining} days left",
+                                    backgroundColor = if (sub.isExpired) Crimson50 else Emerald50,
+                                    textColor = if (sub.isExpired) Crimson600 else Emerald600
                                 )
                             }
                         }
                     } else if (subscriptionState is UiState.Loading) {
+                        Spacer(modifier = Modifier.height(10.dp))
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                }
+            }
+
+            // Tenant User & Roles Management Card (Admin only)
+            if (isAdmin) {
+                Card(
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+                        .clickable { onNavigateToTenantUsers() }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Blue50)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ManageAccounts,
+                                    contentDescription = null,
+                                    tint = Blue600,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text(
+                                    text = "Tenant Users & Roles",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Manage staff login access, admins & credentials",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                )
+                            }
+                        }
+
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = "Navigate to Tenant Users",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
             }

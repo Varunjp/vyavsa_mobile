@@ -12,12 +12,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import com.vyavsa.app.core.model.UpdateEmployeeRequest
+import com.vyavsa.app.core.model.EmployeeSalaryStatement
 import javax.inject.Inject
 import javax.inject.Singleton
 
 interface StaffRepository {
     fun listEmployees(): Flow<Resource<List<Employee>>>
     fun createEmployee(name: String, phone: String?, salary: String, otRate: String): Flow<Resource<Employee>>
+    fun updateEmployee(id: String, name: String?, phone: String?, salary: String?, otRate: String?, status: String?): Flow<Resource<Employee>>
+    fun deleteEmployee(id: String): Flow<Resource<Unit>>
+    fun getEmployeeSalaryStatement(id: String): Flow<Resource<EmployeeSalaryStatement>>
     fun listAttendance(date: String?): Flow<Resource<List<AttendanceRecord>>>
     fun recordAttendance(employeeId: String, date: String, status: String, otAmount: String, advance: String): Flow<Resource<AttendanceRecord>>
     fun listPendingSalaries(): Flow<Resource<List<EmployeeSalary>>>
@@ -138,6 +143,62 @@ class StaffRepositoryImpl @Inject constructor(
                 emit(Resource.Success(Unit, response.message))
             } else {
                 emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to disburse salary"))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun updateEmployee(
+        id: String,
+        name: String?,
+        phone: String?,
+        salary: String?,
+        otRate: String?,
+        status: String?
+    ): Flow<Resource<Employee>> = flow {
+        emit(Resource.Loading)
+        try {
+            val req = UpdateEmployeeRequest(
+                name = name?.trim()?.ifBlank { null },
+                phone = phone?.trim()?.ifBlank { null },
+                salary = salary?.trim()?.ifBlank { null },
+                otRate = otRate?.trim()?.ifBlank { null },
+                status = status?.ifBlank { null }
+            )
+            val response = apiService.updateEmployee(id, req)
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data, response.message ?: "Employee updated successfully"))
+            } else {
+                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update employee"))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun deleteEmployee(id: String): Flow<Resource<Unit>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.deleteEmployee(id)
+            if (response.success) {
+                emit(Resource.Success(Unit, response.message ?: "Employee deleted successfully"))
+            } else {
+                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to delete employee"))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun getEmployeeSalaryStatement(id: String): Flow<Resource<EmployeeSalaryStatement>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.getEmployeeSalaryStatement(id)
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data))
+            } else {
+                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load salary statement"))
             }
         } catch (e: Exception) {
             emit(Resource.Error(e.message ?: "Network error"))

@@ -65,6 +65,7 @@ import com.vyavsa.app.core.model.Customer
 fun DuesScreen(
     viewModel: DuesViewModel,
     onNavigateToStatement: (customerId: String, customerName: String) -> Unit,
+    onNavigateToCustomerDetails: (customerId: String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val customersState by viewModel.customersState.collectAsState()
@@ -198,7 +199,7 @@ fun DuesScreen(
                             CustomerDuesCard(
                                 customer = customer,
                                 onReceivePaymentClick = { payingCustomer = customer },
-                                onClick = { onNavigateToStatement(customer.id, customer.customerName) }
+                                onClick = { onNavigateToCustomerDetails(customer.id) }
                             )
                         }
                     }
