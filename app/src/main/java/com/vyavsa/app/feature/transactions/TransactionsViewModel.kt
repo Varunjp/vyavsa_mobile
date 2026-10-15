@@ -23,6 +23,8 @@ import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import com.vyavsa.app.feature.bank.BankRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -89,6 +91,8 @@ class TransactionsViewModel @Inject constructor(
     private val _createActionState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val createActionState: StateFlow<UiState<Unit>> = _createActionState.asStateFlow()
 
+    private var searchJob: Job? = null
+
     val isAdmin: Boolean
         get() = tokenManager?.isTenantAdmin() ?: false
 
@@ -131,22 +135,27 @@ class TransactionsViewModel @Inject constructor(
 
     fun onSearchChange(query: String) {
         _searchQuery.value = query
-        loadData()
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(220L)
+            loadFilterableData()
+        }
     }
 
     fun setDateFilter(date: String?) {
         _dateFilter.value = date
-        loadData()
+        searchJob?.cancel()
+        loadFilterableData()
     }
 
-    fun loadData() {
+    private fun loadFilterableData() {
         val query = _searchQuery.value.ifBlank { null }
         val date = _dateFilter.value?.ifBlank { null }
 
         viewModelScope.launch {
             repository.listLineSales(date = date, search = query).collect { res ->
                 _lineSalesState.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_lineSalesState.value is UiState.Success) _lineSalesState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }
@@ -156,7 +165,7 @@ class TransactionsViewModel @Inject constructor(
         viewModelScope.launch {
             repository.listCounterSales(date = date, search = query).collect { res ->
                 _counterSalesState.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_counterSalesState.value is UiState.Success) _counterSalesState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }
@@ -166,7 +175,7 @@ class TransactionsViewModel @Inject constructor(
         viewModelScope.launch {
             repository.listPurchases(date = date, search = query).collect { res ->
                 _purchasesState.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_purchasesState.value is UiState.Success) _purchasesState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }
@@ -176,17 +185,21 @@ class TransactionsViewModel @Inject constructor(
         viewModelScope.launch {
             repository.listExpenses(date = date, search = query).collect { res ->
                 _expensesState.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_expensesState.value is UiState.Success) _expensesState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }
             }
         }
+    }
+
+    fun loadData() {
+        loadFilterableData()
 
         viewModelScope.launch {
             repository.listCashTransactions().collect { res ->
                 _cashTransactionsState.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_cashTransactionsState.value is UiState.Success) _cashTransactionsState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }
@@ -197,7 +210,7 @@ class TransactionsViewModel @Inject constructor(
             viewModelScope.launch {
                 repository.listSubscriptionTransactions().collect { res ->
                     _billingTransactionsState.value = when (res) {
-                        is Resource.Loading -> UiState.Loading
+                        is Resource.Loading -> if (_billingTransactionsState.value is UiState.Success) _billingTransactionsState.value else UiState.Loading
                         is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
                         is Resource.Error -> UiState.Error(res.message)
                     }
@@ -210,7 +223,7 @@ class TransactionsViewModel @Inject constructor(
         viewModelScope.launch {
             repository.listCustomers().collect { res ->
                 _customersState.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_customersState.value is UiState.Success) _customersState.value else UiState.Loading
                     is Resource.Success -> UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }
@@ -222,7 +235,7 @@ class TransactionsViewModel @Inject constructor(
         viewModelScope.launch {
             bankRepository.listBanks().collect { res ->
                 _banksState.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_banksState.value is UiState.Success) _banksState.value else UiState.Loading
                     is Resource.Success -> UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }
@@ -234,7 +247,7 @@ class TransactionsViewModel @Inject constructor(
         viewModelScope.launch {
             repository.listEmployees().collect { res ->
                 _employeesState.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_employeesState.value is UiState.Success) _employeesState.value else UiState.Loading
                     is Resource.Success -> UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }

@@ -1,5 +1,6 @@
 package com.vyavsa.app.core.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -20,6 +21,7 @@ data class TenantRegisterRequest(
     @SerialName("plan_id") val planId: String? = null
 )
 
+@Immutable
 @Serializable
 data class TokenResponse(
     @SerialName("access_token") val accessToken: String = "",
@@ -29,6 +31,7 @@ data class TokenResponse(
     val user: UserProfile = UserProfile()
 )
 
+@Immutable
 @Serializable
 data class UserProfile(
     val id: String = "",
@@ -55,6 +58,7 @@ data class VerifyResetOtpRequest(
     val otp: String
 )
 
+@Immutable
 @Serializable
 data class VerifyResetOtpResponse(
     @SerialName("reset_token") val resetToken: String = ""

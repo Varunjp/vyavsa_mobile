@@ -1,8 +1,8 @@
 package com.vyavsa.app.feature.dues
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,17 +34,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,7 +55,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -65,7 +62,6 @@ import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.AvatarInitialCircle
-import com.vyavsa.app.core.designsystem.Blue50
 import com.vyavsa.app.core.designsystem.Blue600
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
@@ -75,13 +71,15 @@ import com.vyavsa.app.core.designsystem.EmptyStateView
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaButton
+import com.vyavsa.app.core.designsystem.VyavsaOutlinedButton
+import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.CustomerBalanceAdjustment
 import com.vyavsa.app.core.model.LineSale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun CustomerDetailsScreen(
     customerId: String,
@@ -118,18 +116,34 @@ fun CustomerDetailsScreen(
                 onNavigationClick = onNavigateBack,
                 actions = {
                     if (isAdmin) {
-                        IconButton(onClick = { showEditDialog = true }) {
+                        FilledTonalIconButton(
+                            onClick = { showEditDialog = true },
+                            shape = CircleShape,
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier.size(38.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Edit,
                                 contentDescription = "Edit Customer",
-                                tint = MaterialTheme.colorScheme.onSurface
+                                modifier = Modifier.size(18.dp)
                             )
                         }
-                        IconButton(onClick = { showDeleteConfirmDialog = true }) {
+                        FilledTonalIconButton(
+                            onClick = { showDeleteConfirmDialog = true },
+                            shape = CircleShape,
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = Crimson50,
+                                contentColor = Crimson600
+                            ),
+                            modifier = Modifier.size(38.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = "Delete Customer",
-                                tint = Crimson600
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -161,7 +175,7 @@ fun CustomerDetailsScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        item {
+                        item(key = "customer_hero_card") {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -295,10 +309,11 @@ fun CustomerDetailsScreen(
 
                                         Spacer(modifier = Modifier.height(18.dp))
 
-                                        // Action buttons row
+                                        // Action buttons row (Naturally aligned equal heights)
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             VyavsaButton(
                                                 text = "Record Payment",
@@ -307,19 +322,12 @@ fun CustomerDetailsScreen(
                                                 modifier = Modifier.weight(1f)
                                             )
 
-                                            OutlinedButton(
+                                            VyavsaOutlinedButton(
+                                                text = "Statement",
+                                                leadingIcon = Icons.Default.Receipt,
                                                 onClick = { onNavigateToStatement(customer.id, customer.customerName) },
-                                                shape = RoundedCornerShape(16.dp),
                                                 modifier = Modifier.weight(1f)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Receipt,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Statement", fontWeight = FontWeight.SemiBold)
-                                            }
+                                            )
                                         }
 
                                         if (isAdmin) {
@@ -335,7 +343,7 @@ fun CustomerDetailsScreen(
                                                     tint = MaterialTheme.colorScheme.primary
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Adjust Ledger Balance Manually")
+                                                Text("Adjust Ledger Balance Manually", fontWeight = FontWeight.Bold)
                                             }
                                         }
                                     }
@@ -343,33 +351,22 @@ fun CustomerDetailsScreen(
                             }
                         }
 
-                        // Tab Bar
-                        item {
-                            TabRow(
-                                selectedTabIndex = selectedTabIndex,
-                                containerColor = MaterialTheme.colorScheme.surface,
-                                contentColor = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 20.dp)
-                            ) {
-                                Tab(
-                                    selected = selectedTabIndex == 0,
-                                    onClick = { selectedTabIndex = 0 },
-                                    text = { Text("Sales History", fontWeight = FontWeight.Bold) }
-                                )
-                                Tab(
-                                    selected = selectedTabIndex == 1,
-                                    onClick = { selectedTabIndex = 1 },
-                                    text = { Text("Balance Adjustments", fontWeight = FontWeight.Bold) }
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
+                        // Unified Pill Segmented Tab Switcher
+                        item(key = "customer_tabs") {
+                            VyavsaSegmentedTabs(
+                                tabs = listOf("Sales History", "Balance Adjustments"),
+                                selectedIndex = selectedTabIndex,
+                                onTabSelected = { selectedTabIndex = it },
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
                         }
 
                         // Tab Content
                         if (selectedTabIndex == 0) {
                             when (val sState = salesState) {
                                 is UiState.Loading -> {
-                                    item {
+                                    item(key = "sales_loading") {
                                         Box(
                                             contentAlignment = Alignment.Center,
                                             modifier = Modifier.fillMaxWidth().padding(32.dp)
@@ -379,7 +376,7 @@ fun CustomerDetailsScreen(
                                     }
                                 }
                                 is UiState.Empty -> {
-                                    item {
+                                    item(key = "sales_empty") {
                                         EmptyStateView(
                                             title = "No Prior Sales",
                                             description = "No sale transactions recorded for this customer yet."
@@ -387,17 +384,22 @@ fun CustomerDetailsScreen(
                                     }
                                 }
                                 is UiState.Error -> {
-                                    item {
+                                    item(key = "sales_error") {
                                         Box(modifier = Modifier.padding(20.dp)) {
                                             ErrorBanner(message = sState.message)
                                         }
                                     }
                                 }
                                 is UiState.Success -> {
-                                    items(sState.data) { sale ->
+                                    items(
+                                        items = sState.data,
+                                        key = { "cust_sale_${it.id}" }
+                                    ) { sale ->
                                         CustomerSaleItemCard(
                                             sale = sale,
-                                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+                                            modifier = Modifier
+                                                .padding(horizontal = 20.dp, vertical = 6.dp)
+                                                .animateItemPlacement()
                                         )
                                     }
                                 }
@@ -406,7 +408,7 @@ fun CustomerDetailsScreen(
                         } else {
                             when (val aState = adjustmentsState) {
                                 is UiState.Loading -> {
-                                    item {
+                                    item(key = "adj_loading") {
                                         Box(
                                             contentAlignment = Alignment.Center,
                                             modifier = Modifier.fillMaxWidth().padding(32.dp)
@@ -416,7 +418,7 @@ fun CustomerDetailsScreen(
                                     }
                                 }
                                 is UiState.Empty -> {
-                                    item {
+                                    item(key = "adj_empty") {
                                         EmptyStateView(
                                             title = "No Balance Adjustments",
                                             description = "No manual ledger balance adjustments have been made for this customer."
@@ -424,17 +426,22 @@ fun CustomerDetailsScreen(
                                     }
                                 }
                                 is UiState.Error -> {
-                                    item {
+                                    item(key = "adj_error") {
                                         Box(modifier = Modifier.padding(20.dp)) {
                                             ErrorBanner(message = aState.message)
                                         }
                                     }
                                 }
                                 is UiState.Success -> {
-                                    items(aState.data) { adj ->
+                                    items(
+                                        items = aState.data,
+                                        key = { "cust_adj_${it.id}" }
+                                    ) { adj ->
                                         CustomerAdjustmentItemCard(
                                             adjustment = adj,
-                                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+                                            modifier = Modifier
+                                                .padding(horizontal = 20.dp, vertical = 6.dp)
+                                                .animateItemPlacement()
                                         )
                                     }
                                 }
@@ -442,7 +449,7 @@ fun CustomerDetailsScreen(
                             }
                         }
 
-                        item {
+                        item(key = "bottom_spacer") {
                             Spacer(modifier = Modifier.height(24.dp))
                         }
                     }
@@ -487,7 +494,9 @@ fun CustomerDetailsScreen(
                     if (showDeleteConfirmDialog) {
                         AlertDialog(
                             onDismissRequest = { showDeleteConfirmDialog = false },
-                            title = { Text("Delete Customer Account") },
+                            shape = RoundedCornerShape(28.dp),
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            title = { Text("Delete Customer Account", fontWeight = FontWeight.ExtraBold) },
                             text = {
                                 Text("Are you sure you want to delete ${customer.customerName}? This action cannot be undone if ledger transactions are active.")
                             },
@@ -523,12 +532,12 @@ private fun CustomerSaleItemCard(
     modifier: Modifier = Modifier
 ) {
     Card(
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -583,12 +592,12 @@ private fun CustomerAdjustmentItemCard(
     modifier: Modifier = Modifier
 ) {
     Card(
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -637,7 +646,9 @@ private fun CustomerRecordPaymentDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Receive Payment from ${customer.customerName}") },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Receive Payment from ${customer.customerName}", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 VyavsaTextField(
@@ -654,6 +665,7 @@ private fun CustomerRecordPaymentDialog(
                     FilterChip(
                         selected = selectedMethod == "cash",
                         onClick = { selectedMethod = "cash" },
+                        shape = CircleShape,
                         label = { Text("Cash Till") },
                         leadingIcon = {
                             Icon(imageVector = Icons.Default.Money, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -667,6 +679,7 @@ private fun CustomerRecordPaymentDialog(
                     FilterChip(
                         selected = selectedMethod == "bank",
                         onClick = { selectedMethod = "bank" },
+                        shape = CircleShape,
                         label = { Text("Bank Transfer") },
                         leadingIcon = {
                             Icon(imageVector = Icons.Default.AccountBalance, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -716,7 +729,9 @@ private fun EditCustomerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Customer Profile") },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Edit Customer Profile", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 VyavsaTextField(
@@ -739,6 +754,7 @@ private fun EditCustomerDialog(
                     FilterChip(
                         selected = status == "active",
                         onClick = { status = "active" },
+                        shape = CircleShape,
                         label = { Text("Active") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Emerald50,
@@ -749,6 +765,7 @@ private fun EditCustomerDialog(
                     FilterChip(
                         selected = status == "inactive",
                         onClick = { status = "inactive" },
+                        shape = CircleShape,
                         label = { Text("Inactive") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Crimson50,
@@ -789,7 +806,9 @@ private fun AdjustBalanceDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Adjust Customer Balance") },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Adjust Customer Balance", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(

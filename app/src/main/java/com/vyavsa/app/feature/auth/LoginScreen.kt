@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,7 +39,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -48,6 +51,7 @@ import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaButton
+import com.vyavsa.app.core.designsystem.VyavsaGradients
 import com.vyavsa.app.core.designsystem.VyavsaPasswordField
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 
@@ -76,7 +80,16 @@ fun LoginScreen(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .imePadding()
     ) {
+        // Subtle ambient top gradient wash
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(260.dp)
+                .background(VyavsaGradients.SoftHeaderGlowBrush)
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -90,14 +103,15 @@ fun LoginScreen(
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(68.dp)
+                        .shadow(8.dp, RoundedCornerShape(22.dp))
                         .clip(RoundedCornerShape(22.dp))
-                        .background(MaterialTheme.colorScheme.primary)
+                        .background(VyavsaGradients.PrimaryHeroBrush)
                 ) {
                     Icon(
                         imageVector = Icons.Default.AccountBalance,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
+                        tint = Color.White,
                         modifier = Modifier.size(32.dp)
                     )
                 }

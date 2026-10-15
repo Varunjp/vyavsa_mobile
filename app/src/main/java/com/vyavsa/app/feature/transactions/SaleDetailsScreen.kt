@@ -21,32 +21,24 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -72,6 +64,7 @@ import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaButton
 import com.vyavsa.app.core.designsystem.VyavsaTextField
+import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.CounterSalePayment
 import com.vyavsa.app.core.model.LineSale
@@ -86,7 +79,6 @@ fun SaleDetailsScreen(
     modifier: Modifier = Modifier
 ) {
     val detailState by viewModel.detailState.collectAsState()
-    val paymentActionState by viewModel.paymentActionState.collectAsState()
     val banks by viewModel.banksState.collectAsState()
 
     var showPaymentDialog by remember { mutableStateOf(false) }
@@ -94,30 +86,11 @@ fun SaleDetailsScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = if (viewModel.saleType == "counter") "Counter Sale Details" else "Line Sale Details",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                        )
-                        Text(
-                            text = "Transaction & payment audit record",
-                            style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+            VyavsaTopAppBar(
+                title = if (viewModel.saleType == "counter") "Counter Sale Details" else "Line Sale Details",
+                subtitle = "Transaction & payment audit record",
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                onNavigationClick = onNavigateBack
             )
         },
         modifier = modifier
@@ -334,6 +307,7 @@ private fun LineSaleDetailsContent(
                     Spacer(modifier = Modifier.height(16.dp))
                     VyavsaButton(
                         text = "Record Customer Payment",
+                        leadingIcon = Icons.Default.Payment,
                         onClick = onRecordPaymentClick,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -655,7 +629,7 @@ private fun RecordSalePaymentDialog(
     onDismiss: () -> Unit,
     onConfirm: (amount: String, method: String, bankId: String?, note: String?) -> Unit
 ) {
-    var amount by remember { mutableStateOf(if (maxDue > 0) String.format("%.2f", maxDue) else "") }
+    var amount by remember { mutableStateOf(if (maxDue > 0) String.format(java.util.Locale.US, "%.2f", maxDue) else "") }
     var selectedMethod by remember { mutableStateOf("cash") }
     var selectedBankId by remember { mutableStateOf<String?>(banks.firstOrNull()?.id) }
     var note by remember { mutableStateOf("") }
@@ -663,7 +637,9 @@ private fun RecordSalePaymentDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Record Payment on Sale", fontWeight = FontWeight.Bold) },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Record Payment on Sale", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 VyavsaTextField(
@@ -673,23 +649,29 @@ private fun RecordSalePaymentDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
 
-                Text("Payment Method", style = MaterialTheme.typography.labelSmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Payment Method", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     listOf("cash", "bank", "cheque", "upi").forEach { method ->
                         FilterChip(
                             selected = selectedMethod == method,
                             onClick = { selectedMethod = method },
-                            label = { Text(method.uppercase()) }
+                            shape = CircleShape,
+                            label = { Text(method.uppercase()) },
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
 
                 if (selectedMethod != "cash" && banks.isNotEmpty()) {
-                    Text("Select Bank Account", style = MaterialTheme.typography.labelSmall)
+                    Text("Select Bank Account", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
                     banks.forEach { bank ->
                         FilterChip(
                             selected = selectedBankId == bank.id,
                             onClick = { selectedBankId = bank.id },
+                            shape = CircleShape,
                             label = { Text(bank.bankName) },
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
@@ -708,19 +690,22 @@ private fun RecordSalePaymentDialog(
             }
         },
         confirmButton = {
-            Button(onClick = {
-                val amt = amount.toDoubleOrNull()
-                if (amt == null || amt <= 0.0) {
-                    errorText = "Enter a valid payment amount"
-                    return@Button
-                }
-                if (selectedMethod != "cash" && selectedBankId.isNullOrBlank()) {
-                    errorText = "Please select a bank account"
-                    return@Button
-                }
-                onConfirm(amount, selectedMethod, selectedBankId, note.ifBlank { null })
-            }) {
-                Text("Record Payment")
+            Button(
+                onClick = {
+                    val amt = amount.toDoubleOrNull()
+                    if (amt == null || amt <= 0.0) {
+                        errorText = "Enter a valid payment amount"
+                        return@Button
+                    }
+                    if (selectedMethod != "cash" && selectedBankId.isNullOrBlank()) {
+                        errorText = "Please select a bank account"
+                        return@Button
+                    }
+                    onConfirm(amount, selectedMethod, selectedBankId, note.ifBlank { null })
+                },
+                shape = CircleShape
+            ) {
+                Text("Record Payment", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

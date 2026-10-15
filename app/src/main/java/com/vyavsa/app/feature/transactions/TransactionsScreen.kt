@@ -1,9 +1,20 @@
 @file:Suppress("DEPRECATION")
 package com.vyavsa.app.feature.transactions
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,11 +29,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CallMade
 import androidx.compose.material.icons.filled.CallReceived
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -35,16 +48,17 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
@@ -63,6 +77,7 @@ import com.vyavsa.app.core.designsystem.VyavsaSearchBar
 import com.vyavsa.app.core.designsystem.VyavsaSectionHeader
 import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
+import com.vyavsa.app.core.designsystem.vyavsaClickable
 import com.vyavsa.app.core.model.CashTransaction
 import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.Expense
@@ -90,24 +105,43 @@ fun TransactionsScreen(
     val cashState by viewModel.cashTransactionsState.collectAsState()
     val billingState by viewModel.billingTransactionsState.collectAsState()
 
-    val availableTabs = if (viewModel.isAdmin) {
-        listOf(TransactionTab.SALES, TransactionTab.PURCHASES, TransactionTab.EXPENSES, TransactionTab.CASH_BOOK, TransactionTab.BILLING)
-    } else {
-        listOf(TransactionTab.SALES, TransactionTab.PURCHASES, TransactionTab.EXPENSES, TransactionTab.CASH_BOOK)
+    val isAdmin = viewModel.isAdmin
+    val availableTabs = remember(isAdmin) {
+        if (isAdmin) {
+            listOf(
+                TransactionTab.SALES,
+                TransactionTab.PURCHASES,
+                TransactionTab.EXPENSES,
+                TransactionTab.CASH_BOOK,
+                TransactionTab.BILLING
+            )
+        } else {
+            listOf(
+                TransactionTab.SALES,
+                TransactionTab.PURCHASES,
+                TransactionTab.EXPENSES,
+                TransactionTab.CASH_BOOK
+            )
+        }
     }
 
-    val tabTitles = availableTabs.map {
-        when (it) {
-            TransactionTab.SALES -> "Sales"
-            TransactionTab.PURCHASES -> "Purchases"
-            TransactionTab.EXPENSES -> "Expenses"
-            TransactionTab.CASH_BOOK -> "Cash Book"
-            TransactionTab.BILLING -> "Billing"
+    val tabTitles = remember(availableTabs) {
+        availableTabs.map {
+            when (it) {
+                TransactionTab.SALES -> "Sales"
+                TransactionTab.PURCHASES -> "Purchases"
+                TransactionTab.EXPENSES -> "Expenses"
+                TransactionTab.CASH_BOOK -> "Cash Book"
+                TransactionTab.BILLING -> "Billing"
+            }
         }
     }
 
     val selectedTabIndex = availableTabs.indexOf(selectedTab).coerceAtLeast(0)
-    val todayDate = java.time.LocalDate.now().toString()
+    val todayDate = remember { FormatUtils.todayDateString() }
+    val showFab = selectedTab == TransactionTab.SALES ||
+        selectedTab == TransactionTab.PURCHASES ||
+        selectedTab == TransactionTab.EXPENSES
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -118,7 +152,11 @@ fun TransactionsScreen(
             )
         },
         floatingActionButton = {
-            if (selectedTab == TransactionTab.SALES || selectedTab == TransactionTab.PURCHASES || selectedTab == TransactionTab.EXPENSES) {
+            AnimatedVisibility(
+                visible = showFab,
+                enter = scaleIn(tween(200)) + fadeIn(tween(180)),
+                exit = scaleOut(tween(160)) + fadeOut(tween(150))
+            ) {
                 ExtendedFloatingActionButton(
                     onClick = {
                         when (selectedTab) {
@@ -161,88 +199,133 @@ fun TransactionsScreen(
                         viewModel.selectTab(availableTabs[idx])
                     }
                 },
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-            )
-
-            // Search Bar
-            VyavsaSearchBar(
-                query = searchQuery,
-                onQueryChange = { viewModel.onSearchChange(it) },
-                placeholder = when (selectedTab) {
-                    TransactionTab.SALES -> "Search sales by customer or item..."
-                    TransactionTab.PURCHASES -> "Search purchases by item or supplier..."
-                    TransactionTab.EXPENSES -> "Search expenses by item or category..."
-                    TransactionTab.CASH_BOOK -> "Search cash book transactions..."
-                    TransactionTab.BILLING -> "Search billing history..."
-                },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
 
-            // Date Quick Filter Chips
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Search Bar & Quick Filters (Aligned for filterable tabs)
+            AnimatedVisibility(
+                visible = selectedTab != TransactionTab.CASH_BOOK && selectedTab != TransactionTab.BILLING
             ) {
-                FilterChip(
-                    selected = dateFilter == null,
-                    onClick = { viewModel.setDateFilter(null) },
-                    label = { Text("All Dates") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                Column {
+                    VyavsaSearchBar(
+                        query = searchQuery,
+                        onQueryChange = { viewModel.onSearchChange(it) },
+                        placeholder = when (selectedTab) {
+                            TransactionTab.SALES -> "Search sales by customer, route or item..."
+                            TransactionTab.PURCHASES -> "Search purchases by item or supplier..."
+                            TransactionTab.EXPENSES -> "Search expenses by item or category..."
+                            TransactionTab.CASH_BOOK -> "Search cash book transactions..."
+                            TransactionTab.BILLING -> "Search billing history..."
+                        },
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
                     )
-                )
-                FilterChip(
-                    selected = dateFilter == todayDate,
-                    onClick = { viewModel.setDateFilter(if (dateFilter == todayDate) null else todayDate) },
-                    label = { Text("Today") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilterChip(
+                            selected = dateFilter == null,
+                            onClick = { viewModel.setDateFilter(null) },
+                            shape = CircleShape,
+                            label = {
+                                Text(
+                                    text = "All Dates",
+                                    fontWeight = if (dateFilter == null) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                        FilterChip(
+                            selected = dateFilter == todayDate,
+                            onClick = { viewModel.setDateFilter(if (dateFilter == todayDate) null else todayDate) },
+                            shape = CircleShape,
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarToday,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = "Today Only",
+                                    fontWeight = if (dateFilter == todayDate) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
             }
 
-            // Content List based on Selected Tab
-            when (selectedTab) {
-                TransactionTab.SALES -> {
-                    SalesListContent(
-                        lineSalesState = lineSalesState,
-                        counterSalesState = counterSalesState,
-                        onSaleClick = onNavigateToSaleDetails,
-                        onAddSale = onNavigateToCreateSale
-                    )
-                }
-                TransactionTab.PURCHASES -> {
-                    PurchasesListContent(
-                        purchasesState = purchasesState,
-                        onAddPurchase = onNavigateToCreatePurchase,
-                        onPurchaseClick = onNavigateToPurchaseDetails
-                    )
-                }
-                TransactionTab.EXPENSES -> {
-                    ExpensesListContent(
-                        expensesState = expensesState,
-                        onAddExpense = onNavigateToCreateExpense
-                    )
-                }
-                TransactionTab.CASH_BOOK -> {
-                    CashBookListContent(
-                        cashState = cashState
-                    )
-                }
-                TransactionTab.BILLING -> {
-                    BillingListContent(
-                        billingState = billingState
-                    )
+            // Directional Animated Content based on Selected Tab
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = {
+                    val direction = if (targetState.ordinal >= initialState.ordinal) 1 else -1
+                    (fadeIn(tween(220, easing = FastOutSlowInEasing)) +
+                        slideInHorizontally(
+                            initialOffsetX = { (it * 0.08f * direction).toInt() },
+                            animationSpec = tween(240, easing = FastOutSlowInEasing)
+                        )) togetherWith
+                        (fadeOut(tween(160, easing = FastOutSlowInEasing)) +
+                            slideOutHorizontally(
+                                targetOffsetX = { (-it * 0.06f * direction).toInt() },
+                                animationSpec = tween(180, easing = FastOutSlowInEasing)
+                            ))
+                },
+                label = "LedgerSubTabTransition",
+                modifier = Modifier.fillMaxSize()
+            ) { currentTab ->
+                when (currentTab) {
+                    TransactionTab.SALES -> {
+                        SalesListContent(
+                            lineSalesState = lineSalesState,
+                            counterSalesState = counterSalesState,
+                            onSaleClick = onNavigateToSaleDetails,
+                            onAddSale = onNavigateToCreateSale
+                        )
+                    }
+                    TransactionTab.PURCHASES -> {
+                        PurchasesListContent(
+                            purchasesState = purchasesState,
+                            onAddPurchase = onNavigateToCreatePurchase,
+                            onPurchaseClick = onNavigateToPurchaseDetails
+                        )
+                    }
+                    TransactionTab.EXPENSES -> {
+                        ExpensesListContent(
+                            expensesState = expensesState,
+                            onAddExpense = onNavigateToCreateExpense
+                        )
+                    }
+                    TransactionTab.CASH_BOOK -> {
+                        CashBookListContent(
+                            cashState = cashState
+                        )
+                    }
+                    TransactionTab.BILLING -> {
+                        BillingListContent(
+                            billingState = billingState
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SalesListContent(
     lineSalesState: UiState<List<LineSale>>,
@@ -272,41 +355,51 @@ private fun SalesListContent(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize()
     ) {
         if (lineSales.isNotEmpty()) {
-            item {
+            item(key = "header_line_sales") {
                 VyavsaSectionHeader(
-                    title = "Line / Field Sales (Tap for details)",
+                    title = "Line / Field Sales",
                     badgeText = "${lineSales.size}",
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    modifier = Modifier.padding(bottom = 2.dp)
                 )
             }
 
-            items(lineSales) { sale ->
+            items(
+                items = lineSales,
+                key = { "line_${it.id}" },
+                contentType = { "line_sale" }
+            ) { sale ->
                 LineSaleCard(
                     sale = sale,
-                    onClick = { onSaleClick("line", sale.id) }
+                    onClick = { onSaleClick("line", sale.id) },
+                    modifier = Modifier.animateItemPlacement()
                 )
             }
         }
 
         if (counterSales.isNotEmpty()) {
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
+            item(key = "header_counter_sales") {
+                Spacer(modifier = Modifier.height(6.dp))
                 VyavsaSectionHeader(
-                    title = "Counter / POS Sales (Tap for details)",
+                    title = "Counter / POS Sales",
                     badgeText = "${counterSales.size}",
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    modifier = Modifier.padding(bottom = 2.dp)
                 )
             }
 
-            items(counterSales) { sale ->
+            items(
+                items = counterSales,
+                key = { "counter_${it.id}" },
+                contentType = { "counter_sale" }
+            ) { sale ->
                 CounterSaleCard(
                     sale = sale,
-                    onClick = { onSaleClick("counter", sale.id) }
+                    onClick = { onSaleClick("counter", sale.id) },
+                    modifier = Modifier.animateItemPlacement()
                 )
             }
         }
@@ -316,16 +409,18 @@ private fun SalesListContent(
 @Composable
 private fun LineSaleCard(
     sale: LineSale,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .vyavsaClickable { onClick() }
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
-            .clickable { onClick() }
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -354,15 +449,22 @@ private fun LineSaleCard(
                 Column {
                     Text(
                         text = sale.customerName.ifBlank { "Line Customer" },
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (!sale.route.isNullOrBlank()) "Route: ${sale.route}" else FormatUtils.formatDateForDisplay(sale.createdAt),
-                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        text = if (!sale.route.isNullOrBlank()) "Route: ${sale.route} • ${FormatUtils.formatDateForDisplay(sale.createdAt)}"
+                        else FormatUtils.formatDateForDisplay(sale.createdAt),
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
@@ -391,16 +493,18 @@ private fun LineSaleCard(
 @Composable
 private fun CounterSaleCard(
     sale: CounterSale,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .vyavsaClickable { onClick() }
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
-            .clickable { onClick() }
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -429,7 +533,9 @@ private fun CounterSaleCard(
                 Column {
                     Text(
                         text = sale.item.ifBlank { "Counter Sale" },
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -438,6 +544,8 @@ private fun CounterSaleCard(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
@@ -458,6 +566,7 @@ private fun CounterSaleCard(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PurchasesListContent(
     purchasesState: UiState<List<Purchase>>,
@@ -496,21 +605,26 @@ private fun PurchasesListContent(
                 )
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 88.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    item {
+                    item(key = "header_purchases") {
                         VyavsaSectionHeader(
                             title = "Inventory Purchases & Procurement",
                             badgeText = "${purchases.size}",
-                            modifier = Modifier.padding(bottom = 4.dp)
+                            modifier = Modifier.padding(bottom = 2.dp)
                         )
                     }
-                    items(purchases) { purchase ->
+                    items(
+                        items = purchases,
+                        key = { it.id },
+                        contentType = { "purchase" }
+                    ) { purchase ->
                         PurchaseCard(
                             purchase = purchase,
-                            onClick = { onPurchaseClick(purchase.id) }
+                            onClick = { onPurchaseClick(purchase.id) },
+                            modifier = Modifier.animateItemPlacement()
                         )
                     }
                 }
@@ -523,16 +637,18 @@ private fun PurchasesListContent(
 @Composable
 private fun PurchaseCard(
     purchase: Purchase,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .vyavsaClickable { onClick() }
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
-            .clickable { onClick() }
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -561,18 +677,22 @@ private fun PurchaseCard(
                 Column {
                     Text(
                         text = purchase.item,
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = if (!purchase.customerName.isNullOrBlank()) "Supplier: ${purchase.customerName} • Qty: ${purchase.quantity}" else "Qty: ${purchase.quantity}",
-                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     val outstanding = purchase.outstandingAmount.toDoubleOrNull() ?: 0.0
                     if (outstanding > 0.0) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Due: ₹${purchase.outstandingAmount}",
+                            text = "Due: ${FormatUtils.formatCurrency(purchase.outstandingAmount)}",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = Crimson600,
                                 fontWeight = FontWeight.SemiBold
@@ -581,6 +701,8 @@ private fun PurchaseCard(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
@@ -611,6 +733,7 @@ private fun PurchaseCard(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ExpensesListContent(
     expensesState: UiState<List<Expense>>,
@@ -639,19 +762,26 @@ private fun ExpensesListContent(
         is UiState.Success -> {
             val expenses = expensesState.data
             LazyColumn(
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                item {
+                item(key = "header_expenses") {
                     VyavsaSectionHeader(
                         title = "Operational Outflow & Expenses",
                         badgeText = "${expenses.size}",
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        modifier = Modifier.padding(bottom = 2.dp)
                     )
                 }
-                items(expenses) { expense ->
-                    ExpenseCard(expense)
+                items(
+                    items = expenses,
+                    key = { it.id },
+                    contentType = { "expense" }
+                ) { expense ->
+                    ExpenseCard(
+                        expense = expense,
+                        modifier = Modifier.animateItemPlacement()
+                    )
                 }
             }
         }
@@ -660,13 +790,16 @@ private fun ExpensesListContent(
 }
 
 @Composable
-private fun ExpenseCard(expense: Expense) {
+private fun ExpenseCard(
+    expense: Expense,
+    modifier: Modifier = Modifier
+) {
     val isAdvance = expense.category.equals("employee_advance", ignoreCase = true) || !expense.employeeName.isNullOrBlank()
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
     ) {
@@ -697,19 +830,25 @@ private fun ExpenseCard(expense: Expense) {
                 Column {
                     Text(
                         text = if (isAdvance && expense.item.isBlank()) "Staff Advance" else expense.item.ifBlank { "Expense" },
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = when {
-                            !expense.employeeName.isNullOrBlank() -> "Staff: ${expense.employeeName} (${FormatUtils.formatDateForDisplay(expense.createdAt)})"
+                            !expense.employeeName.isNullOrBlank() -> "Staff: ${expense.employeeName} • ${FormatUtils.formatDateForDisplay(expense.createdAt)}"
                             !expense.category.isNullOrBlank() -> "${expense.category.replace('_', ' ').uppercase()} • ${FormatUtils.formatDateForDisplay(expense.createdAt)}"
                             else -> FormatUtils.formatDateForDisplay(expense.createdAt)
                         },
-                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
 
             Column(horizontalAlignment = Alignment.End) {
                 val amt = if (expense.totalAmount != "0.00") expense.totalAmount else expense.amount
@@ -740,6 +879,7 @@ private fun ExpenseCard(expense: Expense) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CashBookListContent(
     cashState: UiState<List<CashTransaction>>
@@ -769,15 +909,22 @@ private fun CashBookListContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                item {
+                item(key = "header_cash_book") {
                     VyavsaSectionHeader(
                         title = "Cash Till Ledger Entries",
                         badgeText = "${transactions.size}",
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        modifier = Modifier.padding(bottom = 2.dp)
                     )
                 }
-                items(transactions) { txn ->
-                    CashTransactionCard(txn)
+                items(
+                    items = transactions,
+                    key = { it.id.ifBlank { "${it.transactionDate}_${it.amount}_${it.newBalance}" } },
+                    contentType = { "cash_txn" }
+                ) { txn ->
+                    CashTransactionCard(
+                        txn = txn,
+                        modifier = Modifier.animateItemPlacement()
+                    )
                 }
             }
         }
@@ -786,13 +933,16 @@ private fun CashBookListContent(
 }
 
 @Composable
-private fun CashTransactionCard(txn: CashTransaction) {
+private fun CashTransactionCard(
+    txn: CashTransaction,
+    modifier: Modifier = Modifier
+) {
     val isAdd = txn.transactionType == "add_cash"
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
     ) {
@@ -833,6 +983,8 @@ private fun CashTransactionCard(txn: CashTransaction) {
                 }
             }
 
+            Spacer(modifier = Modifier.width(8.dp))
+
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = "${if (isAdd) "+" else ""}${FormatUtils.formatCurrency(txn.amount)}",
@@ -851,6 +1003,7 @@ private fun CashTransactionCard(txn: CashTransaction) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BillingListContent(
     billingState: UiState<List<PlanTransaction>>
@@ -880,15 +1033,22 @@ private fun BillingListContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                item {
+                item(key = "header_billing") {
                     VyavsaSectionHeader(
                         title = "Plan Purchase Ledger",
                         badgeText = "${transactions.size}",
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        modifier = Modifier.padding(bottom = 2.dp)
                     )
                 }
-                items(transactions) { txn ->
-                    PlanTransactionCard(txn)
+                items(
+                    items = transactions,
+                    key = { it.id.ifBlank { it.transactionId } },
+                    contentType = { "billing_txn" }
+                ) { txn ->
+                    PlanTransactionCard(
+                        txn = txn,
+                        modifier = Modifier.animateItemPlacement()
+                    )
                 }
             }
         }
@@ -897,13 +1057,16 @@ private fun BillingListContent(
 }
 
 @Composable
-private fun PlanTransactionCard(txn: PlanTransaction) {
+private fun PlanTransactionCard(
+    txn: PlanTransaction,
+    modifier: Modifier = Modifier
+) {
     val isCompleted = txn.status.equals("completed", ignoreCase = true)
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
     ) {

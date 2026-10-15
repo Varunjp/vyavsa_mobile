@@ -1,8 +1,10 @@
 package com.vyavsa.app.core.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+@Immutable
 @Serializable
 data class FinancialMetrics(
     @SerialName("cash_balance") val cashBalance: String = "0.00",
@@ -18,6 +20,7 @@ data class FinancialMetrics(
     @SerialName("is_current") val isCurrent: Boolean = true
 )
 
+@Immutable
 @Serializable
 data class TodayOverview(
     val attendance: TodayAttendanceOverview = TodayAttendanceOverview(),
@@ -28,6 +31,7 @@ data class TodayOverview(
     val date: String = ""
 )
 
+@Immutable
 @Serializable
 data class TodayAttendanceOverview(
     val present: Int = 0,
@@ -36,6 +40,7 @@ data class TodayAttendanceOverview(
     @SerialName("has_records") val hasRecords: Boolean = false
 )
 
+@Immutable
 @Serializable
 data class TenantBank(
     val id: String = "",
@@ -66,6 +71,7 @@ data class UpdateBankRequest(
     val status: String = "active"
 )
 
+@Immutable
 @Serializable
 data class TenantSubscription(
     val id: String = "",
@@ -81,6 +87,7 @@ data class TenantSubscription(
     @SerialName("days_remaining") val daysRemaining: Int = 0
 )
 
+@Immutable
 @Serializable
 data class SubscriptionPlan(
     val id: String = "",
@@ -105,6 +112,7 @@ data class PurchasePlanRequest(
     @SerialName("payment_method") val paymentMethod: String = "upi"
 )
 
+@Immutable
 @Serializable
 data class PlanTransaction(
     val id: String = "",
@@ -120,6 +128,7 @@ data class PlanTransaction(
     @SerialName("updated_at") val updatedAt: String = ""
 )
 
+@Immutable
 @Serializable
 data class TenantProfile(
     val id: String = "",

@@ -1,6 +1,8 @@
 @file:Suppress("DEPRECATION")
 package com.vyavsa.app.feature.bank
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -64,20 +66,19 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
-import com.vyavsa.app.core.designsystem.Blue50
 import com.vyavsa.app.core.designsystem.Blue600
-import com.vyavsa.app.core.designsystem.Crimson50
-import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
 import com.vyavsa.app.core.designsystem.Emerald600
 import com.vyavsa.app.core.designsystem.EmptyStateView
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaButton
+import com.vyavsa.app.core.designsystem.VyavsaGradients
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.TenantBank
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BankAccountsScreen(
     viewModel: BankViewModel,
@@ -114,10 +115,11 @@ fun BankAccountsScreen(
                         onClick = { viewModel.loadBanks() },
                         shape = CircleShape,
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "Refresh", modifier = Modifier.size(20.dp))
                     }
                 }
             )
@@ -179,8 +181,10 @@ fun BankAccountsScreen(
                 }
                 is UiState.Success -> {
                     val banks = state.data
-                    val totalBankBalance = banks.fold(0.0) { acc, b ->
-                        acc + (b.currentBalance.toDoubleOrNull() ?: 0.0)
+                    val totalBankBalance = remember(banks) {
+                        banks.fold(0.0) { acc, b ->
+                            acc + (b.currentBalance.toDoubleOrNull() ?: 0.0)
+                        }
                     }
 
                     LazyColumn(
@@ -189,7 +193,7 @@ fun BankAccountsScreen(
                         modifier = Modifier.fillMaxSize()
                     ) {
                         // Total Bank Balance Hero Card
-                        item {
+                        item(key = "bank_total_hero") {
                             BankTotalHeroCard(totalBalance = totalBankBalance, totalAccounts = banks.size)
                         }
 
@@ -199,12 +203,13 @@ fun BankAccountsScreen(
                                 bank = bank,
                                 isAdmin = isAdmin,
                                 onEdit = { editingBank = bank },
-                                onDelete = { deletingBank = bank }
+                                onDelete = { deletingBank = bank },
+                                modifier = Modifier.animateItemPlacement()
                             )
                         }
 
-                        item {
-                            Spacer(modifier = Modifier.height(80.dp)) // padding for FAB
+                        item(key = "bank_fab_spacer") {
+                            Spacer(modifier = Modifier.height(80.dp))
                         }
                     }
                 }
@@ -246,7 +251,9 @@ fun BankAccountsScreen(
     deletingBank?.let { bank ->
         AlertDialog(
             onDismissRequest = { deletingBank = null },
-            title = { Text("Delete Bank Account") },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Delete Bank Account", fontWeight = FontWeight.ExtraBold) },
             text = { Text("Are you sure you want to delete '${bank.bankName}'? This action cannot be undone.") },
             confirmButton = {
                 TextButton(
@@ -275,62 +282,79 @@ private fun BankTotalHeroCard(
     modifier: Modifier = Modifier
 ) {
     Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        modifier = modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Blue50)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AccountBalance,
-                            contentDescription = null,
-                            tint = Blue600,
-                            modifier = Modifier.size(22.dp)
-                        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(VyavsaGradients.BlueHeroBrush)
+                .padding(22.dp)
+        ) {
+            Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color.White.copy(alpha = 0.18f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountBalance,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Total Bank Liquidity",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            )
+                            Text(
+                                text = "$totalAccounts active ${if (totalAccounts == 1) "account" else "accounts"}",
+                                style = MaterialTheme.typography.bodySmall.copy(color = Color.White.copy(alpha = 0.8f))
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
+                    Surface(
+                        color = Color.White.copy(alpha = 0.18f),
+                        shape = CircleShape,
+                        border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.25f))
+                    ) {
                         Text(
-                            text = "Total Bank Liquidity",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
-                        )
-                        Text(
-                            text = "$totalAccounts active accounts",
-                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            text = "Bank Ledger",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
                 }
-                StatBadge(
-                    text = "Bank",
-                    backgroundColor = Blue50,
-                    textColor = Blue600
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = FormatUtils.formatCurrency(totalBalance.toString()),
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White
+                    )
                 )
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = FormatUtils.formatCurrency(totalBalance.toString()),
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Blue600
-                )
-            )
         }
     }
 }
@@ -346,7 +370,7 @@ private fun BankCard(
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
@@ -423,7 +447,7 @@ private fun BankCard(
                     ) {
                         Icon(imageVector = Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Edit")
+                        Text("Edit", fontWeight = FontWeight.SemiBold)
                     }
 
                     Spacer(modifier = Modifier.width(8.dp))
@@ -434,7 +458,7 @@ private fun BankCard(
                     ) {
                         Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                        Text("Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -455,10 +479,12 @@ private fun AddBankDialog(
 
     AlertDialog(
         onDismissRequest = { if (actionState !is UiState.Loading) onDismiss() },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Text(
                 text = "Add Bank Account",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold)
             )
         },
         text = {
@@ -534,10 +560,12 @@ private fun EditBankDialog(
 
     AlertDialog(
         onDismissRequest = { if (actionState !is UiState.Loading) onDismiss() },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Text(
                 text = "Edit Bank Account",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold)
             )
         },
         text = {

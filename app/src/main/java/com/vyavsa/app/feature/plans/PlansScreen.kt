@@ -1,5 +1,15 @@
 package com.vyavsa.app.feature.plans
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -16,11 +26,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.WorkspacePremium
@@ -36,8 +46,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -50,11 +58,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
-import com.vyavsa.app.core.designsystem.Blue50
-import com.vyavsa.app.core.designsystem.Blue600
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
@@ -63,12 +70,13 @@ import com.vyavsa.app.core.designsystem.EmptyStateView
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaButton
+import com.vyavsa.app.core.designsystem.VyavsaGradients
+import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.PlanTransaction
 import com.vyavsa.app.core.model.SubscriptionPlan
-import com.vyavsa.app.core.model.TenantSubscription
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PlansScreen(
     viewModel: PlansViewModel,
@@ -109,92 +117,116 @@ fun PlansScreen(
                 )
             }
 
-            // Current Subscription Hero
+            // Current Subscription Hero Card with Gradient
             val currentSub = (subState as? UiState.Success)?.data
             if (currentSub != null) {
                 Card(
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 10.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(24.dp))
                 ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(14.dp))
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.WorkspacePremium,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(24.dp)
-                                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(VyavsaGradients.PrimaryHeroBrush)
+                            .padding(20.dp)
+                    ) {
+                        Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(14.dp))
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.WorkspacePremium,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = currentSub.currentPlanName.ifBlank { "Standard Business Plan" },
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = Color.White
+                                            )
+                                        )
+                                        Text(
+                                            text = "Current Active Subscription",
+                                            style = MaterialTheme.typography.bodySmall.copy(color = Color.White.copy(alpha = 0.8f))
+                                        )
+                                    }
                                 }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
+
+                                Surface(
+                                    color = if (currentSub.isExpired) Crimson50 else Emerald50,
+                                    shape = CircleShape
+                                ) {
                                     Text(
-                                        text = currentSub.currentPlanName.ifBlank { "Standard Business Plan" },
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                                    )
-                                    Text(
-                                        text = "Current Plan",
-                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        text = if (currentSub.isExpired) "EXPIRED" else "${currentSub.daysRemaining} DAYS LEFT",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = if (currentSub.isExpired) Crimson600 else Emerald600,
+                                            fontWeight = FontWeight.ExtraBold
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                                     )
                                 }
                             }
 
-                            StatBadge(
-                                text = if (currentSub.isExpired) "EXPIRED" else "${currentSub.daysRemaining} DAYS REMAINING",
-                                backgroundColor = if (currentSub.isExpired) Crimson50 else Emerald50,
-                                textColor = if (currentSub.isExpired) Crimson600 else Emerald600
-                            )
-                        }
+                            Spacer(modifier = Modifier.height(14.dp))
 
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color.White.copy(alpha = 0.14f),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Column {
-                                    Text(
-                                        text = "Plan Rate",
-                                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "${FormatUtils.formatCurrency(currentSub.price)} / billing cycle",
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                                    )
-                                }
-
-                                if (!currentSub.endDate.isNullOrBlank()) {
-                                    Column(horizontalAlignment = Alignment.End) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
                                         Text(
-                                            text = "Valid Until",
-                                            style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            text = "Plan Rate",
+                                            style = MaterialTheme.typography.labelSmall.copy(color = Color.White.copy(alpha = 0.8f))
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = FormatUtils.formatIsoDateTime(currentSub.endDate),
-                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                                            text = "${FormatUtils.formatCurrency(currentSub.price)} / billing cycle",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
                                         )
+                                    }
+
+                                    if (!currentSub.endDate.isNullOrBlank()) {
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(
+                                                text = "Valid Until",
+                                                style = MaterialTheme.typography.labelSmall.copy(color = Color.White.copy(alpha = 0.8f))
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = FormatUtils.formatIsoDateTime(currentSub.endDate),
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = Color.White
+                                                )
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -207,99 +239,119 @@ fun PlansScreen(
                 }
             }
 
-            // Tab Row
-            TabRow(
-                selectedTabIndex = selectedTab.ordinal,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.primary,
+            // Unified Pill Segmented Tabs
+            VyavsaSegmentedTabs(
+                tabs = listOf("Available Plans", "Billing History"),
+                selectedIndex = selectedTab.ordinal,
+                onTabSelected = { idx ->
+                    viewModel.selectTab(if (idx == 0) PlansTab.AVAILABLE_PLANS else PlansTab.BILLING_HISTORY)
+                },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
-            ) {
-                Tab(
-                    selected = selectedTab == PlansTab.AVAILABLE_PLANS,
-                    onClick = { viewModel.selectTab(PlansTab.AVAILABLE_PLANS) },
-                    text = { Text("Available Plans", fontWeight = FontWeight.Bold) }
-                )
-                Tab(
-                    selected = selectedTab == PlansTab.BILLING_HISTORY,
-                    onClick = { viewModel.selectTab(PlansTab.BILLING_HISTORY) },
-                    text = { Text("Billing History", fontWeight = FontWeight.Bold) }
-                )
-            }
+            )
 
-            when (selectedTab) {
-                PlansTab.AVAILABLE_PLANS -> {
-                    when (val state = plansState) {
-                        is UiState.Loading -> {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                        is UiState.Empty -> {
-                            EmptyStateView(
-                                title = "No Plans Available",
-                                description = "There are no public subscription plans configured on the platform at this time."
-                            )
-                        }
-                        is UiState.Error -> {
-                            Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
-                                ErrorBanner(message = state.message)
-                            }
-                        }
-                        is UiState.Success -> {
-                            val currentPlanId = currentSub?.currentPlanId ?: ""
-
-                            LazyColumn(
-                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                                verticalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                items(state.data) { plan ->
-                                    val isCurrentPlan = plan.id.isNotBlank() && (plan.id == currentPlanId || plan.displayName.equals(currentSub?.currentPlanName, ignoreCase = true))
-
-                                    PlanCard(
-                                        plan = plan,
-                                        isCurrentPlan = isCurrentPlan,
-                                        canUpgrade = isAdmin && !isCurrentPlan,
-                                        onUpgradeClick = { selectedPlanToPurchase = plan }
-                                    )
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = {
+                    val dir = if (targetState.ordinal >= initialState.ordinal) 1 else -1
+                    (fadeIn(tween(220, easing = FastOutSlowInEasing)) +
+                        slideInHorizontally(
+                            initialOffsetX = { (it * 0.08f * dir).toInt() },
+                            animationSpec = tween(240, easing = FastOutSlowInEasing)
+                        )) togetherWith
+                        (fadeOut(tween(160, easing = FastOutSlowInEasing)) +
+                            slideOutHorizontally(
+                                targetOffsetX = { (-it * 0.06f * dir).toInt() },
+                                animationSpec = tween(180, easing = FastOutSlowInEasing)
+                            ))
+                },
+                label = "PlansSubTabTransition",
+                modifier = Modifier.fillMaxSize()
+            ) { currentTab ->
+                when (currentTab) {
+                    PlansTab.AVAILABLE_PLANS -> {
+                        when (val state = plansState) {
+                            is UiState.Loading -> {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                                 }
                             }
+                            is UiState.Empty -> {
+                                EmptyStateView(
+                                    title = "No Plans Available",
+                                    description = "There are no public subscription plans configured on the platform at this time."
+                                )
+                            }
+                            is UiState.Error -> {
+                                Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+                                    ErrorBanner(message = state.message)
+                                }
+                            }
+                            is UiState.Success -> {
+                                val currentPlanId = currentSub?.currentPlanId ?: ""
+
+                                LazyColumn(
+                                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    items(
+                                        items = state.data,
+                                        key = { it.id.ifBlank { it.displayName } }
+                                    ) { plan ->
+                                        val isCurrentPlan = plan.id.isNotBlank() && (plan.id == currentPlanId || plan.displayName.equals(currentSub?.currentPlanName, ignoreCase = true))
+
+                                        PlanCard(
+                                            plan = plan,
+                                            isCurrentPlan = isCurrentPlan,
+                                            canUpgrade = isAdmin && !isCurrentPlan,
+                                            onUpgradeClick = { selectedPlanToPurchase = plan },
+                                            modifier = Modifier.animateItemPlacement()
+                                        )
+                                    }
+                                }
+                            }
+                            else -> {}
                         }
-                        else -> {}
                     }
-                }
 
-                PlansTab.BILLING_HISTORY -> {
-                    when (val state = txState) {
-                        is UiState.Loading -> {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                        is UiState.Empty -> {
-                            EmptyStateView(
-                                title = "No Billing History",
-                                description = "No previous subscription purchases or invoice transactions found.",
-                                icon = Icons.Default.History
-                            )
-                        }
-                        is UiState.Error -> {
-                            Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
-                                ErrorBanner(message = state.message)
-                            }
-                        }
-                        is UiState.Success -> {
-                            LazyColumn(
-                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                items(state.data) { tx ->
-                                    BillingTransactionCard(transaction = tx)
+                    PlansTab.BILLING_HISTORY -> {
+                        when (val state = txState) {
+                            is UiState.Loading -> {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                                 }
                             }
+                            is UiState.Empty -> {
+                                EmptyStateView(
+                                    title = "No Billing History",
+                                    description = "No previous subscription purchases or invoice transactions found.",
+                                    icon = Icons.Default.History
+                                )
+                            }
+                            is UiState.Error -> {
+                                Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+                                    ErrorBanner(message = state.message)
+                                }
+                            }
+                            is UiState.Success -> {
+                                LazyColumn(
+                                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    items(
+                                        items = state.data,
+                                        key = { it.id.ifBlank { it.transactionId } }
+                                    ) { tx ->
+                                        BillingTransactionCard(
+                                            transaction = tx,
+                                            modifier = Modifier.animateItemPlacement()
+                                        )
+                                    }
+                                }
+                            }
+                            else -> {}
                         }
-                        else -> {}
                     }
                 }
             }
@@ -371,7 +423,7 @@ private fun PlanCard(
             Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = "${FormatUtils.formatCurrency(plan.price)}",
+                text = FormatUtils.formatCurrency(plan.price),
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.primary
@@ -419,10 +471,12 @@ private fun PlanCard(
                 OutlinedButton(
                     onClick = {},
                     enabled = false,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    shape = CircleShape,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
                 ) {
-                    Text("Currently Subscribed")
+                    Text("Currently Subscribed", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -435,12 +489,12 @@ private fun BillingTransactionCard(
     modifier: Modifier = Modifier
 ) {
     Card(
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -499,7 +553,9 @@ private fun PurchasePlanDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Upgrade to ${plan.displayName}") },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Upgrade to ${plan.displayName}", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(
@@ -520,35 +576,19 @@ private fun PurchasePlanDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    FilterChip(
-                        selected = selectedMethod == "upi",
-                        onClick = { selectedMethod = "upi" },
-                        label = { Text("UPI") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    listOf("upi" to "UPI", "card" to "Card", "netbanking" to "Net Banking").forEach { (key, label) ->
+                        FilterChip(
+                            selected = selectedMethod == key,
+                            onClick = { selectedMethod = key },
+                            shape = CircleShape,
+                            label = { Text(label, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            modifier = Modifier.weight(1f)
                         )
-                    )
-
-                    FilterChip(
-                        selected = selectedMethod == "card",
-                        onClick = { selectedMethod = "card" },
-                        label = { Text("Card") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-
-                    FilterChip(
-                        selected = selectedMethod == "netbanking",
-                        onClick = { selectedMethod = "netbanking" },
-                        label = { Text("Net Banking") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
+                    }
                 }
             }
         },

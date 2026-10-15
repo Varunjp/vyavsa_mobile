@@ -1,8 +1,16 @@
 package com.vyavsa.app.feature.staff
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,11 +21,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -31,10 +39,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -52,6 +61,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
@@ -68,6 +79,7 @@ import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
+import com.vyavsa.app.core.designsystem.vyavsaClickable
 import com.vyavsa.app.core.model.AttendanceRecord
 import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.EmployeeSalary
@@ -90,16 +102,20 @@ fun StaffScreen(
     var employeeToEdit by remember { mutableStateOf<Employee?>(null) }
     var employeeToDelete by remember { mutableStateOf<Employee?>(null) }
 
-    val visibleTabs = if (isAdmin) {
-        listOf(StaffTab.ATTENDANCE, StaffTab.SALARIES, StaffTab.ROSTER)
-    } else {
-        listOf(StaffTab.ATTENDANCE, StaffTab.ROSTER)
+    val visibleTabs = remember(isAdmin) {
+        if (isAdmin) {
+            listOf(StaffTab.ATTENDANCE, StaffTab.SALARIES, StaffTab.ROSTER)
+        } else {
+            listOf(StaffTab.ATTENDANCE, StaffTab.ROSTER)
+        }
     }
-    val tabTitles = visibleTabs.map {
-        when (it) {
-            StaffTab.ATTENDANCE -> "Attendance"
-            StaffTab.SALARIES -> "Salaries"
-            StaffTab.ROSTER -> "Roster"
+    val tabTitles = remember(visibleTabs) {
+        visibleTabs.map {
+            when (it) {
+                StaffTab.ATTENDANCE -> "Attendance"
+                StaffTab.SALARIES -> "Salaries"
+                StaffTab.ROSTER -> "Roster"
+            }
         }
     }
     val currentTabIndex = visibleTabs.indexOf(selectedTab).coerceAtLeast(0)
@@ -145,32 +161,52 @@ fun StaffScreen(
             if (actionState is UiState.Error) {
                 ErrorBanner(
                     message = (actionState as UiState.Error).message,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
                 )
             }
 
-            when (selectedTab) {
-                StaffTab.ATTENDANCE -> {
-                    AttendanceTabContent(
-                        employeesState = employeesState,
-                        attendanceState = attendanceState,
-                        onMarkAttendance = { markingAttendanceEmployee = it }
-                    )
-                }
-                StaffTab.SALARIES -> {
-                    SalariesTabContent(
-                        salariesState = salariesState,
-                        onDisburseSalary = { disbursingSalaryItem = it }
-                    )
-                }
-                StaffTab.ROSTER -> {
-                    RosterTabContent(
-                        employeesState = employeesState,
-                        isAdmin = isAdmin,
-                        onAddEmployee = { showAddEmployeeDialog = true },
-                        onEditEmployee = { employeeToEdit = it },
-                        onDeleteEmployee = { employeeToDelete = it }
-                    )
+            // Directional Animated Sub-Tab Transition
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = {
+                    val direction = if (targetState.ordinal >= initialState.ordinal) 1 else -1
+                    (fadeIn(tween(220, easing = FastOutSlowInEasing)) +
+                        slideInHorizontally(
+                            initialOffsetX = { (it * 0.08f * direction).toInt() },
+                            animationSpec = tween(240, easing = FastOutSlowInEasing)
+                        )) togetherWith
+                        (fadeOut(tween(160, easing = FastOutSlowInEasing)) +
+                            slideOutHorizontally(
+                                targetOffsetX = { (-it * 0.06f * direction).toInt() },
+                                animationSpec = tween(180, easing = FastOutSlowInEasing)
+                            ))
+                },
+                label = "StaffSubTabTransition",
+                modifier = Modifier.fillMaxSize()
+            ) { currentTab ->
+                when (currentTab) {
+                    StaffTab.ATTENDANCE -> {
+                        AttendanceTabContent(
+                            employeesState = employeesState,
+                            attendanceState = attendanceState,
+                            onMarkAttendance = { markingAttendanceEmployee = it }
+                        )
+                    }
+                    StaffTab.SALARIES -> {
+                        SalariesTabContent(
+                            salariesState = salariesState,
+                            onDisburseSalary = { disbursingSalaryItem = it }
+                        )
+                    }
+                    StaffTab.ROSTER -> {
+                        RosterTabContent(
+                            employeesState = employeesState,
+                            isAdmin = isAdmin,
+                            onAddEmployee = { showAddEmployeeDialog = true },
+                            onEditEmployee = { employeeToEdit = it },
+                            onDeleteEmployee = { employeeToDelete = it }
+                        )
+                    }
                 }
             }
         }
@@ -246,7 +282,7 @@ fun StaffScreen(
             onDismissRequest = { employeeToDelete = null },
             shape = RoundedCornerShape(28.dp),
             containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("Delete Employee Record") },
+            title = { Text("Delete Employee Record", fontWeight = FontWeight.ExtraBold) },
             text = {
                 Text("Are you sure you want to remove ${employeeToDelete!!.name}? This will remove the employee from the roster.")
             },
@@ -269,6 +305,7 @@ fun StaffScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AttendanceTabContent(
     employeesState: UiState<List<Employee>>,
@@ -277,7 +314,14 @@ private fun AttendanceTabContent(
 ) {
     val employees = (employeesState as? UiState.Success)?.data ?: emptyList()
     val attendance = (attendanceState as? UiState.Success)?.data ?: emptyList()
-    val attendanceMap = attendance.associateBy { it.employeeId }
+    val attendanceMap = remember(attendance) { attendance.associateBy { it.employeeId } }
+
+    if (employeesState is UiState.Loading && employees.isEmpty()) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+        }
+        return
+    }
 
     if (employees.isEmpty()) {
         EmptyStateView(
@@ -288,12 +332,45 @@ private fun AttendanceTabContent(
         return
     }
 
+    val presentCount = remember(attendance) {
+        attendance.count { it.status.equals("present", ignoreCase = true) || it.status.equals("half_day", ignoreCase = true) }
+    }
+
     LazyColumn(
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize()
     ) {
-        items(employees) { employee ->
+        item(key = "attendance_summary_header") {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "Today's Roll Call (${FormatUtils.formatDateForDisplay(FormatUtils.todayDateString())})",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                    StatBadge(
+                        text = "$presentCount / ${employees.size} Present",
+                        backgroundColor = Emerald50,
+                        textColor = Emerald600
+                    )
+                }
+            }
+        }
+
+        items(
+            items = employees,
+            key = { "att_${it.id}" },
+            contentType = { "employee_attendance" }
+        ) { employee ->
             val record = attendanceMap[employee.id]
             Card(
                 shape = RoundedCornerShape(24.dp),
@@ -301,6 +378,7 @@ private fun AttendanceTabContent(
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .animateItemPlacement()
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
             ) {
                 Row(
@@ -317,7 +395,9 @@ private fun AttendanceTabContent(
                         Column {
                             Text(
                                 text = employee.name,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
@@ -326,6 +406,8 @@ private fun AttendanceTabContent(
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     if (record != null) {
                         Column(horizontalAlignment = Alignment.End) {
@@ -340,7 +422,7 @@ private fun AttendanceTabContent(
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "Adv: ${FormatUtils.formatCurrency(record.advance)}",
-                                    style = MaterialTheme.typography.labelSmall.copy(color = Crimson600)
+                                    style = MaterialTheme.typography.labelSmall.copy(color = Crimson600, fontWeight = FontWeight.SemiBold)
                                 )
                             }
                         }
@@ -350,7 +432,7 @@ private fun AttendanceTabContent(
                             color = MaterialTheme.colorScheme.primaryContainer,
                             modifier = Modifier
                                 .clip(CircleShape)
-                                .clickable { onMarkAttendance(employee) }
+                                .vyavsaClickable { onMarkAttendance(employee) }
                         ) {
                             Text(
                                 text = "Mark Today",
@@ -368,6 +450,7 @@ private fun AttendanceTabContent(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SalariesTabContent(
     salariesState: UiState<List<EmployeeSalary>>,
@@ -393,17 +476,22 @@ private fun SalariesTabContent(
         }
         is UiState.Success -> {
             LazyColumn(
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(salariesState.data) { salary ->
+                items(
+                    items = salariesState.data,
+                    key = { it.id.ifBlank { it.employeeId } },
+                    contentType = { "salary_item" }
+                ) { salary ->
                     Card(
                         shape = RoundedCornerShape(24.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .animateItemPlacement()
                             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
                     ) {
                         Column(modifier = Modifier.padding(18.dp)) {
@@ -465,7 +553,7 @@ private fun SalariesTabContent(
                                     color = MaterialTheme.colorScheme.primaryContainer,
                                     modifier = Modifier
                                         .clip(CircleShape)
-                                        .clickable { onDisburseSalary(salary) }
+                                        .vyavsaClickable { onDisburseSalary(salary) }
                                 ) {
                                     Text(
                                         text = "Disburse Salary Payout →",
@@ -473,7 +561,7 @@ private fun SalariesTabContent(
                                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                                             fontWeight = FontWeight.Bold
                                         ),
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                                     )
                                 }
                             }
@@ -486,6 +574,7 @@ private fun SalariesTabContent(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RosterTabContent(
     employeesState: UiState<List<Employee>>,
@@ -508,17 +597,22 @@ private fun RosterTabContent(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize()
     ) {
-        items(employees) { employee ->
+        items(
+            items = employees,
+            key = { "roster_${it.id}" },
+            contentType = { "employee_roster" }
+        ) { employee ->
             Card(
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .animateItemPlacement()
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
             ) {
                 Row(
@@ -535,7 +629,9 @@ private fun RosterTabContent(
                         Column {
                             Text(
                                 text = employee.name,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             if (!employee.phone.isNullOrBlank()) {
                                 Spacer(modifier = Modifier.height(2.dp))
@@ -547,7 +643,10 @@ private fun RosterTabContent(
                         }
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
                                 text = FormatUtils.formatCurrency(employee.salary),
@@ -558,21 +657,35 @@ private fun RosterTabContent(
                         }
 
                         if (isAdmin) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            IconButton(onClick = { onEditEmployee(employee) }) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            FilledTonalIconButton(
+                                onClick = { onEditEmployee(employee) },
+                                shape = CircleShape,
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier.size(34.dp)
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Edit,
                                     contentDescription = "Edit Employee",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
-                            IconButton(onClick = { onDeleteEmployee(employee) }) {
+                            FilledTonalIconButton(
+                                onClick = { onDeleteEmployee(employee) },
+                                shape = CircleShape,
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = Crimson50,
+                                    contentColor = Crimson600
+                                ),
+                                modifier = Modifier.size(34.dp)
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
                                     contentDescription = "Delete Employee",
-                                    tint = Crimson600,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
@@ -593,7 +706,12 @@ fun MarkAttendanceDialog(
     var otAmount by remember { mutableStateOf("") }
     var advance by remember { mutableStateOf("") }
 
-    val statusOptions = listOf("present", "half_day", "absent", "leave")
+    val statusOptions = listOf(
+        "present" to "Present",
+        "half_day" to "Half Day",
+        "absent" to "Absent",
+        "leave" to "Leave"
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -602,33 +720,33 @@ fun MarkAttendanceDialog(
         title = { Text("Mark Attendance: ${employee.name}", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Select Status", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    statusOptions.take(2).forEach { s ->
-                        FilterChip(
-                            selected = status == s,
-                            onClick = { status = s },
-                            shape = CircleShape,
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            ),
-                            label = { Text(s.replace("_", " ").replaceFirstChar { it.uppercase() }) }
-                        )
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    statusOptions.drop(2).forEach { s ->
-                        FilterChip(
-                            selected = status == s,
-                            onClick = { status = s },
-                            shape = CircleShape,
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            ),
-                            label = { Text(s.replace("_", " ").replaceFirstChar { it.uppercase() }) }
-                        )
+                Text("Select Status", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                statusOptions.chunked(2).forEach { rowItems ->
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        rowItems.forEach { (key, label) ->
+                            val isSelected = status == key
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { status = key },
+                                shape = CircleShape,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ),
+                                label = {
+                                    Text(
+                                        text = label,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
 
@@ -784,20 +902,24 @@ fun EditEmployeeDialog(
                     FilterChip(
                         selected = status == "active",
                         onClick = { status = "active" },
-                        label = { Text("Active") },
+                        shape = CircleShape,
+                        label = { Text("Active", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Emerald50,
                             selectedLabelColor = Emerald600
-                        )
+                        ),
+                        modifier = Modifier.weight(1f)
                     )
                     FilterChip(
                         selected = status == "inactive",
                         onClick = { status = "inactive" },
-                        label = { Text("Inactive") },
+                        shape = CircleShape,
+                        label = { Text("Inactive", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Crimson50,
                             selectedLabelColor = Crimson600
-                        )
+                        ),
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -815,4 +937,3 @@ fun EditEmployeeDialog(
         }
     )
 }
-

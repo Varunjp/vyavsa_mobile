@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.VyavsaButton
+import com.vyavsa.app.core.designsystem.VyavsaGradients
 import com.vyavsa.app.core.designsystem.VyavsaPasswordField
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
@@ -81,6 +83,7 @@ fun RegisterScreen(
         topBar = {
             VyavsaTopAppBar(
                 title = "Create Business Account",
+                subtitle = "Onboard your store & team ledger",
                 navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 onNavigationClick = onNavigateBack
             )
@@ -91,8 +94,16 @@ fun RegisterScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .imePadding()
                 .background(MaterialTheme.colorScheme.background)
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .background(VyavsaGradients.SoftHeaderGlowBrush)
+            )
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()

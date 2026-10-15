@@ -9,6 +9,8 @@ import com.vyavsa.app.core.model.TenantUser
 import com.vyavsa.app.core.model.UpdateTenantUserRequest
 import com.vyavsa.app.core.security.TokenManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,6 +34,8 @@ class TenantUsersViewModel @Inject constructor(
     private val _actionState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val actionState: StateFlow<UiState<Unit>> = _actionState.asStateFlow()
 
+    private var searchJob: Job? = null
+
     val isAdmin: Boolean
         get() = adminOverrideForTesting ?: (tokenManager?.isTenantAdmin() ?: false)
 
@@ -41,7 +45,11 @@ class TenantUsersViewModel @Inject constructor(
 
     fun onSearchChange(query: String) {
         _searchQuery.value = query
-        loadUsers()
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(200L)
+            loadUsers()
+        }
     }
 
     fun loadUsers() {
@@ -54,7 +62,7 @@ class TenantUsersViewModel @Inject constructor(
         viewModelScope.launch {
             repository.listUsers(search = query).collect { res ->
                 _usersState.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_usersState.value is UiState.Success) _usersState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }

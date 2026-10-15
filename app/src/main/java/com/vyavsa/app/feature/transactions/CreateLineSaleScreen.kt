@@ -1,7 +1,18 @@
 @file:Suppress("DEPRECATION")
 package com.vyavsa.app.feature.transactions
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,6 +39,7 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,6 +58,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -79,6 +93,7 @@ import com.vyavsa.app.core.model.BankPaymentSplit
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.TenantBank
 
+@Immutable
 data class BankPaymentEntry(
     val id: String = java.util.UUID.randomUUID().toString(),
     val bank: TenantBank? = null,
@@ -119,7 +134,9 @@ fun CreateSaleScreen(
     val focusManager = LocalFocusManager.current
 
     val customers = (customersState as? UiState.Success)?.data ?: emptyList()
-    val availableBanks = (banksState as? UiState.Success)?.data?.filter { it.status == "active" || it.status.isBlank() } ?: emptyList()
+    val availableBanks = remember(banksState) {
+        (banksState as? UiState.Success)?.data?.filter { it.status == "active" || it.status.isBlank() } ?: emptyList()
+    }
     val isLoadingBanks = banksState is UiState.Loading
 
     // Form fields for Line Sale
@@ -164,13 +181,14 @@ fun CreateSaleScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .imePadding()
                 .background(MaterialTheme.colorScheme.background)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(20.dp)
+                    .padding(horizontal = 20.dp, vertical = 14.dp)
             ) {
                 // Sale Type Segmented Selector
                 VyavsaSegmentedTabs(
@@ -190,7 +208,7 @@ fun CreateSaleScreen(
                     )
                 }
 
-                // Card container
+                // Card container with smooth directional transition between Line and Counter Sale forms
                 Card(
                     shape = RoundedCornerShape(28.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -199,309 +217,354 @@ fun CreateSaleScreen(
                         .fillMaxWidth()
                         .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(28.dp))
                 ) {
-                    Column(modifier = Modifier.padding(22.dp)) {
-
-                        if (selectedSaleType == SaleType.LINE_SALE) {
-                            // ==========================================
-                            // 1. Line Sale Form
-                            // ==========================================
-                            Text(
-                                text = "Line Sale Entry",
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold)
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Deliveries & collections for route accounts. Difference is added to customer balance.",
-                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            )
-
-                            Spacer(modifier = Modifier.height(18.dp))
-
-                            // Customer Selector
-                            ExposedDropdownMenuBox(
-                                expanded = customerDropdownExpanded,
-                                onExpandedChange = { customerDropdownExpanded = !customerDropdownExpanded },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                OutlinedTextField(
-                                    value = selectedCustomer?.customerName ?: "",
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("Customer Account *") },
-                                    placeholder = { Text("Select registered customer") },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = customerDropdownExpanded) },
-                                    shape = RoundedCornerShape(18.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .menuAnchor()
+                    AnimatedContent(
+                        targetState = selectedSaleType,
+                        transitionSpec = {
+                            val dir = if (targetState == SaleType.COUNTER_SALE) 1 else -1
+                            (fadeIn(tween(220, easing = FastOutSlowInEasing)) +
+                                slideInHorizontally(
+                                    initialOffsetX = { (it * 0.08f * dir).toInt() },
+                                    animationSpec = tween(240, easing = FastOutSlowInEasing)
+                                )) togetherWith
+                                (fadeOut(tween(160, easing = FastOutSlowInEasing)) +
+                                    slideOutHorizontally(
+                                        targetOffsetX = { (-it * 0.06f * dir).toInt() },
+                                        animationSpec = tween(180, easing = FastOutSlowInEasing)
+                                    ))
+                        },
+                        label = "SaleFormSwitchTransition"
+                    ) { saleType ->
+                        Column(modifier = Modifier.padding(22.dp)) {
+                            if (saleType == SaleType.LINE_SALE) {
+                                // ==========================================
+                                // 1. Line Sale Form
+                                // ==========================================
+                                Text(
+                                    text = "Line Sale Entry",
+                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Deliveries & collections for route accounts. Difference is added to customer balance.",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 )
 
-                                ExposedDropdownMenu(
+                                Spacer(modifier = Modifier.height(18.dp))
+
+                                // Customer Selector (Aligned with VyavsaTextField style)
+                                ExposedDropdownMenuBox(
                                     expanded = customerDropdownExpanded,
-                                    onDismissRequest = { customerDropdownExpanded = false }
+                                    onExpandedChange = { customerDropdownExpanded = !customerDropdownExpanded },
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    if (customers.isEmpty()) {
-                                        DropdownMenuItem(
-                                            text = { Text("No customers found") },
-                                            onClick = { customerDropdownExpanded = false }
-                                        )
-                                    } else {
-                                        customers.forEach { customer ->
+                                    OutlinedTextField(
+                                        value = selectedCustomer?.customerName ?: "",
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        label = { Text("Customer Account *") },
+                                        placeholder = { Text("Select registered customer") },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Person,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        },
+                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = customerDropdownExpanded) },
+                                        shape = RoundedCornerShape(18.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .menuAnchor()
+                                    )
+
+                                    ExposedDropdownMenu(
+                                        expanded = customerDropdownExpanded,
+                                        onDismissRequest = { customerDropdownExpanded = false }
+                                    ) {
+                                        if (customers.isEmpty()) {
                                             DropdownMenuItem(
-                                                text = {
-                                                    Column {
-                                                        Text(customer.customerName, fontWeight = FontWeight.Bold)
-                                                        Text(
-                                                            text = "Balance: ${FormatUtils.formatCurrency(customer.currentBalance)}",
-                                                            style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                        )
+                                                text = { Text("No customers found") },
+                                                onClick = { customerDropdownExpanded = false }
+                                            )
+                                        } else {
+                                            customers.forEach { customer ->
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Column {
+                                                            Text(customer.customerName, fontWeight = FontWeight.Bold)
+                                                            Text(
+                                                                text = "Balance: ${FormatUtils.formatCurrency(customer.currentBalance)}",
+                                                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                            )
+                                                        }
+                                                    },
+                                                    onClick = {
+                                                        selectedCustomer = customer
+                                                        customerDropdownExpanded = false
                                                     }
-                                                },
-                                                onClick = {
-                                                    selectedCustomer = customer
-                                                    customerDropdownExpanded = false
-                                                }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Customer Balance Preview Card
+                                AnimatedVisibility(
+                                    visible = selectedCustomer != null,
+                                    enter = expandVertically() + fadeIn(),
+                                    exit = shrinkVertically() + fadeOut()
+                                ) {
+                                    selectedCustomer?.let { cust ->
+                                        val lineBankTotal = if (lineIncludeBank) lineBankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } else 0.0
+                                        Column {
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            CustomerBalancePreviewBox(
+                                                currentBalance = cust.currentBalance,
+                                                totalAmount = lineTotalAmount,
+                                                cashIn = lineCashIn,
+                                                bankAmount = lineBankTotal.toString()
                                             )
                                         }
                                     }
                                 }
-                            }
 
-                            // Customer Balance Preview Card
-                            selectedCustomer?.let { cust ->
-                                val lineBankTotal = if (lineIncludeBank) lineBankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } else 0.0
-                                Spacer(modifier = Modifier.height(12.dp))
-                                CustomerBalancePreviewBox(
-                                    currentBalance = cust.currentBalance,
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Route & Salesman Row
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.Top,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    VyavsaTextField(
+                                        value = route,
+                                        onValueChange = { route = it },
+                                        label = "Delivery Route",
+                                        placeholder = "e.g. North Route",
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    VyavsaTextField(
+                                        value = salesman,
+                                        onValueChange = { salesman = it },
+                                        label = "Salesman",
+                                        placeholder = "e.g. Ramesh",
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Invoice Amount & Cash In
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.Top,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    VyavsaTextField(
+                                        value = lineTotalAmount,
+                                        onValueChange = { lineTotalAmount = it },
+                                        label = "Invoice Total (₹) *",
+                                        placeholder = "0.00",
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    VyavsaTextField(
+                                        value = lineCashIn,
+                                        onValueChange = { lineCashIn = it },
+                                        label = "Cash Collected (₹)",
+                                        placeholder = "0.00",
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Multi-Bank Payment Toggle & Selection
+                                MultiBankPaymentSection(
+                                    includeBank = lineIncludeBank,
+                                    onIncludeBankChange = { lineIncludeBank = it },
+                                    bankEntries = lineBankEntries,
+                                    onBankEntriesChange = { lineBankEntries = it },
+                                    availableBanks = availableBanks,
+                                    isLoadingBanks = isLoadingBanks
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Line Sale Calculations Box
+                                SaleCalculationBox(
                                     totalAmount = lineTotalAmount,
-                                    cashIn = lineCashIn,
-                                    bankAmount = lineBankTotal.toString()
+                                    cashAmount = lineCashIn,
+                                    bankEntries = if (lineIncludeBank) lineBankEntries else emptyList(),
+                                    isLineSale = true
                                 )
-                            }
 
-                            Spacer(modifier = Modifier.height(14.dp))
+                                Spacer(modifier = Modifier.height(14.dp))
 
-                            // Route & Salesman Row
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                                 VyavsaTextField(
-                                    value = route,
-                                    onValueChange = { route = it },
-                                    label = "Delivery Route",
-                                    placeholder = "e.g. North Route",
-                                    modifier = Modifier.weight(1f)
+                                    value = note,
+                                    onValueChange = { note = it },
+                                    label = "Note / Dispatch Reference",
+                                    placeholder = "Optional delivery remarks",
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
                                 )
-                                VyavsaTextField(
-                                    value = salesman,
-                                    onValueChange = { salesman = it },
-                                    label = "Salesman",
-                                    placeholder = "e.g. Ramesh",
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
 
-                            Spacer(modifier = Modifier.height(14.dp))
+                                Spacer(modifier = Modifier.height(24.dp))
 
-                            // Invoice Amount & Cash In
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                                VyavsaTextField(
-                                    value = lineTotalAmount,
-                                    onValueChange = { lineTotalAmount = it },
-                                    label = "Invoice Total (₹) *",
-                                    placeholder = "0.00",
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
-                                    modifier = Modifier.weight(1f)
-                                )
-                                VyavsaTextField(
-                                    value = lineCashIn,
-                                    onValueChange = { lineCashIn = it },
-                                    label = "Cash Collected (₹)",
-                                    placeholder = "0.00",
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            // Multi-Bank Payment Toggle & Selection
-                            MultiBankPaymentSection(
-                                includeBank = lineIncludeBank,
-                                onIncludeBankChange = { lineIncludeBank = it },
-                                bankEntries = lineBankEntries,
-                                onBankEntriesChange = { lineBankEntries = it },
-                                availableBanks = availableBanks,
-                                isLoadingBanks = isLoadingBanks
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            // Line Sale Calculations Box
-                            SaleCalculationBox(
-                                totalAmount = lineTotalAmount,
-                                cashAmount = lineCashIn,
-                                bankEntries = if (lineIncludeBank) lineBankEntries else emptyList(),
-                                isLineSale = true
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            VyavsaTextField(
-                                value = note,
-                                onValueChange = { note = it },
-                                label = "Note / Dispatch Reference",
-                                placeholder = "Optional delivery remarks",
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
-                            )
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            VyavsaButton(
-                                text = "Record Line Sale",
-                                onClick = {
-                                    focusManager.clearFocus()
-                                    val splits = if (lineIncludeBank) {
-                                        lineBankEntries.map {
-                                            BankPaymentSplit(
-                                                bankId = it.bank?.id ?: "",
-                                                bankName = it.bank?.bankName,
-                                                amount = it.amount.trim()
-                                            )
+                                VyavsaButton(
+                                    text = "Record Line Sale",
+                                    onClick = {
+                                        focusManager.clearFocus()
+                                        val splits = if (lineIncludeBank) {
+                                            lineBankEntries.map {
+                                                BankPaymentSplit(
+                                                    bankId = it.bank?.id ?: "",
+                                                    bankName = it.bank?.bankName,
+                                                    amount = it.amount.trim()
+                                                )
+                                            }
+                                        } else {
+                                            emptyList()
                                         }
-                                    } else {
-                                        emptyList()
-                                    }
-                                    val bankTotal = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                                    viewModel.createLineSale(
-                                        customerId = selectedCustomer?.id ?: "",
-                                        route = route,
-                                        salesman = salesman,
-                                        totalAmount = lineTotalAmount,
-                                        cashIn = lineCashIn,
-                                        bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
-                                        bankId = splits.firstOrNull()?.bankId,
-                                        bankPayments = splits,
-                                        note = note
-                                    )
-                                },
-                                isLoading = createActionState is UiState.Loading
-                            )
-
-                        } else {
-                            // ==========================================
-                            // 2. Counter Sale Form
-                            // ==========================================
-                            Text(
-                                text = "Counter Sale Entry",
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold)
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Instant over-the-counter sale. Payment via cash, bank transfer / UPI, or split.",
-                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            )
-
-                            Spacer(modifier = Modifier.height(18.dp))
-
-                            VyavsaTextField(
-                                value = counterItem,
-                                onValueChange = { counterItem = it },
-                                label = "Item / Description *",
-                                placeholder = "e.g. Retail goods, Bill #108"
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                                VyavsaTextField(
-                                    value = counterPrice,
-                                    onValueChange = {
-                                        counterPrice = it
-                                        if (counterTotalAmount.isBlank()) counterTotalAmount = it
+                                        val bankTotal = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                                        viewModel.createLineSale(
+                                            customerId = selectedCustomer?.id ?: "",
+                                            route = route,
+                                            salesman = salesman,
+                                            totalAmount = lineTotalAmount,
+                                            cashIn = lineCashIn,
+                                            bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
+                                            bankId = splits.firstOrNull()?.bankId,
+                                            bankPayments = splits,
+                                            note = note
+                                        )
                                     },
-                                    label = "Unit Price (₹)",
-                                    placeholder = "0.00",
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
-                                    modifier = Modifier.weight(1f)
+                                    isLoading = createActionState is UiState.Loading
                                 )
+
+                            } else {
+                                // ==========================================
+                                // 2. Counter Sale Form
+                                // ==========================================
+                                Text(
+                                    text = "Counter Sale Entry",
+                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Instant over-the-counter sale. Payment via cash, bank transfer / UPI, or split.",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                )
+
+                                Spacer(modifier = Modifier.height(18.dp))
 
                                 VyavsaTextField(
-                                    value = counterTotalAmount,
-                                    onValueChange = { counterTotalAmount = it },
-                                    label = "Total Amount (₹) *",
+                                    value = counterItem,
+                                    onValueChange = { counterItem = it },
+                                    label = "Item / Description *",
+                                    placeholder = "e.g. Retail goods, Bill #108"
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.Top,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    VyavsaTextField(
+                                        value = counterPrice,
+                                        onValueChange = {
+                                            counterPrice = it
+                                            if (counterTotalAmount.isBlank()) counterTotalAmount = it
+                                        },
+                                        label = "Unit Price (₹)",
+                                        placeholder = "0.00",
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    VyavsaTextField(
+                                        value = counterTotalAmount,
+                                        onValueChange = { counterTotalAmount = it },
+                                        label = "Total Amount (₹) *",
+                                        placeholder = "0.00",
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                VyavsaTextField(
+                                    value = counterCash,
+                                    onValueChange = { counterCash = it },
+                                    label = "Physical Cash Received (₹)",
                                     placeholder = "0.00",
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
-                                    modifier = Modifier.weight(1f)
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next)
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Counter Bank Payment Section
+                                MultiBankPaymentSection(
+                                    includeBank = counterIncludeBank,
+                                    onIncludeBankChange = { counterIncludeBank = it },
+                                    bankEntries = counterBankEntries,
+                                    onBankEntriesChange = { counterBankEntries = it },
+                                    availableBanks = availableBanks,
+                                    isLoadingBanks = isLoadingBanks
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Counter Sale Calculations Box
+                                SaleCalculationBox(
+                                    totalAmount = counterTotalAmount,
+                                    cashAmount = counterCash,
+                                    bankEntries = if (counterIncludeBank) counterBankEntries else emptyList(),
+                                    isLineSale = false
+                                )
+
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                VyavsaButton(
+                                    text = "Record Counter Sale",
+                                    onClick = {
+                                        focusManager.clearFocus()
+                                        val splits = if (counterIncludeBank) {
+                                            counterBankEntries.map {
+                                                BankPaymentSplit(
+                                                    bankId = it.bank?.id ?: "",
+                                                    bankName = it.bank?.bankName,
+                                                    amount = it.amount.trim()
+                                                )
+                                            }
+                                        } else {
+                                            emptyList()
+                                        }
+                                        val bankTotal = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                                        viewModel.createCounterSale(
+                                            item = counterItem,
+                                            price = counterPrice.ifBlank { counterTotalAmount },
+                                            totalAmount = counterTotalAmount,
+                                            cash = counterCash,
+                                            bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
+                                            bankId = splits.firstOrNull()?.bankId,
+                                            bankPayments = splits
+                                        )
+                                    },
+                                    isLoading = createActionState is UiState.Loading
                                 )
                             }
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            VyavsaTextField(
-                                value = counterCash,
-                                onValueChange = { counterCash = it },
-                                label = "Physical Cash Received (₹)",
-                                placeholder = "0.00",
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next)
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            // Counter Bank Payment Section
-                            MultiBankPaymentSection(
-                                includeBank = counterIncludeBank,
-                                onIncludeBankChange = { counterIncludeBank = it },
-                                bankEntries = counterBankEntries,
-                                onBankEntriesChange = { counterBankEntries = it },
-                                availableBanks = availableBanks,
-                                isLoadingBanks = isLoadingBanks
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            // Counter Sale Calculations Box
-                            SaleCalculationBox(
-                                totalAmount = counterTotalAmount,
-                                cashAmount = counterCash,
-                                bankEntries = if (counterIncludeBank) counterBankEntries else emptyList(),
-                                isLineSale = false
-                            )
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            VyavsaButton(
-                                text = "Record Counter Sale",
-                                onClick = {
-                                    focusManager.clearFocus()
-                                    val splits = if (counterIncludeBank) {
-                                        counterBankEntries.map {
-                                            BankPaymentSplit(
-                                                bankId = it.bank?.id ?: "",
-                                                bankName = it.bank?.bankName,
-                                                amount = it.amount.trim()
-                                            )
-                                        }
-                                    } else {
-                                        emptyList()
-                                    }
-                                    val bankTotal = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                                    viewModel.createCounterSale(
-                                        item = counterItem,
-                                        price = counterPrice.ifBlank { counterTotalAmount },
-                                        totalAmount = counterTotalAmount,
-                                        cash = counterCash,
-                                        bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
-                                        bankId = splits.firstOrNull()?.bankId,
-                                        bankPayments = splits
-                                    )
-                                },
-                                isLoading = createActionState is UiState.Loading
-                            )
                         }
                     }
                 }
@@ -564,7 +627,7 @@ private fun MultiBankPaymentSection(
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                         )
                         Text(
-                            text = if (includeBank) "Deposit directly to bank ledger accounts" else "Check to record bank / online collection",
+                            text = if (includeBank) "Deposit directly to bank ledger accounts" else "Toggle to record bank / online collection",
                             style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                         )
                     }
@@ -587,7 +650,11 @@ private fun MultiBankPaymentSection(
                 )
             }
 
-            AnimatedVisibility(visible = includeBank) {
+            AnimatedVisibility(
+                visible = includeBank,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
                 Column(modifier = Modifier.padding(top = 14.dp)) {
                     if (isLoadingBanks) {
                         Row(
@@ -747,7 +814,7 @@ private fun BankPaymentRowItem(
     var expanded by remember { mutableStateOf(false) }
 
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(
             1.dp,
@@ -812,10 +879,10 @@ private fun BankPaymentRowItem(
                     label = { Text("Select Bank Account *") },
                     placeholder = { Text("Choose receiving bank") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                         focusedBorderColor = if (isDuplicate) Crimson600 else MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = if (isDuplicate) Crimson600.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant
                     ),
@@ -895,7 +962,11 @@ private fun CustomerBalancePreviewBox(
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(14.dp)
+                .animateContentSize()
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -985,7 +1056,11 @@ private fun SaleCalculationBox(
                 RoundedCornerShape(18.dp)
             )
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(14.dp)
+                .animateContentSize()
+        ) {
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()

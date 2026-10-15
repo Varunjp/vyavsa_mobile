@@ -1,6 +1,7 @@
 @file:Suppress("DEPRECATION")
 package com.vyavsa.app.feature.dues
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +33,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
@@ -43,10 +45,11 @@ import com.vyavsa.app.core.designsystem.Emerald600
 import com.vyavsa.app.core.designsystem.EmptyStateView
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
+import com.vyavsa.app.core.designsystem.VyavsaGradients
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.CustomerStatementEntry
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun CustomerStatementScreen(
     customerId: String,
@@ -106,58 +109,75 @@ fun CustomerStatementScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            // Statement Header Balance
-                            item {
+                            // Statement Header Balance with Gradient
+                            item(key = "statement_hero") {
                                 Card(
                                     shape = RoundedCornerShape(26.dp),
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier.padding(20.dp)
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(VyavsaGradients.PrimaryHeroBrush)
+                                            .padding(20.dp)
                                     ) {
-                                        Column {
-                                            Text(
-                                                text = "Total Purchases",
-                                                style = MaterialTheme.typography.labelMedium.copy(
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column {
+                                                Text(
+                                                    text = "Total Purchases",
+                                                    style = MaterialTheme.typography.labelMedium.copy(
+                                                        color = Color.White.copy(alpha = 0.8f),
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
                                                 )
-                                            )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                text = FormatUtils.formatCurrency(statement.totalPurchases),
-                                                style = MaterialTheme.typography.headlineSmall.copy(
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = FormatUtils.formatCurrency(statement.totalPurchases),
+                                                    style = MaterialTheme.typography.headlineSmall.copy(
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        color = Color.White
+                                                    )
                                                 )
-                                            )
-                                        }
+                                            }
 
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(
-                                                text = "Outstanding Due",
-                                                style = MaterialTheme.typography.labelMedium.copy(
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                Text(
+                                                    text = "Outstanding Due",
+                                                    style = MaterialTheme.typography.labelMedium.copy(
+                                                        color = Color.White.copy(alpha = 0.8f),
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
                                                 )
-                                            )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                text = FormatUtils.formatCurrency(statement.currentBalance),
-                                                style = MaterialTheme.typography.headlineSmall.copy(
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = Crimson600
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = FormatUtils.formatCurrency(statement.currentBalance),
+                                                    style = MaterialTheme.typography.headlineSmall.copy(
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        color = Color.White
+                                                    )
                                                 )
-                                            )
+                                            }
                                         }
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
                             }
 
-                            items(entries) { entry ->
-                                StatementEntryCard(entry)
+                            items(
+                                items = entries,
+                                key = { it.id.ifBlank { "${it.date}_${it.description}_${it.balance}" } },
+                                contentType = { "statement_entry" }
+                            ) { entry ->
+                                StatementEntryCard(
+                                    entry = entry,
+                                    modifier = Modifier.animateItemPlacement()
+                                )
                             }
                         }
                     }
@@ -169,14 +189,17 @@ fun CustomerStatementScreen(
 }
 
 @Composable
-private fun StatementEntryCard(entry: CustomerStatementEntry) {
+private fun StatementEntryCard(
+    entry: CustomerStatementEntry,
+    modifier: Modifier = Modifier
+) {
     val isPayment = entry.entryType.contains("payment", ignoreCase = true) || entry.paidAmount.toDoubleOrNull() ?: 0.0 > 0.0
 
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
     ) {

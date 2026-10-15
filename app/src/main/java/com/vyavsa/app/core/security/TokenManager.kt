@@ -2,6 +2,7 @@ package com.vyavsa.app.core.security
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.compose.runtime.Immutable
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.vyavsa.app.core.model.TokenResponse
@@ -15,6 +16,7 @@ import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@Immutable
 sealed interface SessionState {
     object Unauthenticated : SessionState
     data class Authenticated(val user: UserProfile) : SessionState
@@ -45,6 +47,16 @@ class TokenManager @Inject constructor(
         }
     }
 
+    // In-memory cache to avoid main-thread EncryptedSharedPreferences decryption and JSON decoding during UI recompositions
+    @Volatile
+    private var cachedAccessToken: String? = null
+
+    @Volatile
+    private var cachedRefreshToken: String? = null
+
+    @Volatile
+    private var cachedUserProfile: UserProfile? = null
+
     private val _sessionState = MutableStateFlow<SessionState>(SessionState.Unauthenticated)
     val sessionState: StateFlow<SessionState> = _sessionState.asStateFlow()
 
@@ -54,20 +66,30 @@ class TokenManager @Inject constructor(
 
     fun restoreSession() {
         val accessToken = prefs.getString(KEY_ACCESS_TOKEN, null)
+        val refreshToken = prefs.getString(KEY_REFRESH_TOKEN, null)
         val userJson = prefs.getString(KEY_USER_PROFILE, null)
+        cachedAccessToken = accessToken
+        cachedRefreshToken = refreshToken
+
         if (!accessToken.isNullOrBlank() && !userJson.isNullOrBlank()) {
             try {
                 val user = json.decodeFromString<UserProfile>(userJson)
+                cachedUserProfile = user
                 _sessionState.value = SessionState.Authenticated(user)
             } catch (e: Exception) {
+                cachedUserProfile = null
                 _sessionState.value = SessionState.Unauthenticated
             }
         } else {
+            cachedUserProfile = null
             _sessionState.value = SessionState.Unauthenticated
         }
     }
 
     fun saveSession(tokenResponse: TokenResponse) {
+        cachedAccessToken = tokenResponse.accessToken
+        cachedRefreshToken = tokenResponse.refreshToken
+        cachedUserProfile = tokenResponse.user
         prefs.edit()
             .putString(KEY_ACCESS_TOKEN, tokenResponse.accessToken)
             .putString(KEY_REFRESH_TOKEN, tokenResponse.refreshToken)
@@ -77,30 +99,43 @@ class TokenManager @Inject constructor(
     }
 
     fun updateTokens(accessToken: String, refreshToken: String) {
+        cachedAccessToken = accessToken
+        cachedRefreshToken = refreshToken
         prefs.edit()
             .putString(KEY_ACCESS_TOKEN, accessToken)
             .putString(KEY_REFRESH_TOKEN, refreshToken)
             .apply()
     }
 
-    fun getAccessToken(): String? = prefs.getString(KEY_ACCESS_TOKEN, null)
+    fun getAccessToken(): String? = cachedAccessToken ?: prefs.getString(KEY_ACCESS_TOKEN, null)?.also {
+        cachedAccessToken = it
+    }
 
-    fun getRefreshToken(): String? = prefs.getString(KEY_REFRESH_TOKEN, null)
+    fun getRefreshToken(): String? = cachedRefreshToken ?: prefs.getString(KEY_REFRESH_TOKEN, null)?.also {
+        cachedRefreshToken = it
+    }
 
     fun getUserProfile(): UserProfile? {
+        cachedUserProfile?.let { return it }
         val userJson = prefs.getString(KEY_USER_PROFILE, null) ?: return null
         return try {
-            json.decodeFromString<UserProfile>(userJson)
+            json.decodeFromString<UserProfile>(userJson).also {
+                cachedUserProfile = it
+            }
         } catch (e: Exception) {
             null
         }
     }
 
     fun isTenantAdmin(): Boolean {
-        return getUserProfile()?.role == "tenant_admin" || getUserProfile()?.role == "admin"
+        val role = getUserProfile()?.role
+        return role == "tenant_admin" || role == "admin"
     }
 
     fun clearSession() {
+        cachedAccessToken = null
+        cachedRefreshToken = null
+        cachedUserProfile = null
         prefs.edit().clear().apply()
         _sessionState.value = SessionState.Unauthenticated
     }
