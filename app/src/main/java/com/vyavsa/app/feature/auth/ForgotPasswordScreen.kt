@@ -1,5 +1,6 @@
 package com.vyavsa.app.feature.auth
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -8,9 +9,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
@@ -36,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.VyavsaButton
+import com.vyavsa.app.core.designsystem.VyavsaGradients
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 
@@ -75,7 +80,19 @@ fun ForgotPasswordScreen(
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .background(VyavsaGradients.SoftHeaderGlowBrush)
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp)
+            ) {
                 Card(
                     shape = RoundedCornerShape(28.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -104,11 +121,13 @@ fun ForgotPasswordScreen(
 
                         Spacer(modifier = Modifier.height(22.dp))
 
-                        if (state is UiState.Error) {
-                            ErrorBanner(
-                                message = (state as UiState.Error).message,
-                                modifier = Modifier.padding(bottom = 16.dp)
-                            )
+                        AnimatedVisibility(visible = state is UiState.Error) {
+                            (state as? UiState.Error)?.let { err ->
+                                ErrorBanner(
+                                    message = err.message,
+                                    modifier = Modifier.padding(bottom = 16.dp)
+                                )
+                            }
                         }
 
                         VyavsaTextField(

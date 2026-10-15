@@ -1,8 +1,14 @@
 package com.vyavsa.app.feature.dashboard
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,13 +49,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vyavsa.app.core.common.FormatUtils
@@ -65,7 +75,9 @@ import com.vyavsa.app.core.designsystem.Emerald600
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.MetricCard
 import com.vyavsa.app.core.designsystem.StatBadge
+import com.vyavsa.app.core.designsystem.VyavsaGradients
 import com.vyavsa.app.core.designsystem.VyavsaSectionHeader
+import com.vyavsa.app.core.designsystem.vyavsaClickable
 import com.vyavsa.app.core.model.FinancialMetrics
 import com.vyavsa.app.core.model.TenantSubscription
 
@@ -81,18 +93,22 @@ fun DashboardScreen(
 ) {
     val metricsState by viewModel.metricsState.collectAsState()
     val subscriptionState by viewModel.subscriptionState.collectAsState()
-    val userProfile = viewModel.tokenManager.getUserProfile()
-    val partnerName = userProfile?.name?.ifBlank { "Partner" } ?: "Partner"
+    val sessionState by viewModel.tokenManager.sessionState.collectAsState()
+    val partnerName = remember(sessionState) {
+        viewModel.tokenManager.getUserProfile()?.name?.ifBlank { "Partner" } ?: "Partner"
+    }
+    val todayLabel = remember { FormatUtils.formatDateForDisplay(FormatUtils.todayDateString()) }
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Modern Material 3 Expressive Header
-        Surface(
-            color = MaterialTheme.colorScheme.background,
-            modifier = Modifier.fillMaxWidth()
+        // Modern Material 3 Expressive Header with subtle ambient top glow
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(VyavsaGradients.SoftHeaderGlowBrush)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -101,7 +117,10 @@ fun DashboardScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 14.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     AvatarInitialCircle(
                         name = partnerName,
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -113,15 +132,20 @@ fun DashboardScreen(
                             text = "Hello, $partnerName",
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
+                                color = MaterialTheme.colorScheme.onBackground,
+                                letterSpacing = (-0.3).sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Today • ${FormatUtils.todayDateString()}",
+                            text = "Live Overview • $todayLabel",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = FontWeight.Medium
-                            )
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -143,30 +167,40 @@ fun DashboardScreen(
             }
         }
 
-        // Dashboard Content
-        when (val state = metricsState) {
-            is UiState.Loading -> {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+        // Dashboard Content with smooth crossfade between loading and loaded state
+        AnimatedContent(
+            targetState = metricsState,
+            transitionSpec = {
+                fadeIn(tween(240, easing = FastOutSlowInEasing)) togetherWith
+                    fadeOut(tween(180, easing = FastOutSlowInEasing))
+            },
+            label = "DashboardStateTransition",
+            modifier = Modifier.fillMaxSize()
+        ) { state ->
+            when (state) {
+                is UiState.Loading -> {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    }
                 }
-            }
-            is UiState.Error -> {
-                Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
-                    ErrorBanner(message = state.message)
+                is UiState.Error -> {
+                    Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+                        ErrorBanner(message = state.message)
+                    }
                 }
+                is UiState.Success -> {
+                    DashboardBody(
+                        metrics = state.data,
+                        subscription = (subscriptionState as? UiState.Success<TenantSubscription>)?.data,
+                        onNavigateToCreateSale = onNavigateToCreateSale,
+                        onNavigateToCreateExpense = onNavigateToCreateExpense,
+                        onNavigateToCashDrawer = onNavigateToCashDrawer,
+                        onNavigateToStaff = onNavigateToStaff,
+                        onNavigateToBankAccounts = onNavigateToBankAccounts
+                    )
+                }
+                else -> {}
             }
-            is UiState.Success -> {
-                DashboardBody(
-                    metrics = state.data,
-                    subscription = (subscriptionState as? UiState.Success<TenantSubscription>)?.data,
-                    onNavigateToCreateSale = onNavigateToCreateSale,
-                    onNavigateToCreateExpense = onNavigateToCreateExpense,
-                    onNavigateToCashDrawer = onNavigateToCashDrawer,
-                    onNavigateToStaff = onNavigateToStaff,
-                    onNavigateToBankAccounts = onNavigateToBankAccounts
-                )
-            }
-            else -> {}
         }
     }
 }
@@ -181,9 +215,11 @@ private fun DashboardBody(
     onNavigateToStaff: () -> Unit,
     onNavigateToBankAccounts: () -> Unit = {}
 ) {
-    val cashVal = metrics.cashBalance.toDoubleOrNull() ?: 0.0
-    val bankVal = metrics.bankBalance.toDoubleOrNull() ?: 0.0
-    val totalLiquidity = cashVal + bankVal
+    val totalLiquidity = remember(metrics.cashBalance, metrics.bankBalance) {
+        val cashVal = metrics.cashBalance.toDoubleOrNull() ?: 0.0
+        val bankVal = metrics.bankBalance.toDoubleOrNull() ?: 0.0
+        cashVal + bankVal
+    }
 
     Column(
         modifier = Modifier
@@ -232,27 +268,35 @@ private fun DashboardBody(
             }
         }
 
-        // Hero Card: Combined Live Liquidity + Cash & Bank Pills
+        // Hero Card: Combined Live Liquidity + Cash & Bank Glassmorphic Sub-Cards
         Card(
             shape = RoundedCornerShape(28.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
             modifier = Modifier.fillMaxWidth()
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary,
-                                Color(0xFF1E2FA8)
-                            )
-                        )
-                    )
-                    .padding(22.dp)
+                    .background(VyavsaGradients.PrimaryHeroBrush)
             ) {
-                Column {
+                // Decorative ambient light orbs for depth
+                Box(
+                    modifier = Modifier
+                        .size(160.dp)
+                        .offset(x = 220.dp, y = (-40).dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.07f))
+                )
+                Box(
+                    modifier = Modifier
+                        .size(110.dp)
+                        .offset(x = (-30).dp, y = 120.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.05f))
+                )
+
+                Column(modifier = Modifier.padding(22.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -261,22 +305,26 @@ private fun DashboardBody(
                         Text(
                             text = "TOTAL LIVE LIQUIDITY",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = Color.White.copy(alpha = 0.8f),
+                                color = Color.White.copy(alpha = 0.85f),
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.8.sp
+                                letterSpacing = 1.0.sp
                             )
                         )
                         Surface(
-                            color = Color.White.copy(alpha = 0.16f),
-                            shape = CircleShape
+                            color = Color.White.copy(alpha = 0.18f),
+                            shape = CircleShape,
+                            border = androidx.compose.foundation.BorderStroke(
+                                0.8.dp,
+                                Color.White.copy(alpha = 0.25f)
+                            )
                         ) {
                             Text(
                                 text = "Cash + Bank",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     color = Color.White,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.Bold
                                 ),
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
                             )
                         }
                     }
@@ -288,7 +336,8 @@ private fun DashboardBody(
                         style = MaterialTheme.typography.displaySmall.copy(
                             color = Color.White,
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 32.sp
+                            fontSize = 33.sp,
+                            letterSpacing = (-0.5).sp
                         )
                     )
 
@@ -302,33 +351,52 @@ private fun DashboardBody(
                         Surface(
                             shape = RoundedCornerShape(20.dp),
                             color = Color.White.copy(alpha = 0.14f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                Color.White.copy(alpha = 0.2f)
+                            ),
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { onNavigateToCashDrawer() }
+                                .vyavsaClickable { onNavigateToCashDrawer() }
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(Emerald50)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.AttachMoney,
-                                            contentDescription = null,
-                                            tint = Emerald600,
-                                            modifier = Modifier.size(16.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clip(RoundedCornerShape(9.dp))
+                                                .background(Emerald50)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.AttachMoney,
+                                                contentDescription = null,
+                                                tint = Emerald600,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Cash in Till",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                color = Color.White.copy(alpha = 0.9f),
+                                                fontWeight = FontWeight.SemiBold
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Cash in Till",
-                                        style = MaterialTheme.typography.labelMedium.copy(
-                                            color = Color.White.copy(alpha = 0.85f)
-                                        )
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -337,41 +405,63 @@ private fun DashboardBody(
                                     style = MaterialTheme.typography.titleMedium.copy(
                                         color = Color.White,
                                         fontWeight = FontWeight.ExtraBold
-                                    )
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
 
-                        // Bank Total Sub-Card (Clickable)
+                        // Bank Total Sub-Card
                         Surface(
                             shape = RoundedCornerShape(20.dp),
                             color = Color.White.copy(alpha = 0.14f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                Color.White.copy(alpha = 0.2f)
+                            ),
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable(onClick = onNavigateToBankAccounts)
+                                .clip(RoundedCornerShape(20.dp))
+                                .vyavsaClickable { onNavigateToBankAccounts() }
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(Blue50)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.AccountBalance,
-                                            contentDescription = null,
-                                            tint = Blue600,
-                                            modifier = Modifier.size(16.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clip(RoundedCornerShape(9.dp))
+                                                .background(Blue50)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.AccountBalance,
+                                                contentDescription = null,
+                                                tint = Blue600,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Bank Total",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                color = Color.White.copy(alpha = 0.9f),
+                                                fontWeight = FontWeight.SemiBold
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Bank Total",
-                                        style = MaterialTheme.typography.labelMedium.copy(
-                                            color = Color.White.copy(alpha = 0.85f)
-                                        )
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -380,7 +470,9 @@ private fun DashboardBody(
                                     style = MaterialTheme.typography.titleMedium.copy(
                                         color = Color.White,
                                         fontWeight = FontWeight.ExtraBold
-                                    )
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -391,18 +483,19 @@ private fun DashboardBody(
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        // Quick Actions (2x2 Grid)
+        // Quick Actions (2x2 Aligned Grid)
         VyavsaSectionHeader(title = "Quick Actions")
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 QuickActionButton(
                     label = "Record Sale",
+                    subtitle = "Line & POS",
                     icon = Icons.Default.Add,
                     backgroundColor = Emerald50,
                     iconTint = Emerald600,
@@ -412,6 +505,7 @@ private fun DashboardBody(
 
                 QuickActionButton(
                     label = "Add Expense",
+                    subtitle = "Bills & Advances",
                     icon = Icons.Default.Receipt,
                     backgroundColor = Crimson50,
                     iconTint = Crimson600,
@@ -426,6 +520,7 @@ private fun DashboardBody(
             ) {
                 QuickActionButton(
                     label = "Cash Drawer",
+                    subtitle = "Add & Reconcile",
                     icon = Icons.Default.PointOfSale,
                     backgroundColor = Amber50,
                     iconTint = Amber600,
@@ -435,6 +530,7 @@ private fun DashboardBody(
 
                 QuickActionButton(
                     label = "Bank Accounts",
+                    subtitle = "UPI & Ledgers",
                     icon = Icons.Default.AccountBalance,
                     backgroundColor = Blue50,
                     iconTint = Blue600,
@@ -446,36 +542,25 @@ private fun DashboardBody(
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        // Registered Bank Accounts Overview (Matching Web dashboard)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            VyavsaSectionHeader(title = "Bank Accounts")
-            Text(
-                text = "Manage",
-                style = MaterialTheme.typography.labelLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                ),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onNavigateToBankAccounts)
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            )
-        }
+        // Registered Bank Accounts Overview
+        VyavsaSectionHeader(
+            title = "Bank Accounts",
+            badgeText = "${metrics.bankBalances.size}",
+            actionText = "Manage →",
+            onActionClick = onNavigateToBankAccounts
+        )
 
         Spacer(modifier = Modifier.height(10.dp))
 
         if (metrics.bankBalances.isEmpty()) {
             Card(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp))
-                    .clickable(onClick = onNavigateToBankAccounts)
+                    .clip(RoundedCornerShape(22.dp))
+                    .vyavsaClickable { onNavigateToBankAccounts() }
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(22.dp))
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -484,8 +569,8 @@ private fun DashboardBody(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(14.dp))
                             .background(Blue50)
                     ) {
                         Icon(imageVector = Icons.Default.AccountBalance, contentDescription = null, tint = Blue600, modifier = Modifier.size(20.dp))
@@ -497,23 +582,29 @@ private fun DashboardBody(
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                         )
                         Text(
-                            text = "Tap here to add bank accounts for electronic collections",
+                            text = "Tap here to add bank accounts for UPI & online collections",
                             style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                         )
                     }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 metrics.bankBalances.forEach { bank ->
                     Card(
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(18.dp))
-                            .clickable(onClick = onNavigateToBankAccounts)
+                            .clip(RoundedCornerShape(20.dp))
+                            .vyavsaClickable { onNavigateToBankAccounts() }
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(20.dp))
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -524,23 +615,25 @@ private fun DashboardBody(
                                 Box(
                                     contentAlignment = Alignment.Center,
                                     modifier = Modifier
-                                        .size(36.dp)
+                                        .size(38.dp)
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(Blue50)
                                 ) {
                                     Icon(imageVector = Icons.Default.AccountBalance, contentDescription = null, tint = Blue600, modifier = Modifier.size(18.dp))
                                 }
-                                Spacer(modifier = Modifier.width(10.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text(
                                         text = bank.bankName,
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     if (!bank.accountNumber.isNullOrBlank()) {
                                         Text(
                                             text = "A/C: ${bank.accountNumber}",
                                             style = MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                fontFamily = FontFamily.Monospace,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         )
@@ -580,7 +673,11 @@ private fun DashboardBody(
                 .fillMaxWidth()
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .animateContentSize()
+            ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -589,7 +686,7 @@ private fun DashboardBody(
                     Text(
                         text = "Net Outstanding Dues",
                         style = MaterialTheme.typography.titleSmall.copy(
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     )
@@ -608,13 +705,17 @@ private fun DashboardBody(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(18.dp),
-                        color = Emerald50.copy(alpha = 0.65f),
+                        color = Emerald50.copy(alpha = 0.7f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Emerald600.copy(alpha = 0.15f)),
                         modifier = Modifier.weight(1f)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text(
                                 text = "Customer Receivable",
-                                style = MaterialTheme.typography.labelSmall.copy(color = Emerald600)
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = Emerald600,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
@@ -622,20 +723,26 @@ private fun DashboardBody(
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Emerald600
-                                )
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
                     Surface(
                         shape = RoundedCornerShape(18.dp),
-                        color = Crimson50.copy(alpha = 0.65f),
+                        color = Crimson50.copy(alpha = 0.7f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Crimson600.copy(alpha = 0.15f)),
                         modifier = Modifier.weight(1f)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text(
                                 text = "Supplier Payable",
-                                style = MaterialTheme.typography.labelSmall.copy(color = Crimson600)
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = Crimson600,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
@@ -643,7 +750,9 @@ private fun DashboardBody(
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Crimson600
-                                )
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -666,6 +775,7 @@ private fun DashboardBody(
             MetricCard(
                 title = "Line Sales",
                 amount = FormatUtils.formatCurrency(today?.lineSale ?: "0.00"),
+                subtitle = "Route deliveries",
                 icon = Icons.Default.TrendingUp,
                 iconTint = Emerald600,
                 iconBackground = Emerald50,
@@ -674,6 +784,7 @@ private fun DashboardBody(
             MetricCard(
                 title = "Counter Sales",
                 amount = FormatUtils.formatCurrency(today?.counterSale ?: "0.00"),
+                subtitle = "POS billing",
                 icon = Icons.Default.Storefront,
                 iconTint = MaterialTheme.colorScheme.primary,
                 iconBackground = MaterialTheme.colorScheme.primaryContainer,
@@ -691,7 +802,7 @@ private fun DashboardBody(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(24.dp))
-                .clickable { onNavigateToStaff() }
+                .vyavsaClickable { onNavigateToStaff() }
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
         ) {
             Row(
@@ -706,9 +817,16 @@ private fun DashboardBody(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(46.dp)
                             .clip(RoundedCornerShape(15.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primaryContainer,
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
+                                    )
+                                )
+                            )
                     ) {
                         Icon(
                             imageVector = Icons.Default.Badge,
@@ -735,7 +853,7 @@ private fun DashboardBody(
 
                 Surface(
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -766,6 +884,7 @@ private fun DashboardBody(
 @Composable
 private fun QuickActionButton(
     label: String,
+    subtitle: String,
     icon: ImageVector,
     backgroundColor: Color,
     iconTint: Color,
@@ -778,37 +897,54 @@ private fun QuickActionButton(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = modifier
             .clip(RoundedCornerShape(22.dp))
-            .clickable { onClick() }
+            .vyavsaClickable { onClick() }
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 16.dp, horizontal = 8.dp)
+                .padding(horizontal = 14.dp, vertical = 14.dp)
         ) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(backgroundColor)
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(backgroundColor, backgroundColor.copy(alpha = 0.65f))
+                        )
+                    )
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     tint = iconTint,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(21.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-            )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }

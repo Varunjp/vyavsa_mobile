@@ -1,14 +1,26 @@
 package com.vyavsa.app.core.designsystem
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,8 +68,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -66,6 +82,38 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+/**
+ * Hardware-accelerated press-scale modifier that operates purely in the draw/graphicsLayer phase
+ * without triggering layout or recomposition passes.
+ */
+fun Modifier.vyavsaClickable(
+    enabled: Boolean = true,
+    pressedScale: Float = 0.975f,
+    onClick: () -> Unit
+): Modifier = composed {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed && enabled) pressedScale else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "PressScale"
+    )
+    this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .clickable(
+            interactionSource = interactionSource,
+            indication = androidx.compose.foundation.LocalIndication.current,
+            enabled = enabled,
+            onClick = onClick
+        )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,12 +127,13 @@ fun VyavsaTopAppBar(
 ) {
     TopAppBar(
         title = {
-            Column {
+            Column(verticalArrangement = Arrangement.Center) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 20.sp,
+                        letterSpacing = (-0.25).sp
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -93,7 +142,8 @@ fun VyavsaTopAppBar(
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -111,7 +161,7 @@ fun VyavsaTopAppBar(
                         contentColor = MaterialTheme.colorScheme.onSurface
                     ),
                     modifier = Modifier
-                        .padding(start = 8.dp, end = 4.dp)
+                        .padding(start = 10.dp, end = 4.dp)
                         .size(40.dp)
                 ) {
                     Icon(
@@ -122,7 +172,15 @@ fun VyavsaTopAppBar(
                 }
             }
         },
-        actions = { actions() },
+        actions = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(end = 8.dp)
+            ) {
+                actions()
+            }
+        },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background,
             titleContentColor = MaterialTheme.colorScheme.onBackground
@@ -141,51 +199,105 @@ fun VyavsaButton(
     leadingIcon: ImageVector? = null,
     containerColor: Color = MaterialTheme.colorScheme.primary
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed && enabled && !isLoading) 0.98f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "ButtonPressScale"
+    )
+
+    val isActive = enabled && !isLoading
+    val isErrorColor = containerColor == MaterialTheme.colorScheme.error || containerColor == Crimson600
+    val gradientBrush = when {
+        !isActive -> Brush.horizontalGradient(
+            listOf(
+                MaterialTheme.colorScheme.surfaceContainerHighest,
+                MaterialTheme.colorScheme.surfaceContainerHighest
+            )
+        )
+        isErrorColor -> VyavsaGradients.CrimsonButtonBrush
+        containerColor == MaterialTheme.colorScheme.primary -> VyavsaGradients.PrimaryButtonBrush
+        else -> Brush.horizontalGradient(
+            listOf(
+                containerColor,
+                containerColor.copy(alpha = 0.88f)
+            )
+        )
+    }
+
     Button(
         onClick = onClick,
-        enabled = enabled && !isLoading,
+        enabled = isActive,
+        interactionSource = interactionSource,
         shape = CircleShape,
         elevation = ButtonDefaults.buttonElevation(
-            defaultElevation = 2.dp,
+            defaultElevation = if (isActive) 3.dp else 0.dp,
             pressedElevation = 0.dp
         ),
         colors = ButtonDefaults.buttonColors(
-            containerColor = containerColor,
+            containerColor = Color.Transparent,
             contentColor = Color.White,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            disabledContainerColor = Color.Transparent,
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
+        contentPadding = PaddingValues(0.dp),
         modifier = modifier
             .fillMaxWidth()
             .height(54.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
     ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(22.dp),
-                color = Color.White,
-                strokeWidth = 2.5.dp
-            )
-        } else {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                if (leadingIcon != null) {
-                    Icon(
-                        imageVector = leadingIcon,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(gradientBrush, CircleShape)
+                .padding(horizontal = 24.dp)
+        ) {
+            AnimatedContent(
+                targetState = isLoading,
+                transitionSpec = {
+                    fadeIn(tween(180)) togetherWith fadeOut(tween(140))
+                },
+                label = "ButtonLoadingTransition"
+            ) { loading ->
+                if (loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        color = Color.White,
+                        strokeWidth = 2.5.dp
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        if (leadingIcon != null) {
+                            Icon(
+                                imageVector = leadingIcon,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(
+                            text = text,
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                letterSpacing = 0.2.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
-                )
             }
         }
     }
@@ -199,11 +311,23 @@ fun VyavsaOutlinedButton(
     enabled: Boolean = true,
     leadingIcon: ImageVector? = null
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed && enabled) 0.98f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "OutlinedButtonPressScale"
+    )
+
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
+        interactionSource = interactionSource,
         shape = CircleShape,
-        border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.outline),
+        border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.8f)),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             contentColor = MaterialTheme.colorScheme.onSurface
@@ -212,6 +336,10 @@ fun VyavsaOutlinedButton(
         modifier = modifier
             .fillMaxWidth()
             .height(54.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -221,6 +349,7 @@ fun VyavsaOutlinedButton(
                 Icon(
                     imageVector = leadingIcon,
                     contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -230,7 +359,9 @@ fun VyavsaOutlinedButton(
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
-                )
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -244,6 +375,8 @@ fun VyavsaTextField(
     modifier: Modifier = Modifier,
     placeholder: String? = null,
     leadingIcon: ImageVector? = null,
+    trailingIcon: (@Composable () -> Unit)? = null,
+    readOnly: Boolean = false,
     isError: Boolean = false,
     errorMessage: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
@@ -254,18 +387,37 @@ fun VyavsaTextField(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            label = { Text(label) },
-            placeholder = placeholder?.let { { Text(it) } },
+            readOnly = readOnly,
+            label = {
+                Text(
+                    text = label,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            },
+            placeholder = placeholder?.let {
+                {
+                    Text(
+                        text = it,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                        )
+                    )
+                }
+            },
             leadingIcon = leadingIcon?.let {
                 {
                     Icon(
                         imageVector = it,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
                         modifier = Modifier.size(20.dp)
                     )
                 }
             },
+            trailingIcon = trailingIcon,
             isError = isError,
             singleLine = singleLine,
             shape = RoundedCornerShape(18.dp),
@@ -275,15 +427,21 @@ fun VyavsaTextField(
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
             ),
             modifier = Modifier.fillMaxWidth()
         )
-        if (isError && !errorMessage.isNullOrBlank()) {
+        AnimatedVisibility(
+            visible = isError && !errorMessage.isNullOrBlank(),
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
             Text(
-                text = errorMessage,
+                text = errorMessage ?: "",
                 color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                 modifier = Modifier.padding(start = 16.dp, top = 4.dp)
             )
         }
@@ -307,7 +465,13 @@ fun VyavsaPasswordField(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            label = { Text(label) },
+            label = {
+                Text(
+                    text = label,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            },
             singleLine = true,
             shape = RoundedCornerShape(18.dp),
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -318,22 +482,32 @@ fun VyavsaPasswordField(
                 val image = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
                 val description = if (passwordVisible) "Hide password" else "Show password"
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Icon(imageVector = image, contentDescription = description)
+                    Icon(
+                        imageVector = image,
+                        contentDescription = description,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
             ),
             modifier = Modifier.fillMaxWidth()
         )
-        if (isError && !errorMessage.isNullOrBlank()) {
+        AnimatedVisibility(
+            visible = isError && !errorMessage.isNullOrBlank(),
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
             Text(
-                text = errorMessage,
+                text = errorMessage ?: "",
                 color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                 modifier = Modifier.padding(start = 16.dp, top = 4.dp)
             )
         }
@@ -341,7 +515,7 @@ fun VyavsaPasswordField(
 }
 
 /**
- * Modern Android 14/15 Pill Search Bar with tonal fill and clear button
+ * Modern Android 14/15 Pill Search Bar with tonal fill, subtle border, and animated clear button
  */
 @Composable
 fun VyavsaSearchBar(
@@ -358,19 +532,25 @@ fun VyavsaSearchBar(
                 text = placeholder,
                 style = MaterialTheme.typography.bodyMedium.copy(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         },
         leadingIcon = {
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = "Search",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp)
             )
         },
         trailingIcon = {
-            if (query.isNotEmpty()) {
+            AnimatedVisibility(
+                visible = query.isNotEmpty(),
+                enter = fadeIn(tween(150)),
+                exit = fadeOut(tween(150))
+            ) {
                 IconButton(onClick = { onQueryChange("") }) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -385,16 +565,18 @@ fun VyavsaSearchBar(
         shape = CircleShape,
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f),
             focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = Color.Transparent
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
         ),
         modifier = modifier.fillMaxWidth()
     )
 }
 
 /**
- * Modern Android Material 3 Pill Segmented Tab Switcher
+ * Modern Android Material 3 Expressive Pill Segmented Tab Switcher
+ * Adapts density and typography automatically for 2-3 tabs vs 4-5 tabs so labels never clip,
+ * with gradient active pill and spring transitions.
  */
 @Composable
 fun VyavsaSegmentedTabs(
@@ -403,45 +585,61 @@ fun VyavsaSegmentedTabs(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isCompact = tabs.size >= 4
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         modifier = modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             tabs.forEachIndexed { index, title ->
                 val isSelected = selectedIndex == index
-                val bgColor by animateColorAsState(
-                    targetValue = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                    animationSpec = tween(220),
-                    label = "SegmentTabBg"
-                )
                 val contentColor by animateColorAsState(
-                    targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    animationSpec = tween(220),
+                    targetValue = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                    animationSpec = tween(220, easing = FastOutSlowInEasing),
                     label = "SegmentTabText"
+                )
+                val elevation by animateDpAsState(
+                    targetValue = if (isSelected) 3.dp else 0.dp,
+                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                    label = "SegmentTabElevation"
                 )
 
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .weight(1f)
+                        .shadow(elevation = elevation, shape = CircleShape, clip = false)
                         .clip(CircleShape)
-                        .background(bgColor)
-                        .clickable { onTabSelected(index) }
-                        .padding(vertical = 10.dp, horizontal = 8.dp)
+                        .then(
+                            if (isSelected) {
+                                Modifier.background(VyavsaGradients.PrimaryButtonBrush, CircleShape)
+                            } else {
+                                Modifier.background(Color.Transparent, CircleShape)
+                            }
+                        )
+                        .vyavsaClickable(pressedScale = 0.96f) { onTabSelected(index) }
+                        .padding(
+                            vertical = if (isCompact) 9.dp else 11.dp,
+                            horizontal = if (isCompact) 4.dp else 10.dp
+                        )
                 ) {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = contentColor
+                        style = (if (isCompact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge).copy(
+                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                            color = contentColor,
+                            fontSize = if (isCompact) 11.5.sp else 13.5.sp,
+                            letterSpacing = if (isCompact) 0.sp else 0.1.sp
                         ),
+                        textAlign = TextAlign.Center,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -464,35 +662,54 @@ fun VyavsaSectionHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         modifier = modifier.fillMaxWidth()
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f, fill = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(16.dp)
+                    .clip(CircleShape)
+                    .background(VyavsaGradients.PrimaryButtonBrush)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    letterSpacing = 0.1.sp
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             if (!badgeText.isNullOrBlank()) {
                 Spacer(modifier = Modifier.width(8.dp))
                 StatBadge(
                     text = badgeText,
-                    backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    textColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    backgroundColor = MaterialTheme.colorScheme.primaryContainer,
+                    textColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
         }
         if (!actionText.isNullOrBlank() && onActionClick != null) {
-            Text(
-                text = actionText,
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                ),
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
                 modifier = Modifier
                     .clip(CircleShape)
-                    .clickable { onActionClick() }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            )
+                    .vyavsaClickable { onActionClick() }
+            ) {
+                Text(
+                    text = actionText,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    ),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                )
+            }
         }
     }
 }
@@ -504,13 +721,27 @@ fun AvatarInitialCircle(
     containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
     contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer
 ) {
-    val initial = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "V"
+    val initial = remember(name) {
+        name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "V"
+    }
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .size(44.dp)
             .clip(RoundedCornerShape(15.dp))
-            .background(containerColor)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        containerColor,
+                        containerColor.copy(alpha = 0.72f)
+                    )
+                )
+            )
+            .border(
+                width = 1.dp,
+                color = contentColor.copy(alpha = 0.14f),
+                shape = RoundedCornerShape(15.dp)
+            )
     ) {
         Text(
             text = initial,
@@ -541,14 +772,18 @@ fun MetricCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .then(if (onClick != null) Modifier.vyavsaClickable { onClick() } else Modifier)
             .border(
                 width = 1.dp,
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f),
                 shape = RoundedCornerShape(24.dp)
             )
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(18.dp)
+                .animateContentSize()
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -564,7 +799,11 @@ fun MetricCard(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(iconBackground)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(iconBackground, iconBackground.copy(alpha = 0.7f))
+                                    )
+                                )
                         ) {
                             Icon(
                                 imageVector = icon,
@@ -630,12 +869,18 @@ fun StatBadge(
     Surface(
         color = backgroundColor,
         shape = CircleShape,
+        border = BorderStroke(0.8.dp, textColor.copy(alpha = 0.18f)),
         modifier = modifier
     ) {
         Text(
             text = text,
             color = textColor,
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.25.sp
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
         )
     }
@@ -649,13 +894,14 @@ fun ErrorBanner(
 ) {
     AnimatedVisibility(
         visible = message.isNotBlank(),
-        enter = fadeIn(),
-        exit = fadeOut(),
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut(),
         modifier = modifier
     ) {
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.25f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -715,9 +961,21 @@ fun EmptyStateView(
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(72.dp)
+                    .size(76.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f))
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primaryContainer,
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                            )
+                        )
+                    )
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        RoundedCornerShape(24.dp)
+                    )
             ) {
                 Icon(
                     imageVector = icon,
@@ -732,7 +990,7 @@ fun EmptyStateView(
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge.copy(
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onSurface
             ),
             textAlign = TextAlign.Center
@@ -753,7 +1011,7 @@ fun EmptyStateView(
             VyavsaButton(
                 text = actionText,
                 onClick = onActionClick,
-                modifier = Modifier.width(210.dp)
+                modifier = Modifier.width(220.dp)
             )
         }
     }
@@ -767,7 +1025,11 @@ fun LoadingOverlay(
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         content()
-        if (isLoading) {
+        AnimatedVisibility(
+            visible = isLoading,
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(180))
+        ) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier

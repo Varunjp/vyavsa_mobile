@@ -1,8 +1,8 @@
 package com.vyavsa.app.feature.dues
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
@@ -56,11 +57,14 @@ import com.vyavsa.app.core.designsystem.Emerald600
 import com.vyavsa.app.core.designsystem.EmptyStateView
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
+import com.vyavsa.app.core.designsystem.VyavsaGradients
 import com.vyavsa.app.core.designsystem.VyavsaSearchBar
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
+import com.vyavsa.app.core.designsystem.vyavsaClickable
 import com.vyavsa.app.core.model.Customer
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DuesScreen(
     viewModel: DuesViewModel,
@@ -138,68 +142,85 @@ fun DuesScreen(
                 }
                 is UiState.Success -> {
                     val customers = state.data
-                    val totalDue = customers.sumOf { it.currentBalance.toDoubleOrNull() ?: 0.0 }
+                    val totalDue = remember(customers) {
+                        customers.sumOf { it.currentBalance.toDoubleOrNull() ?: 0.0 }
+                    }
 
                     LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 88.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        // Summary Banner
-                        item {
+                        // Gradient Summary Hero Banner
+                        item(key = "dues_summary_banner") {
                             Card(
                                 shape = RoundedCornerShape(26.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier.padding(20.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(VyavsaGradients.PrimaryHeroBrush)
+                                        .padding(20.dp)
                                 ) {
-                                    Column {
-                                        Text(
-                                            text = "Active Customer Accounts",
-                                            style = MaterialTheme.typography.labelMedium.copy(
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = "Active Accounts",
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    color = Color.White.copy(alpha = 0.8f),
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
                                             )
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "${customers.size} Accounts",
-                                            style = MaterialTheme.typography.headlineSmall.copy(
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = "${customers.size} Customers",
+                                                style = MaterialTheme.typography.headlineSmall.copy(
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = Color.White
+                                                )
                                             )
-                                        )
-                                    }
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text(
-                                            text = "Total Receivable",
-                                            style = MaterialTheme.typography.labelMedium.copy(
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                                        }
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(
+                                                text = "Total Receivable",
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    color = Color.White.copy(alpha = 0.8f),
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
                                             )
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = FormatUtils.formatCurrency(totalDue),
-                                            style = MaterialTheme.typography.headlineSmall.copy(
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = if (totalDue > 0) Crimson600 else Emerald600
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = FormatUtils.formatCurrency(totalDue),
+                                                style = MaterialTheme.typography.headlineSmall.copy(
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = Color.White
+                                                )
                                             )
-                                        )
+                                        }
                                     }
                                 }
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                         }
 
-                        items(customers) { customer ->
+                        items(
+                            items = customers,
+                            key = { it.id },
+                            contentType = { "customer_due" }
+                        ) { customer ->
                             CustomerDuesCard(
                                 customer = customer,
                                 onReceivePaymentClick = { payingCustomer = customer },
-                                onClick = { onNavigateToCustomerDetails(customer.id) }
+                                onStatementClick = { onNavigateToStatement(customer.id, customer.customerName) },
+                                onClick = { onNavigateToCustomerDetails(customer.id) },
+                                modifier = Modifier.animateItemPlacement()
                             )
                         }
                     }
@@ -237,7 +258,9 @@ fun DuesScreen(
 private fun CustomerDuesCard(
     customer: Customer,
     onReceivePaymentClick: () -> Unit,
-    onClick: () -> Unit
+    onStatementClick: () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val balanceAmount = customer.currentBalance.toDoubleOrNull() ?: 0.0
 
@@ -245,10 +268,10 @@ private fun CustomerDuesCard(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .clickable { onClick() }
+            .vyavsaClickable { onClick() }
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -266,7 +289,9 @@ private fun CustomerDuesCard(
                     Column {
                         Text(
                             text = customer.customerName,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         if (!customer.phone.isNullOrBlank()) {
                             Spacer(modifier = Modifier.height(2.dp))
@@ -277,6 +302,8 @@ private fun CustomerDuesCard(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
@@ -298,7 +325,7 @@ private fun CustomerDuesCard(
             Spacer(modifier = Modifier.height(14.dp))
 
             Row(
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -307,7 +334,7 @@ private fun CustomerDuesCard(
                     color = MaterialTheme.colorScheme.primaryContainer,
                     modifier = Modifier
                         .clip(CircleShape)
-                        .clickable { onReceivePaymentClick() }
+                        .vyavsaClickable { onReceivePaymentClick() }
                 ) {
                     Text(
                         text = "Receive Payment",
@@ -315,16 +342,15 @@ private fun CustomerDuesCard(
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                             fontWeight = FontWeight.Bold
                         ),
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
                 Surface(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     modifier = Modifier
                         .clip(CircleShape)
-                        .clickable { onClick() }
+                        .vyavsaClickable { onStatementClick() }
                 ) {
                     Text(
                         text = "Statement →",
@@ -332,7 +358,7 @@ private fun CustomerDuesCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.SemiBold
                         ),
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                     )
                 }
             }

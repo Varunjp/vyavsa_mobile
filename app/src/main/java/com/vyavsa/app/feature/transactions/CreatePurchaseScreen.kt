@@ -1,8 +1,13 @@
 package com.vyavsa.app.feature.transactions
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -146,13 +152,14 @@ fun CreatePurchaseScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .imePadding()
                 .background(MaterialTheme.colorScheme.background)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(20.dp),
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if (createActionState is UiState.Error) {
@@ -201,13 +208,7 @@ fun CreatePurchaseScreen(
 
                         Spacer(modifier = Modifier.height(18.dp))
 
-                        // Supplier Dropdown
-                        Text(
-                            text = "Supplier / Vendor",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-
+                        // Supplier Dropdown (Naturally aligned with floating label matching VyavsaTextField)
                         ExposedDropdownMenuBox(
                             expanded = customerDropdownExpanded,
                             onExpandedChange = { customerDropdownExpanded = !customerDropdownExpanded },
@@ -217,16 +218,20 @@ fun CreatePurchaseScreen(
                                 value = selectedCustomer?.customerName ?: "Walk-in Supplier / Direct Vendor",
                                 onValueChange = {},
                                 readOnly = true,
+                                label = { Text("Supplier / Vendor") },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = customerDropdownExpanded) },
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Default.Person,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
+                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 },
-                                shape = RoundedCornerShape(16.dp),
+                                shape = RoundedCornerShape(18.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                                     unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                                 ),
@@ -268,31 +273,37 @@ fun CreatePurchaseScreen(
                             }
                         }
 
-                        if (selectedCustomer != null) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Blue50,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                        AnimatedVisibility(
+                            visible = selectedCustomer != null,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = Blue50,
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = "Current Outstanding Payable",
-                                        style = MaterialTheme.typography.bodySmall.copy(color = Blue600, fontWeight = FontWeight.Medium)
-                                    )
-                                    Text(
-                                        text = FormatUtils.formatCurrency(selectedCustomer?.outstandingPayable ?: "0.00"),
-                                        style = MaterialTheme.typography.bodySmall.copy(color = Blue600, fontWeight = FontWeight.ExtraBold)
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Current Outstanding Payable",
+                                            style = MaterialTheme.typography.bodySmall.copy(color = Blue600, fontWeight = FontWeight.Medium)
+                                        )
+                                        Text(
+                                            text = FormatUtils.formatCurrency(selectedCustomer?.outstandingPayable ?: "0.00"),
+                                            style = MaterialTheme.typography.bodySmall.copy(color = Blue600, fontWeight = FontWeight.ExtraBold)
+                                        )
+                                    }
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
                         // Item Description
                         VyavsaTextField(
@@ -309,6 +320,7 @@ fun CreatePurchaseScreen(
                         // Quantity & Unit Price Row
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.Top,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             VyavsaTextField(
@@ -361,7 +373,11 @@ fun CreatePurchaseScreen(
                         .fillMaxWidth()
                         .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(26.dp))
                 ) {
-                    Column(modifier = Modifier.padding(22.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .padding(22.dp)
+                            .animateContentSize()
+                    ) {
                         Text(
                             text = "Payment Settlement Breakdown",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)
@@ -403,7 +419,7 @@ fun CreatePurchaseScreen(
                                 ) {
                                     Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Add Bank", style = MaterialTheme.typography.labelSmall)
+                                    Text("Add Bank", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
                                 }
                             }
                         }
@@ -502,14 +518,22 @@ private fun BankPaymentRowItem(
         ExposedDropdownMenuBox(
             expanded = dropdownExpanded,
             onExpandedChange = { dropdownExpanded = !dropdownExpanded },
-            modifier = Modifier.weight(1.3f)
+            modifier = Modifier.weight(1.25f)
         ) {
             OutlinedTextField(
                 value = currentBank?.bankName ?: "Select Bank",
                 onValueChange = {},
                 readOnly = true,
+                label = { Text("Bank Account") },
+                singleLine = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .menuAnchor()
@@ -536,8 +560,15 @@ private fun BankPaymentRowItem(
             onValueChange = { onUpdate(rowState.copy(amount = it)) },
             label = { Text("Amount (₹)") },
             placeholder = { Text("0.00") },
+            singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+            ),
             modifier = Modifier.weight(1f)
         )
 

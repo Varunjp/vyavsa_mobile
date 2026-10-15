@@ -1,8 +1,11 @@
 package com.vyavsa.app.navigation
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
@@ -57,22 +60,40 @@ fun VyavsaNavGraph(
         navController = navController,
         startDestination = startDestination,
         enterTransition = {
-            fadeIn(animationSpec = tween(240)) + slideInHorizontally(
-                initialOffsetX = { it / 6 },
-                animationSpec = tween(240)
-            )
+            fadeIn(animationSpec = tween(260, easing = FastOutSlowInEasing)) +
+                slideInHorizontally(
+                    initialOffsetX = { (it * 0.14f).toInt() },
+                    animationSpec = tween(280, easing = FastOutSlowInEasing)
+                ) +
+                scaleIn(
+                    initialScale = 0.96f,
+                    animationSpec = tween(280, easing = FastOutSlowInEasing)
+                )
         },
         exitTransition = {
-            fadeOut(animationSpec = tween(200))
+            fadeOut(animationSpec = tween(200, easing = FastOutSlowInEasing)) +
+                scaleOut(
+                    targetScale = 0.97f,
+                    animationSpec = tween(220, easing = FastOutSlowInEasing)
+                )
         },
         popEnterTransition = {
-            fadeIn(animationSpec = tween(220))
+            fadeIn(animationSpec = tween(240, easing = FastOutSlowInEasing)) +
+                scaleIn(
+                    initialScale = 0.97f,
+                    animationSpec = tween(240, easing = FastOutSlowInEasing)
+                )
         },
         popExitTransition = {
-            fadeOut(animationSpec = tween(220)) + slideOutHorizontally(
-                targetOffsetX = { it / 6 },
-                animationSpec = tween(220)
-            )
+            fadeOut(animationSpec = tween(220, easing = FastOutSlowInEasing)) +
+                slideOutHorizontally(
+                    targetOffsetX = { (it * 0.14f).toInt() },
+                    animationSpec = tween(240, easing = FastOutSlowInEasing)
+                ) +
+                scaleOut(
+                    targetScale = 0.96f,
+                    animationSpec = tween(240, easing = FastOutSlowInEasing)
+                )
         },
         modifier = modifier
     ) {

@@ -2,10 +2,17 @@
 package com.vyavsa.app.navigation
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -32,10 +39,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -68,6 +77,7 @@ fun MainShellScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedDestination by rememberSaveable { mutableStateOf(BottomBarDestination.HOME) }
+    val destinations = remember { BottomBarDestination.values().toList() }
 
     val dashboardViewModel: DashboardViewModel = hiltViewModel()
     val transactionsViewModel: TransactionsViewModel = hiltViewModel()
@@ -81,16 +91,28 @@ fun MainShellScreen(
             Surface(
                 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
                 color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 4.dp,
-                shadowElevation = 10.dp
+                tonalElevation = 3.dp,
+                shadowElevation = 12.dp,
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                )
             ) {
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface,
                     tonalElevation = 0.dp,
                     modifier = Modifier.clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                 ) {
-                    BottomBarDestination.values().forEach { destination ->
+                    destinations.forEach { destination ->
                         val isSelected = selectedDestination == destination
+                        val iconScale by animateFloatAsState(
+                            targetValue = if (isSelected) 1.12f else 1.0f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            ),
+                            label = "BottomNavIconScale"
+                        )
                         val icon = when (destination) {
                             BottomBarDestination.HOME -> if (isSelected) Icons.Filled.Home else Icons.Outlined.Home
                             BottomBarDestination.TRANSACTIONS -> if (isSelected) Icons.Filled.ReceiptLong else Icons.Outlined.ReceiptLong
@@ -105,14 +127,18 @@ fun MainShellScreen(
                             icon = {
                                 Icon(
                                     imageVector = icon,
-                                    contentDescription = destination.title
+                                    contentDescription = destination.title,
+                                    modifier = Modifier.graphicsLayer {
+                                        scaleX = iconScale
+                                        scaleY = iconScale
+                                    }
                                 )
                             },
                             label = {
                                 Text(
                                     text = destination.title,
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
                                     )
                                 )
                             },
@@ -138,7 +164,17 @@ fun MainShellScreen(
             AnimatedContent(
                 targetState = selectedDestination,
                 transitionSpec = {
-                    fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
+                    val direction = if (targetState.ordinal >= initialState.ordinal) 1 else -1
+                    (fadeIn(animationSpec = tween(230, easing = FastOutSlowInEasing)) +
+                        slideInHorizontally(
+                            initialOffsetX = { (it * 0.08f * direction).toInt() },
+                            animationSpec = tween(250, easing = FastOutSlowInEasing)
+                        )) togetherWith
+                        (fadeOut(animationSpec = tween(170, easing = FastOutSlowInEasing)) +
+                            slideOutHorizontally(
+                                targetOffsetX = { (-it * 0.06f * direction).toInt() },
+                                animationSpec = tween(200, easing = FastOutSlowInEasing)
+                            ))
                 },
                 label = "BottomNavDestinationTransition"
             ) { destination ->

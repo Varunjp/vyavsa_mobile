@@ -12,6 +12,8 @@ import com.vyavsa.app.core.security.TokenManager
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,6 +48,8 @@ class DuesViewModel @Inject constructor(
     private val _actionState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val actionState: StateFlow<UiState<Unit>> = _actionState.asStateFlow()
 
+    private var searchJob: Job? = null
+
     var adminOverrideForTesting: Boolean? = null
 
     val isAdmin: Boolean
@@ -73,7 +77,11 @@ class DuesViewModel @Inject constructor(
 
     fun onSearchChange(query: String) {
         _searchQuery.value = query
-        loadCustomers()
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(200L)
+            loadCustomers()
+        }
     }
 
     fun loadCustomers() {
@@ -81,7 +89,7 @@ class DuesViewModel @Inject constructor(
         viewModelScope.launch {
             repository.listCustomers(query).collect { res ->
                 _customersState.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_customersState.value is UiState.Success) _customersState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }
@@ -93,7 +101,7 @@ class DuesViewModel @Inject constructor(
         viewModelScope.launch {
             repository.getCustomerById(customerId).collect { res ->
                 _selectedCustomer.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_selectedCustomer.value is UiState.Success) _selectedCustomer.value else UiState.Loading
                     is Resource.Success -> UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }
@@ -106,7 +114,7 @@ class DuesViewModel @Inject constructor(
         viewModelScope.launch {
             repository.listCustomerSales(customerId).collect { res ->
                 _selectedCustomerSales.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_selectedCustomerSales.value is UiState.Success) _selectedCustomerSales.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }
@@ -118,7 +126,7 @@ class DuesViewModel @Inject constructor(
         viewModelScope.launch {
             repository.getCustomerStatement(customerId).collect { res ->
                 _statementState.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_statementState.value is UiState.Success) _statementState.value else UiState.Loading
                     is Resource.Success -> UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }
@@ -130,7 +138,7 @@ class DuesViewModel @Inject constructor(
         viewModelScope.launch {
             repository.listCustomerAdjustments(customerId).collect { res ->
                 _adjustmentsState.value = when (res) {
-                    is Resource.Loading -> UiState.Loading
+                    is Resource.Loading -> if (_adjustmentsState.value is UiState.Success) _adjustmentsState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }

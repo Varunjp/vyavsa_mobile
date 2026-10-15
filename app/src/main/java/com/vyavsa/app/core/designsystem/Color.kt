@@ -1,5 +1,7 @@
 package com.vyavsa.app.core.designsystem
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 // Material 3 Expressive Brand Seed & Tonal Palette (Indigo-Slate & Emerald)
@@ -24,17 +26,17 @@ val ErrorContainerLight = Color(0xFFFEE2E2)
 val OnErrorContainerLight = Color(0xFF7F1D1D)
 
 // Modern Android 14/15 Tonal Surfaces (Light)
-val BackgroundLight = Color(0xFFF6F7FB)
-val OnBackgroundLight = Color(0xFF111827)
+val BackgroundLight = Color(0xFFF5F7FC)
+val OnBackgroundLight = Color(0xFF0F172A)
 val SurfaceLight = Color(0xFFFFFFFF)
-val OnSurfaceLight = Color(0xFF111827)
-val SurfaceVariantLight = Color(0xFFEEF1F8)
-val OnSurfaceVariantLight = Color(0xFF525E75)
+val OnSurfaceLight = Color(0xFF0F172A)
+val SurfaceVariantLight = Color(0xFFEEF2F9)
+val OnSurfaceVariantLight = Color(0xFF475569)
 val SurfaceContainerLowestLight = Color(0xFFFFFFFF)
-val SurfaceContainerLowLight = Color(0xFFF8F9FD)
-val SurfaceContainerLight = Color(0xFFF1F4FA)
-val SurfaceContainerHighLight = Color(0xFFE8ECF5)
-val SurfaceContainerHighestLight = Color(0xFFDFE5F0)
+val SurfaceContainerLowLight = Color(0xFFF8FAFE)
+val SurfaceContainerLight = Color(0xFFF1F5FB)
+val SurfaceContainerHighLight = Color(0xFFE8EEF7)
+val SurfaceContainerHighestLight = Color(0xFFDFE6F2)
 val OutlineLight = Color(0xFFCBD5E1)
 val OutlineVariantLight = Color(0xFFE2E8F0)
 
@@ -60,15 +62,15 @@ val ErrorContainerDark = Color(0xFF93000A)
 val OnErrorContainerDark = Color(0xFFFEE2E2)
 
 // Modern Android 14/15 Tonal Surfaces (Dark)
-val BackgroundDark = Color(0xFF0B0F19)
+val BackgroundDark = Color(0xFF090D16)
 val OnBackgroundDark = Color(0xFFF1F5F9)
-val SurfaceDark = Color(0xFF131926)
+val SurfaceDark = Color(0xFF121826)
 val OnSurfaceDark = Color(0xFFF1F5F9)
 val SurfaceVariantDark = Color(0xFF1E293B)
 val OnSurfaceVariantDark = Color(0xFF94A3B8)
-val SurfaceContainerLowestDark = Color(0xFF080B12)
-val SurfaceContainerLowDark = Color(0xFF111723)
-val SurfaceContainerDark = Color(0xFF171F2E)
+val SurfaceContainerLowestDark = Color(0xFF070A12)
+val SurfaceContainerLowDark = Color(0xFF0F1522)
+val SurfaceContainerDark = Color(0xFF161E2E)
 val SurfaceContainerHighDark = Color(0xFF1E293B)
 val SurfaceContainerHighestDark = Color(0xFF283548)
 val OutlineDark = Color(0xFF334155)
@@ -87,10 +89,77 @@ val Slate100 = Color(0xFFF1F5F9)
 val Slate50 = Color(0xFFF8FAFC)
 
 val Emerald600 = Color(0xFF059669) // Income / Positive Balance
+val Emerald500 = Color(0xFF10B981)
 val Emerald50 = Color(0xFFECFDF5)
 val Crimson600 = Color(0xFFDC2626) // Expense / Dues / Negative
+val Crimson500 = Color(0xFFEF4444)
 val Crimson50 = Color(0xFFFEF2F2)
 val Amber600 = Color(0xFFD97706)   // Pending / Warning
+val Amber500 = Color(0xFFF59E0B)
 val Amber50 = Color(0xFFFFFBEB)
 val Blue600 = Color(0xFF2563EB)    // Bank / Info
+val Blue500 = Color(0xFF3B82F6)
 val Blue50 = Color(0xFFEFF6FF)
+
+/**
+ * Reusable Premium Financial Gradients for Hero Banners, Buttons, Pills, and Badges
+ */
+object VyavsaGradients {
+    val PrimaryHeroBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF4355E8),
+            Color(0xFF2B3CC4),
+            Color(0xFF162283)
+        ),
+        start = Offset(0f, 0f),
+        end = Offset(900f, 650f)
+    )
+
+    val PrimaryButtonBrush = Brush.horizontalGradient(
+        colors = listOf(
+            Color(0xFF3D50E0),
+            Color(0xFF2A3BC2)
+        )
+    )
+
+    val EmeraldHeroBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF059669),
+            Color(0xFF047857),
+            Color(0xFF065F46)
+        ),
+        start = Offset(0f, 0f),
+        end = Offset(800f, 500f)
+    )
+
+    val BlueHeroBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF2563EB),
+            Color(0xFF1D4ED8),
+            Color(0xFF1E3A8A)
+        ),
+        start = Offset(0f, 0f),
+        end = Offset(800f, 500f)
+    )
+
+    val CrimsonButtonBrush = Brush.horizontalGradient(
+        colors = listOf(
+            Color(0xFFEF4444),
+            Color(0xFFDC2626)
+        )
+    )
+
+    val SoftHeaderGlowBrush = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFF3649D8).copy(alpha = 0.09f),
+            Color.Transparent
+        )
+    )
+
+    val TonalIndigoCardBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFFEEF1FF),
+            Color(0xFFE2E6FF)
+        )
+    )
+}

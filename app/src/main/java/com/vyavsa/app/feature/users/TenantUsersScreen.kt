@@ -1,5 +1,6 @@
 package com.vyavsa.app.feature.users
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -24,7 +26,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.AlertDialog
@@ -33,10 +34,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -52,9 +54,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.AvatarInitialCircle
 import com.vyavsa.app.core.designsystem.Blue50
@@ -72,7 +74,7 @@ import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.TenantUser
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TenantUsersScreen(
     viewModel: TenantUsersViewModel,
@@ -170,15 +172,20 @@ fun TenantUsersScreen(
                     val users = state.data
 
                     LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 88.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(users) { user ->
+                        items(
+                            items = users,
+                            key = { it.id.ifBlank { it.email } },
+                            contentType = { "tenant_user" }
+                        ) { user ->
                             TenantUserCard(
                                 user = user,
                                 onEditClick = { userToEdit = user },
-                                onDeleteClick = { userToDelete = user }
+                                onDeleteClick = { userToDelete = user },
+                                modifier = Modifier.animateItemPlacement()
                             )
                         }
                     }
@@ -215,7 +222,9 @@ fun TenantUsersScreen(
     userToDelete?.let { user ->
         AlertDialog(
             onDismissRequest = { userToDelete = null },
-            title = { Text("Deactivate User Account") },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Deactivate User Account", fontWeight = FontWeight.ExtraBold) },
             text = {
                 Text("Are you sure you want to remove or deactivate ${user.name} (${user.email})? This user will immediately lose access to the system.")
             },
@@ -268,7 +277,10 @@ private fun TenantUserCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = user.name,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     StatBadge(
@@ -290,7 +302,9 @@ private fun TenantUserCard(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = user.email,
-                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -303,20 +317,38 @@ private fun TenantUserCard(
                 )
             }
 
-            IconButton(onClick = onEditClick) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit User",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilledTonalIconButton(
+                    onClick = onEditClick,
+                    shape = CircleShape,
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit User",
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
 
-            IconButton(onClick = onDeleteClick) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete User",
-                    tint = Crimson600
-                )
+                FilledTonalIconButton(
+                    onClick = onDeleteClick,
+                    shape = CircleShape,
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = Crimson50,
+                        contentColor = Crimson600
+                    ),
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete User",
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     }
@@ -334,7 +366,9 @@ private fun CreateTenantUserDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create System User Account") },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Create System User Account", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 VyavsaTextField(
@@ -368,21 +402,25 @@ private fun CreateTenantUserDialog(
                     FilterChip(
                         selected = role == "user",
                         onClick = { role = "user" },
-                        label = { Text("Standard User") },
+                        shape = CircleShape,
+                        label = { Text("Standard User", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                        ),
+                        modifier = Modifier.weight(1f)
                     )
 
                     FilterChip(
                         selected = role == "admin",
                         onClick = { role = "admin" },
-                        label = { Text("Tenant Admin") },
+                        shape = CircleShape,
+                        label = { Text("Tenant Admin", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Blue50,
                             selectedLabelColor = Blue600
-                        )
+                        ),
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -419,7 +457,9 @@ private fun EditTenantUserDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit User: ${user.email}") },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Edit User: ${user.email}", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 VyavsaTextField(
@@ -440,13 +480,17 @@ private fun EditTenantUserDialog(
                     FilterChip(
                         selected = role == "user",
                         onClick = { role = "user" },
-                        label = { Text("Standard User") }
+                        shape = CircleShape,
+                        label = { Text("Standard User", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
+                        modifier = Modifier.weight(1f)
                     )
 
                     FilterChip(
                         selected = role == "admin",
                         onClick = { role = "admin" },
-                        label = { Text("Tenant Admin") }
+                        shape = CircleShape,
+                        label = { Text("Tenant Admin", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
+                        modifier = Modifier.weight(1f)
                     )
                 }
 
@@ -462,21 +506,25 @@ private fun EditTenantUserDialog(
                     FilterChip(
                         selected = status == "active",
                         onClick = { status = "active" },
-                        label = { Text("Active") },
+                        shape = CircleShape,
+                        label = { Text("Active", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Emerald50,
                             selectedLabelColor = Emerald600
-                        )
+                        ),
+                        modifier = Modifier.weight(1f)
                     )
 
                     FilterChip(
                         selected = status == "inactive",
                         onClick = { status = "inactive" },
-                        label = { Text("Inactive") },
+                        shape = CircleShape,
+                        label = { Text("Inactive", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Crimson50,
                             selectedLabelColor = Crimson600
-                        )
+                        ),
+                        modifier = Modifier.weight(1f)
                     )
                 }
 

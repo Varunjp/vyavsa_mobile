@@ -1,5 +1,6 @@
 package com.vyavsa.app.core.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -7,6 +8,7 @@ import kotlinx.serialization.Serializable
 // 1. Sales Models & Payments
 // ==========================================
 
+@Immutable
 @Serializable
 data class LineSalePayment(
     val id: String = "",
@@ -24,6 +26,7 @@ data class LineSalePayment(
     @SerialName("updated_at") val updatedAt: String = ""
 )
 
+@Immutable
 @Serializable
 data class LineSale(
     val id: String = "",
@@ -42,6 +45,7 @@ data class LineSale(
     val payments: List<LineSalePayment> = emptyList()
 )
 
+@Immutable
 @Serializable
 data class BankPaymentSplit(
     @SerialName("bank_id") val bankId: String,
@@ -64,6 +68,7 @@ data class CreateLineSaleRequest(
     @SerialName("bank_payments") val bankPayments: List<BankPaymentSplit> = emptyList()
 )
 
+@Immutable
 @Serializable
 data class CounterSalePayment(
     val id: String = "",
@@ -81,6 +86,7 @@ data class CounterSalePayment(
     @SerialName("updated_at") val updatedAt: String = ""
 )
 
+@Immutable
 @Serializable
 data class CounterSale(
     val id: String = "",
@@ -126,6 +132,7 @@ data class RecordSalePaymentRequest(
 // 2. Purchases & Customer / Dues Models
 // ==========================================
 
+@Immutable
 @Serializable
 data class PurchasePayment(
     val id: String = "",
@@ -145,6 +152,7 @@ data class PurchasePayment(
     @SerialName("updated_at") val updatedAt: String = ""
 )
 
+@Immutable
 @Serializable
 data class Purchase(
     val id: String = "",
@@ -195,6 +203,7 @@ data class RecordSupplierPaymentRequest(
     val note: String? = null
 )
 
+@Immutable
 @Serializable
 data class SupplierPaymentAllocation(
     @SerialName("purchase_id") val purchaseId: String = "",
@@ -205,6 +214,7 @@ data class SupplierPaymentAllocation(
     @SerialName("payment_status") val paymentStatus: String = "PAID"
 )
 
+@Immutable
 @Serializable
 data class SupplierPaymentResponse(
     @SerialName("payment_id") val paymentId: String = "",
@@ -217,6 +227,7 @@ data class SupplierPaymentResponse(
     val allocations: List<SupplierPaymentAllocation> = emptyList()
 )
 
+@Immutable
 @Serializable
 data class Customer(
     val id: String = "",
@@ -254,6 +265,7 @@ data class AdjustCustomerBalanceRequest(
     val reason: String
 )
 
+@Immutable
 @Serializable
 data class CustomerBalanceAdjustment(
     val id: String = "",
@@ -270,6 +282,7 @@ data class CustomerBalanceAdjustment(
         get() = previousBalance
 }
 
+@Immutable
 @Serializable
 data class CustomerBalance(
     @SerialName("customer_id") val customerId: String = "",
@@ -281,6 +294,7 @@ data class CustomerBalance(
     val status: String = "active"
 )
 
+@Immutable
 @Serializable
 data class CustomerStatementEntry(
     val id: String = "",
@@ -294,6 +308,7 @@ data class CustomerStatementEntry(
     @SerialName("payment_method") val paymentMethod: String? = null
 )
 
+@Immutable
 @Serializable
 data class CustomerStatement(
     @SerialName("customer_id") val customerId: String = "",
@@ -319,6 +334,7 @@ data class RecordPaymentRequest(
 // 3. Expenses Models
 // ==========================================
 
+@Immutable
 @Serializable
 data class ExpenseBankBreakdown(
     @SerialName("bank_account_id") val bankAccountId: String = "",
@@ -326,6 +342,7 @@ data class ExpenseBankBreakdown(
     val amount: String = "0.00"
 )
 
+@Immutable
 @Serializable
 data class ExpensePaymentBreakdown(
     @SerialName("cash_amount") val cashAmount: String = "0.00",
@@ -333,6 +350,7 @@ data class ExpensePaymentBreakdown(
     val banks: List<ExpenseBankBreakdown> = emptyList()
 )
 
+@Immutable
 @Serializable
 data class Expense(
     val id: String = "",
@@ -367,6 +385,7 @@ data class CreateExpenseRequest(
 // 4. Employee & Attendance Models
 // ==========================================
 
+@Immutable
 @Serializable
 data class Employee(
     val id: String = "",
@@ -397,6 +416,7 @@ data class UpdateEmployeeRequest(
     val status: String? = null
 )
 
+@Immutable
 @Serializable
 data class AttendanceRecord(
     val id: String = "",
@@ -418,6 +438,7 @@ data class RecordAttendanceRequest(
     val advance: String = "0.00"
 )
 
+@Immutable
 @Serializable
 data class EmployeeAdvance(
     val id: String = "",
@@ -429,6 +450,7 @@ data class EmployeeAdvance(
     val notes: String? = null
 )
 
+@Immutable
 @Serializable
 data class EmployeeOvertime(
     val id: String = "",
@@ -439,6 +461,7 @@ data class EmployeeOvertime(
     val notes: String? = null
 )
 
+@Immutable
 @Serializable
 data class EmployeeSalaryPayment(
     val id: String = "",
@@ -451,6 +474,7 @@ data class EmployeeSalaryPayment(
     @SerialName("created_at") val createdAt: String = ""
 )
 
+@Immutable
 @Serializable
 data class EmployeeSalaryStatement(
     @SerialName("employee_id") val employeeId: String = "",
@@ -466,6 +490,7 @@ data class EmployeeSalaryStatement(
     val payments: List<EmployeeSalaryPayment> = emptyList()
 )
 
+@Immutable
 @Serializable
 data class EmployeeSalary(
     val id: String = "",
@@ -491,6 +516,7 @@ data class PaySalaryRequest(
 // 5. Tenant User Management Models
 // ==========================================
 
+@Immutable
 @Serializable
 data class TenantUser(
     val id: String = "",
@@ -524,11 +550,13 @@ data class UpdateTenantUserRequest(
 // 6. Cash Book & Bank Transaction Models
 // ==========================================
 
+@Immutable
 @Serializable
 data class CashBalanceResponse(
     @SerialName("cash_balance") val cashBalance: String = "0.00"
 )
 
+@Immutable
 @Serializable
 data class CashTransaction(
     val id: String = "",
@@ -554,6 +582,7 @@ data class AdjustCashRequest(
     val reason: String
 )
 
+@Immutable
 @Serializable
 data class BankTransaction(
     val id: String = "",

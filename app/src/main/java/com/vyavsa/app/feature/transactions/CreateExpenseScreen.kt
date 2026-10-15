@@ -1,7 +1,13 @@
 package com.vyavsa.app.feature.transactions
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,6 +27,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CalendarToday
@@ -53,15 +61,16 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.Amber50
 import com.vyavsa.app.core.designsystem.Amber600
-import com.vyavsa.app.core.designsystem.Blue50
-import com.vyavsa.app.core.designsystem.Blue600
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.VyavsaButton
+import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.Employee
@@ -93,7 +102,17 @@ fun CreateExpenseScreen(
     var referenceId by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
 
-    val categories = listOf("operations", "employee_advance", "transport", "office", "salary", "rent", "misc")
+    val categories = remember {
+        listOf(
+            "operations" to "Operations",
+            "employee_advance" to "Staff Advance",
+            "transport" to "Transport",
+            "office" to "Office",
+            "salary" to "Salary",
+            "rent" to "Rent",
+            "misc" to "Misc"
+        )
+    }
 
     LaunchedEffect(createActionState) {
         if (createActionState is UiState.Success) {
@@ -126,13 +145,14 @@ fun CreateExpenseScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .imePadding()
                 .background(MaterialTheme.colorScheme.background)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(20.dp)
+                    .padding(horizontal = 20.dp, vertical = 14.dp)
             ) {
                 Card(
                     shape = RoundedCornerShape(28.dp),
@@ -142,7 +162,7 @@ fun CreateExpenseScreen(
                         .fillMaxWidth()
                         .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(28.dp))
                 ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
+                    Column(modifier = Modifier.padding(22.dp)) {
                         Text(
                             text = if (category == "employee_advance") "Employee Advance Disbursement" else "New Expense Entry",
                             style = MaterialTheme.typography.titleLarge.copy(
@@ -161,7 +181,7 @@ fun CreateExpenseScreen(
                             )
                         )
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(18.dp))
 
                         if (createActionState is UiState.Error || localError != null) {
                             ErrorBanner(
@@ -170,7 +190,7 @@ fun CreateExpenseScreen(
                             )
                         }
 
-                        // Category Selection Chips
+                        // Category Selection (Cleanly aligned 2-row scrollable + balanced grid)
                         Text(
                             text = "Expense Category",
                             style = MaterialTheme.typography.labelLarge.copy(
@@ -181,158 +201,162 @@ fun CreateExpenseScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Category Chips Row 1
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            categories.take(3).forEach { cat ->
-                                val labelText = if (cat == "employee_advance") "Staff Advance" else cat.replaceFirstChar { it.uppercase() }
-                                val isSelected = category == cat
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = {
-                                        category = cat
-                                        localError = null
-                                    },
-                                    shape = CircleShape,
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = if (cat == "employee_advance") Amber50 else MaterialTheme.colorScheme.primaryContainer,
-                                        selectedLabelColor = if (cat == "employee_advance") Amber600 else MaterialTheme.colorScheme.onPrimaryContainer
-                                    ),
-                                    border = if (isSelected && cat == "employee_advance") FilterChipDefaults.filterChipBorder(enabled = true, selected = true, borderColor = Amber600) else null,
-                                    label = { Text(labelText, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) }
-                                )
-                            }
-                        }
-
-                        // Category Chips Row 2
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            categories.drop(3).forEach { cat ->
-                                val labelText = cat.replaceFirstChar { it.uppercase() }
-                                val isSelected = category == cat
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = {
-                                        category = cat
-                                        localError = null
-                                    },
-                                    shape = CircleShape,
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                    ),
-                                    label = { Text(labelText, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) }
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        // Employee Advance Selection Section
-                        if (category == "employee_advance") {
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = Amber50,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(1.dp, Amber600.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
-                            ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            categories.chunked(3).forEach { rowItems ->
                                 Row(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Info,
-                                        contentDescription = null,
-                                        tint = Amber600,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = "Selecting an employee advance records the disbursement and automatically adjusts their pending salary balance.",
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            color = Amber600,
-                                            fontWeight = FontWeight.Medium
+                                    rowItems.forEach { (catKey, labelText) ->
+                                        val isSelected = category == catKey
+                                        val isAdv = catKey == "employee_advance"
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = {
+                                                category = catKey
+                                                localError = null
+                                            },
+                                            shape = CircleShape,
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = if (isAdv) Amber50 else MaterialTheme.colorScheme.primaryContainer,
+                                                selectedLabelColor = if (isAdv) Amber600 else MaterialTheme.colorScheme.onPrimaryContainer
+                                            ),
+                                            border = if (isSelected && isAdv) {
+                                                FilterChipDefaults.filterChipBorder(enabled = true, selected = true, borderColor = Amber600)
+                                            } else {
+                                                FilterChipDefaults.filterChipBorder(
+                                                    enabled = true,
+                                                    selected = isSelected,
+                                                    borderColor = MaterialTheme.colorScheme.outlineVariant
+                                                )
+                                            },
+                                            label = {
+                                                Text(
+                                                    text = labelText,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    textAlign = TextAlign.Center,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                            },
+                                            modifier = Modifier.weight(1f)
                                         )
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Text(
-                                text = "Select Staff Member *",
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            ExposedDropdownMenuBox(
-                                expanded = employeeDropdownExpanded,
-                                onExpandedChange = { employeeDropdownExpanded = !employeeDropdownExpanded },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                OutlinedTextField(
-                                    value = selectedEmployee?.name ?: "Tap to choose staff member...",
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = employeeDropdownExpanded) },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.Badge,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    },
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .menuAnchor()
-                                )
-
-                                ExposedDropdownMenu(
-                                    expanded = employeeDropdownExpanded,
-                                    onDismissRequest = { employeeDropdownExpanded = false }
-                                ) {
-                                    if (employees.isEmpty()) {
-                                        DropdownMenuItem(
-                                            text = { Text("No active staff found. Register employees in Staff tab.") },
-                                            onClick = { employeeDropdownExpanded = false }
-                                        )
-                                    } else {
-                                        employees.forEach { emp ->
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Column {
-                                                        Text(emp.name, fontWeight = FontWeight.Bold)
-                                                        Text(
-                                                            "Base Rate: ${FormatUtils.formatCurrency(emp.salary)} • Status: ${emp.status.uppercase()}",
-                                                            style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                        )
-                                                    }
-                                                },
-                                                onClick = {
-                                                    selectedEmployee = emp
-                                                    employeeDropdownExpanded = false
-                                                    localError = null
-                                                }
-                                            )
+                                    }
+                                    if (rowItems.size < 3) {
+                                        repeat(3 - rowItems.size) {
+                                            Spacer(modifier = Modifier.weight(1f))
                                         }
                                     }
                                 }
                             }
+                        }
 
-                            Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Employee Advance Selection Section (Smooth AnimatedVisibility)
+                        AnimatedVisibility(
+                            visible = category == "employee_advance",
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Amber50,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(1.dp, Amber600.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Info,
+                                            contentDescription = null,
+                                            tint = Amber600,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = "Selecting an employee advance records the disbursement and automatically adjusts their pending salary balance.",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                color = Amber600,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                ExposedDropdownMenuBox(
+                                    expanded = employeeDropdownExpanded,
+                                    onExpandedChange = { employeeDropdownExpanded = !employeeDropdownExpanded },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    OutlinedTextField(
+                                        value = selectedEmployee?.name ?: "",
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        label = { Text("Select Staff Member *") },
+                                        placeholder = { Text("Tap to choose staff member...") },
+                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = employeeDropdownExpanded) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Badge,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        },
+                                        shape = RoundedCornerShape(18.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .menuAnchor()
+                                    )
+
+                                    ExposedDropdownMenu(
+                                        expanded = employeeDropdownExpanded,
+                                        onDismissRequest = { employeeDropdownExpanded = false }
+                                    ) {
+                                        if (employees.isEmpty()) {
+                                            DropdownMenuItem(
+                                                text = { Text("No active staff found. Register employees in Staff tab.") },
+                                                onClick = { employeeDropdownExpanded = false }
+                                            )
+                                        } else {
+                                            employees.forEach { emp ->
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Column {
+                                                            Text(emp.name, fontWeight = FontWeight.Bold)
+                                                            Text(
+                                                                "Base Rate: ${FormatUtils.formatCurrency(emp.salary)} • Status: ${emp.status.uppercase()}",
+                                                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                            )
+                                                        }
+                                                    },
+                                                    onClick = {
+                                                        selectedEmployee = emp
+                                                        employeeDropdownExpanded = false
+                                                        localError = null
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+                            }
                         }
 
                         // Expense Item Name
@@ -350,39 +374,44 @@ fun CreateExpenseScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Amount
-                        VyavsaTextField(
-                            value = amount,
-                            onValueChange = {
-                                amount = it
-                                localError = null
-                            },
-                            label = if (category == "employee_advance") "Advance Amount (₹) *" else "Amount (₹) *",
-                            placeholder = "0.00",
-                            leadingIcon = Icons.Default.AttachMoney,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Decimal,
-                                imeAction = ImeAction.Next
+                        // Amount & Date Row
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.Top,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            VyavsaTextField(
+                                value = amount,
+                                onValueChange = {
+                                    amount = it
+                                    localError = null
+                                },
+                                label = if (category == "employee_advance") "Advance (₹) *" else "Amount (₹) *",
+                                placeholder = "0.00",
+                                leadingIcon = Icons.Default.AttachMoney,
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Decimal,
+                                    imeAction = ImeAction.Next
+                                ),
+                                modifier = Modifier.weight(1f)
                             )
-                        )
 
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Transaction Date (Optional)
-                        VyavsaTextField(
-                            value = paymentDate,
-                            onValueChange = { paymentDate = it },
-                            label = "Transaction Date (YYYY-MM-DD, Optional)",
-                            placeholder = "Defaults to today",
-                            leadingIcon = Icons.Default.CalendarToday,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
-                        )
+                            VyavsaTextField(
+                                value = paymentDate,
+                                onValueChange = { paymentDate = it },
+                                label = "Date (Optional)",
+                                placeholder = "YYYY-MM-DD",
+                                leadingIcon = Icons.Default.CalendarToday,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(18.dp))
 
-                        // Payment Method
+                        // Payment Method (Aligned Segmented Switcher)
                         Text(
-                            text = "Paid From",
+                            text = "Paid From Account",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -391,48 +420,64 @@ fun CreateExpenseScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            FilterChip(
-                                selected = paymentMethod == "cash",
-                                onClick = { paymentMethod = "cash" },
-                                shape = CircleShape,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                ),
-                                label = { Text("Cash Till") }
-                            )
-                            FilterChip(
-                                selected = paymentMethod == "bank",
-                                onClick = {
+                        VyavsaSegmentedTabs(
+                            tabs = listOf("Cash Till", "Bank Account"),
+                            selectedIndex = if (paymentMethod == "cash") 0 else 1,
+                            onTabSelected = { idx ->
+                                if (idx == 0) {
+                                    paymentMethod = "cash"
+                                } else {
                                     paymentMethod = "bank"
                                     if (selectedBankId == null && banks.isNotEmpty()) {
                                         selectedBankId = banks.first().id
                                     }
-                                },
-                                shape = CircleShape,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                ),
-                                label = { Text("Bank Account") }
-                            )
-                        }
+                                }
+                            }
+                        )
 
-                        if (paymentMethod == "bank" && banks.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "Select Bank Account *",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            banks.forEach { bank ->
-                                FilterChip(
-                                    selected = selectedBankId == bank.id,
-                                    onClick = { selectedBankId = bank.id },
-                                    label = { Text(bank.bankName) },
-                                    modifier = Modifier.padding(bottom = 4.dp)
+                        AnimatedVisibility(
+                            visible = paymentMethod == "bank" && banks.isNotEmpty(),
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column(modifier = Modifier.padding(top = 12.dp)) {
+                                Text(
+                                    text = "Select Bank Account *",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
                                 )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState())
+                                ) {
+                                    banks.forEach { bank ->
+                                        val isSelected = selectedBankId == bank.id
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { selectedBankId = bank.id },
+                                            shape = CircleShape,
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.AccountBalance,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                            ),
+                                            label = {
+                                                Text(
+                                                    text = bank.bankName,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
 

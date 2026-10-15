@@ -3,7 +3,6 @@ package com.vyavsa.app.feature.profile
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,8 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import com.vyavsa.app.core.designsystem.Blue50
-import com.vyavsa.app.core.designsystem.Blue600
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.AccountBalance
@@ -58,6 +55,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.BuildConfig
 import com.vyavsa.app.core.common.UiState
+import com.vyavsa.app.core.designsystem.Blue50
+import com.vyavsa.app.core.designsystem.Blue600
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
@@ -65,8 +64,10 @@ import com.vyavsa.app.core.designsystem.Emerald600
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaButton
+import com.vyavsa.app.core.designsystem.VyavsaGradients
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
+import com.vyavsa.app.core.designsystem.vyavsaClickable
 
 @Composable
 fun ProfileScreen(
@@ -80,8 +81,9 @@ fun ProfileScreen(
     val profileState by viewModel.profileState.collectAsState()
     val subscriptionState by viewModel.subscriptionState.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
-    val userProfile = viewModel.tokenManager.getUserProfile()
-    val isAdmin = viewModel.tokenManager.isTenantAdmin()
+    val sessionState by viewModel.tokenManager.sessionState.collectAsState()
+    val userProfile = remember(sessionState) { viewModel.tokenManager.getUserProfile() }
+    val isAdmin = remember(sessionState) { viewModel.tokenManager.isTenantAdmin() }
 
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showLogoutConfirmDialog by remember { mutableStateOf(false) }
@@ -133,9 +135,9 @@ fun ProfileScreen(
                             Box(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
-                                    .size(52.dp)
+                                    .size(54.dp)
                                     .clip(RoundedCornerShape(18.dp))
-                                    .background(MaterialTheme.colorScheme.primary)
+                                    .background(VyavsaGradients.PrimaryHeroBrush)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Business,
@@ -194,13 +196,13 @@ fun ProfileScreen(
                                     Icon(
                                         imageVector = Icons.Default.Email,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
                                         text = profile.email,
-                                        style = MaterialTheme.typography.bodyMedium
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                                     )
                                 }
                                 if (!profile.phone.isNullOrBlank()) {
@@ -208,13 +210,13 @@ fun ProfileScreen(
                                         Icon(
                                             imageVector = Icons.Default.Phone,
                                             contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(modifier = Modifier.width(10.dp))
                                         Text(
                                             text = profile.phone,
-                                            style = MaterialTheme.typography.bodyMedium
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                                         )
                                     }
                                 }
@@ -231,8 +233,9 @@ fun ProfileScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .vyavsaClickable { onNavigateToBankAccounts() }
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
-                    .clickable { onNavigateToBankAccounts() }
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -241,7 +244,7 @@ fun ProfileScreen(
                         .fillMaxWidth()
                         .padding(20.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
@@ -286,8 +289,9 @@ fun ProfileScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .vyavsaClickable { onNavigateToPlans() }
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
-                    .clickable { onNavigateToPlans() }
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Row(
@@ -295,11 +299,11 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                             Box(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
-                                    .size(42.dp)
+                                    .size(44.dp)
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Emerald50)
                             ) {
@@ -310,7 +314,7 @@ fun ProfileScreen(
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(14.dp))
                             Column {
                                 Text(
                                     text = "Subscription & Plans",
@@ -370,8 +374,9 @@ fun ProfileScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clip(RoundedCornerShape(24.dp))
+                        .vyavsaClickable { onNavigateToTenantUsers() }
                         .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
-                        .clickable { onNavigateToTenantUsers() }
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -380,7 +385,7 @@ fun ProfileScreen(
                             .fillMaxWidth()
                             .padding(20.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                             Box(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier

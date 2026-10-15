@@ -1,5 +1,6 @@
 package com.vyavsa.app.feature.transactions
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -34,19 +35,17 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -77,6 +76,7 @@ import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaButton
 import com.vyavsa.app.core.designsystem.VyavsaSectionHeader
 import com.vyavsa.app.core.designsystem.VyavsaTextField
+import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.Purchase
 import com.vyavsa.app.core.model.PurchasePayment
 import com.vyavsa.app.core.model.TenantBank
@@ -123,48 +123,45 @@ fun PurchaseDetailsScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = "Purchase Order Details",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                        )
-                        Text(
-                            text = "Procurement & vendor payment audit record",
-                            style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                },
+            VyavsaTopAppBar(
+                title = "Purchase Order Details",
+                subtitle = "Procurement & vendor payment audit record",
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                onNavigationClick = onNavigateBack,
                 actions = {
                     if (viewModel.isAdmin) {
-                        IconButton(onClick = { showEditDialog = true }) {
+                        FilledTonalIconButton(
+                            onClick = { showEditDialog = true },
+                            shape = CircleShape,
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier.size(38.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Edit,
                                 contentDescription = "Edit Purchase",
-                                tint = MaterialTheme.colorScheme.primary
+                                modifier = Modifier.size(18.dp)
                             )
                         }
-                        IconButton(onClick = { showDeleteDialog = true }) {
+                        FilledTonalIconButton(
+                            onClick = { showDeleteDialog = true },
+                            shape = CircleShape,
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = Crimson50,
+                                contentColor = Crimson600
+                            ),
+                            modifier = Modifier.size(38.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = "Delete Purchase",
-                                tint = Crimson600
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+                }
             )
         },
         modifier = modifier
@@ -240,16 +237,19 @@ fun PurchaseDetailsScreen(
                     if (showDeleteDialog) {
                         AlertDialog(
                             onDismissRequest = { showDeleteDialog = false },
-                            title = { Text("Delete Purchase Order", fontWeight = FontWeight.Bold) },
+                            shape = RoundedCornerShape(28.dp),
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            title = { Text("Delete Purchase Order", fontWeight = FontWeight.ExtraBold) },
                             text = {
                                 Text("Are you sure you want to delete this purchase for \"${purchase.item}\"? This will reverse all supplier dues and associated cash/bank disbursements.")
                             },
                             confirmButton = {
                                 Button(
                                     onClick = { viewModel.deletePurchase() },
+                                    shape = CircleShape,
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                                 ) {
-                                    Text("Delete Order")
+                                    Text("Delete Order", fontWeight = FontWeight.Bold)
                                 }
                             },
                             dismissButton = {
@@ -266,6 +266,7 @@ fun PurchaseDetailsScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PurchaseDetailsContent(
     purchase: Purchase,
@@ -282,7 +283,7 @@ private fun PurchaseDetailsContent(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Hero Card
-        item {
+        item(key = "purchase_hero") {
             Card(
                 shape = RoundedCornerShape(26.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -327,7 +328,7 @@ private fun PurchaseDetailsContent(
 
                         val isPaid = purchase.paymentStatus.equals("PAID", ignoreCase = true) || pendingVal <= 0.0
                         val isPartial = purchase.paymentStatus.equals("PARTIALLY_PAID", ignoreCase = true) ||
-                                (purchase.totalPaid.toDoubleOrNull() ?: 0.0 > 0.0 && pendingVal > 0.0)
+                            (purchase.totalPaid.toDoubleOrNull() ?: 0.0 > 0.0 && pendingVal > 0.0)
 
                         StatBadge(
                             text = if (isPaid) "PAID" else if (isPartial) "PARTIAL" else "UNPAID",
@@ -395,7 +396,7 @@ private fun PurchaseDetailsContent(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(48.dp),
-                            shape = RoundedCornerShape(14.dp)
+                            shape = CircleShape
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Edit,
@@ -403,7 +404,7 @@ private fun PurchaseDetailsContent(
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Edit Purchase")
+                            Text("Edit Purchase", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -412,7 +413,7 @@ private fun PurchaseDetailsContent(
 
         // Supplier Info Card
         if (!purchase.customerName.isNullOrBlank()) {
-            item {
+            item(key = "supplier_info") {
                 Card(
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -455,7 +456,7 @@ private fun PurchaseDetailsContent(
         }
 
         // Payment History Section
-        item {
+        item(key = "payment_history_header") {
             VyavsaSectionHeader(
                 title = "Payment & Settlement Records",
                 badgeText = when (paymentsState) {
@@ -467,14 +468,14 @@ private fun PurchaseDetailsContent(
 
         when (paymentsState) {
             is UiState.Loading -> {
-                item {
+                item(key = "payments_loading") {
                     Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
                     }
                 }
             }
             is UiState.Empty -> {
-                item {
+                item(key = "payments_empty") {
                     Surface(
                         shape = RoundedCornerShape(18.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -498,13 +499,19 @@ private fun PurchaseDetailsContent(
                 }
             }
             is UiState.Error -> {
-                item {
+                item(key = "payments_error") {
                     ErrorBanner(message = paymentsState.message)
                 }
             }
             is UiState.Success -> {
-                items(paymentsState.data) { payment ->
-                    PaymentRecordCard(payment)
+                items(
+                    items = paymentsState.data,
+                    key = { it.id.ifBlank { "${it.createdAt}_${it.amount}" } }
+                ) { payment ->
+                    PaymentRecordCard(
+                        payment = payment,
+                        modifier = Modifier.animateItemPlacement()
+                    )
                 }
             }
             else -> {}
@@ -513,11 +520,14 @@ private fun PurchaseDetailsContent(
 }
 
 @Composable
-private fun PaymentRecordCard(payment: PurchasePayment) {
+private fun PaymentRecordCard(
+    payment: PurchasePayment,
+    modifier: Modifier = Modifier
+) {
     Card(
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(18.dp))
     ) {
@@ -663,7 +673,9 @@ private fun RecordPurchasePaymentDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Record Purchase Settlement", fontWeight = FontWeight.Bold) },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Record Purchase Settlement", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (errorMessage != null || localError != null) {
@@ -688,11 +700,13 @@ private fun RecordPurchasePaymentDialog(
                     FilterChip(
                         selected = selectedMethod == "cash",
                         onClick = { selectedMethod = "cash" },
+                        shape = CircleShape,
                         label = { Text("Cash Till") }
                     )
                     FilterChip(
                         selected = selectedMethod == "bank",
                         onClick = { selectedMethod = "bank" },
+                        shape = CircleShape,
                         label = { Text("Bank Account") }
                     )
                 }
@@ -706,6 +720,7 @@ private fun RecordPurchasePaymentDialog(
                         FilterChip(
                             selected = selectedBankId == bank.id,
                             onClick = { selectedBankId = bank.id },
+                            shape = CircleShape,
                             label = { Text(bank.bankName) },
                             modifier = Modifier.padding(bottom = 2.dp)
                         )
@@ -737,12 +752,13 @@ private fun RecordPurchasePaymentDialog(
                     }
                     onConfirm(amount, selectedMethod, selectedBankId, note)
                 },
+                shape = CircleShape,
                 enabled = !isLoading
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White)
                 } else {
-                    Text("Record Payment")
+                    Text("Record Payment", fontWeight = FontWeight.Bold)
                 }
             }
         },
@@ -771,7 +787,9 @@ private fun EditPurchaseDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Purchase Order", fontWeight = FontWeight.Bold) },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Edit Purchase Order", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (errorMessage != null || localError != null) {
@@ -842,12 +860,13 @@ private fun EditPurchaseDialog(
                     }
                     onConfirm(item, quantity, totalAmount, totalPaid)
                 },
+                shape = CircleShape,
                 enabled = !isLoading
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White)
                 } else {
-                    Text("Save Changes")
+                    Text("Save Changes", fontWeight = FontWeight.Bold)
                 }
             }
         },
