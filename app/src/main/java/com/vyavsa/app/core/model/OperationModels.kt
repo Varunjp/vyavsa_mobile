@@ -31,6 +31,7 @@ data class CreateLineSaleRequest(
     val note: String? = null,
     @SerialName("total_amount") val totalAmount: String,
     @SerialName("total_cash_in") val totalCashIn: String = "0.00",
+    @SerialName("cash_amount") val cashAmount: String? = null,
     @SerialName("bank_amount") val bankAmount: String = "0.00",
     @SerialName("bank_id") val bankId: String? = null
 )
@@ -56,6 +57,7 @@ data class CreateCounterSaleRequest(
     @SerialName("total_amount") val totalAmount: String,
     @SerialName("payment_method") val paymentMethod: String = "cash",
     val cash: String = "0.00",
+    @SerialName("cash_amount") val cashAmount: String? = null,
     @SerialName("bank_amount") val bankAmount: String = "0.00",
     @SerialName("bank_id") val bankId: String? = null
 )

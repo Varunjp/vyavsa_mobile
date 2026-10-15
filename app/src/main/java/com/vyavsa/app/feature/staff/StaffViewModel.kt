@@ -9,6 +9,8 @@ import com.vyavsa.app.core.model.AttendanceRecord
 import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.EmployeeSalary
 import com.vyavsa.app.core.security.TokenManager
+import com.vyavsa.app.core.sync.DataMutation
+import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +27,7 @@ enum class StaffTab {
 @HiltViewModel
 class StaffViewModel @Inject constructor(
     private val repository: StaffRepository,
+    private val refreshCoordinator: DataRefreshCoordinator,
     val tokenManager: TokenManager
 ) : ViewModel() {
 
@@ -45,6 +48,21 @@ class StaffViewModel @Inject constructor(
 
     init {
         loadData()
+        observeRefreshEvents()
+    }
+
+    private fun observeRefreshEvents() {
+        viewModelScope.launch {
+            refreshCoordinator.refreshEvents.collect { mutation ->
+                when (mutation) {
+                    DataMutation.STAFF,
+                    DataMutation.ALL -> {
+                        loadData()
+                    }
+                    else -> Unit
+                }
+            }
+        }
     }
 
     fun selectTab(tab: StaffTab) {
@@ -107,6 +125,7 @@ class StaffViewModel @Inject constructor(
                 _actionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
+                        refreshCoordinator.notifyMutation(DataMutation.STAFF)
                         loadAttendance()
                         UiState.Success(Unit)
                     }
@@ -127,6 +146,7 @@ class StaffViewModel @Inject constructor(
                 _actionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
+                        refreshCoordinator.notifyMutation(DataMutation.STAFF)
                         loadEmployees()
                         UiState.Success(Unit)
                     }
@@ -153,6 +173,12 @@ class StaffViewModel @Inject constructor(
                 _actionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
+                        refreshCoordinator.notifyMutation(DataMutation.STAFF)
+                        if (paymentMethod == "bank") {
+                            refreshCoordinator.notifyMutation(DataMutation.BANK)
+                        } else {
+                            refreshCoordinator.notifyMutation(DataMutation.CASH)
+                        }
                         loadSalaries()
                         UiState.Success(Unit)
                     }

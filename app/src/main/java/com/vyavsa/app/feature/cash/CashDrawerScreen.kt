@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -35,6 +34,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -46,7 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -62,6 +61,7 @@ import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaButton
 import com.vyavsa.app.core.designsystem.VyavsaOutlinedButton
+import com.vyavsa.app.core.designsystem.VyavsaSectionHeader
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.CashTransaction
@@ -81,9 +81,11 @@ fun CashDrawerScreen(
     var showAdjustDialog by remember { mutableStateOf(false) }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             VyavsaTopAppBar(
                 title = "Cash Till Management",
+                subtitle = "Physical drawer balance & audit log",
                 navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 onNavigationClick = onNavigateBack
             )
@@ -99,21 +101,21 @@ fun CashDrawerScreen(
             if (actionState is UiState.Error) {
                 ErrorBanner(
                     message = (actionState as UiState.Error).message,
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
             }
 
             // Cash In Drawer Hero Card
             Card(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(28.dp))
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+                Column(modifier = Modifier.padding(22.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -121,30 +123,30 @@ fun CashDrawerScreen(
                     ) {
                         Text(
                             text = "Authoritative Physical Cash",
-                            style = MaterialTheme.typography.bodyMedium.copy(
+                            style = MaterialTheme.typography.labelLarge.copy(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.SemiBold
                             )
                         )
                         StatBadge(text = "Live Till Balance")
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     val balance = (balanceState as? UiState.Success)?.data?.cashBalance ?: "0.00"
                     Text(
                         text = FormatUtils.formatCurrency(balance),
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.primary,
-                            fontSize = 32.sp
+                            fontSize = 34.sp
                         )
                     )
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         VyavsaButton(
@@ -164,13 +166,9 @@ fun CashDrawerScreen(
                 }
             }
 
-            Text(
-                text = "Cash Drawer Activity Log",
-                style = MaterialTheme.typography.labelLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+            VyavsaSectionHeader(
+                title = "Cash Drawer Activity Log",
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
 
             // Transactions History
@@ -188,14 +186,14 @@ fun CashDrawerScreen(
                     )
                 }
                 is UiState.Error -> {
-                    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
                         ErrorBanner(message = state.message)
                     }
                 }
                 is UiState.Success -> {
                     LazyColumn(
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(state.data) { tx ->
@@ -236,39 +234,44 @@ private fun CashTransactionCard(tx: CashTransaction) {
     val isAddition = tx.transactionType == "add_cash" || tx.newBalance.toDoubleOrNull() ?: 0.0 >= tx.previousBalance.toDoubleOrNull() ?: 0.0
 
     Card(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.padding(14.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(14.dp))
                         .background(if (isAddition) Emerald50 else Amber50)
                 ) {
                     Icon(
                         imageVector = if (isAddition) Icons.Default.CallReceived else Icons.Default.CallMade,
                         contentDescription = null,
                         tint = if (isAddition) Emerald600 else Amber600,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
                         text = if (!tx.description.isNullOrBlank()) tx.description
                         else tx.transactionType.replace("_", " ").replaceFirstChar { it.uppercase() },
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = FormatUtils.formatDateForDisplay(tx.createdAt.ifBlank { tx.transactionDate }),
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -280,13 +283,15 @@ private fun CashTransactionCard(tx: CashTransaction) {
                 Text(
                     text = "${if (isAddition) "+" else ""}${FormatUtils.formatCurrency(tx.amount)}",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         color = if (isAddition) Emerald600 else MaterialTheme.colorScheme.onSurface
                     )
                 )
-                Text(
-                    text = "New Till: ${FormatUtils.formatCurrency(tx.newBalance)}",
-                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(4.dp))
+                StatBadge(
+                    text = "Till: ${FormatUtils.formatCurrency(tx.newBalance)}",
+                    backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    textColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -303,7 +308,9 @@ fun AddCashDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Cash into Till", fontWeight = FontWeight.Bold) },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Add Cash into Till", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 VyavsaTextField(
@@ -346,13 +353,25 @@ fun AdjustCashDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Reconcile Cash Balance", fontWeight = FontWeight.Bold) },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Reconcile Cash Balance", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "Currently Recorded: ${FormatUtils.formatCurrency(currentBalance)}",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                )
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Currently Recorded: ${FormatUtils.formatCurrency(currentBalance)}",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        ),
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
                 VyavsaTextField(
                     value = actualBalance,
                     onValueChange = { actualBalance = it },

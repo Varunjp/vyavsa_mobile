@@ -7,6 +7,7 @@ import com.vyavsa.app.core.model.AttendanceRecord
 import com.vyavsa.app.core.model.CashBalanceResponse
 import com.vyavsa.app.core.model.CashTransaction
 import com.vyavsa.app.core.model.CounterSale
+import com.vyavsa.app.core.model.CreateBankRequest
 import com.vyavsa.app.core.model.CreateCounterSaleRequest
 import com.vyavsa.app.core.model.CreateCustomerRequest
 import com.vyavsa.app.core.model.CreateEmployeeRequest
@@ -29,16 +30,19 @@ import com.vyavsa.app.core.model.RecordPaymentRequest
 import com.vyavsa.app.core.model.RefreshTokenRequest
 import com.vyavsa.app.core.model.ResetPasswordRequest
 import com.vyavsa.app.core.model.SubscriptionPlan
+import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.model.TenantLoginRequest
 import com.vyavsa.app.core.model.TenantProfile
 import com.vyavsa.app.core.model.TenantRegisterRequest
 import com.vyavsa.app.core.model.TenantSubscription
 import com.vyavsa.app.core.model.TokenResponse
+import com.vyavsa.app.core.model.UpdateBankRequest
 import com.vyavsa.app.core.model.UpdateTenantProfileRequest
 import com.vyavsa.app.core.model.UserProfile
 import com.vyavsa.app.core.model.VerifyResetOtpRequest
 import com.vyavsa.app.core.model.VerifyResetOtpResponse
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -219,4 +223,31 @@ interface VyavsaApiService {
 
     @POST("api/v1/tenant/cash/adjust")
     suspend fun adjustCash(@Body req: AdjustCashRequest): ApiResponse<CashTransaction>
+
+    // ==========================================
+    // 8. Bank Management
+    // ==========================================
+
+    @GET("api/v1/tenant/banks")
+    suspend fun listBanks(
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+        @Query("search") search: String? = null,
+        @Query("status") status: String? = null
+    ): ApiResponse<List<TenantBank>>
+
+    @POST("api/v1/tenant/banks")
+    suspend fun createBank(@Body req: CreateBankRequest): ApiResponse<TenantBank>
+
+    @GET("api/v1/tenant/banks/{id}")
+    suspend fun getBankById(@Path("id") id: String): ApiResponse<TenantBank>
+
+    @PUT("api/v1/tenant/banks/{id}")
+    suspend fun updateBank(
+        @Path("id") id: String,
+        @Body req: UpdateBankRequest
+    ): ApiResponse<TenantBank>
+
+    @DELETE("api/v1/tenant/banks/{id}")
+    suspend fun deleteBank(@Path("id") id: String): ApiResponse<Map<String, Boolean>>
 }

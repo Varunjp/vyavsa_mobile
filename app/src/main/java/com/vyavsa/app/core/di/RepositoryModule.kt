@@ -45,4 +45,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindCashRepository(impl: CashRepositoryImpl): CashRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindBankRepository(impl: com.vyavsa.app.feature.bank.BankRepositoryImpl): com.vyavsa.app.feature.bank.BankRepository
 }

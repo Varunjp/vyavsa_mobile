@@ -1,5 +1,10 @@
 package com.vyavsa.app.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -16,6 +21,8 @@ import com.vyavsa.app.feature.auth.LoginScreen
 import com.vyavsa.app.feature.auth.RegisterScreen
 import com.vyavsa.app.feature.auth.ResetPasswordScreen
 import com.vyavsa.app.feature.auth.VerifyOtpScreen
+import com.vyavsa.app.feature.bank.BankAccountsScreen
+import com.vyavsa.app.feature.bank.BankViewModel
 import com.vyavsa.app.feature.cash.CashDrawerScreen
 import com.vyavsa.app.feature.cash.CashViewModel
 import com.vyavsa.app.feature.dues.CustomerStatementScreen
@@ -39,6 +46,24 @@ fun VyavsaNavGraph(
     NavHost(
         navController = navController,
         startDestination = startDestination,
+        enterTransition = {
+            fadeIn(animationSpec = tween(240)) + slideInHorizontally(
+                initialOffsetX = { it / 6 },
+                animationSpec = tween(240)
+            )
+        },
+        exitTransition = {
+            fadeOut(animationSpec = tween(200))
+        },
+        popEnterTransition = {
+            fadeIn(animationSpec = tween(220))
+        },
+        popExitTransition = {
+            fadeOut(animationSpec = tween(220)) + slideOutHorizontally(
+                targetOffsetX = { it / 6 },
+                animationSpec = tween(220)
+            )
+        },
         modifier = modifier
     ) {
         // ----------------------------------------------------
@@ -134,6 +159,9 @@ fun VyavsaNavGraph(
                 onNavigateToCashDrawer = {
                     navController.navigate(Screen.CashDrawer.route)
                 },
+                onNavigateToBankAccounts = {
+                    navController.navigate(Screen.BankAccounts.route)
+                },
                 onNavigateToStatement = { customerId, customerName ->
                     navController.navigate(Screen.CustomerStatement.createRoute(customerId, customerName))
                 },
@@ -188,6 +216,14 @@ fun VyavsaNavGraph(
                 customerId = customerId,
                 customerName = customerName,
                 viewModel = duesViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.BankAccounts.route) {
+            val bankViewModel: BankViewModel = hiltViewModel()
+            BankAccountsScreen(
+                viewModel = bankViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

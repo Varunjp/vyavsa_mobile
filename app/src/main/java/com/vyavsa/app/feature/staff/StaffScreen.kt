@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,19 +23,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,11 +49,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.Amber50
 import com.vyavsa.app.core.designsystem.Amber600
+import com.vyavsa.app.core.designsystem.AvatarInitialCircle
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
@@ -64,6 +61,7 @@ import com.vyavsa.app.core.designsystem.Emerald600
 import com.vyavsa.app.core.designsystem.EmptyStateView
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
+import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.AttendanceRecord
@@ -86,19 +84,38 @@ fun StaffScreen(
     var markingAttendanceEmployee by remember { mutableStateOf<Employee?>(null) }
     var disbursingSalaryItem by remember { mutableStateOf<EmployeeSalary?>(null) }
 
+    val visibleTabs = if (isAdmin) {
+        listOf(StaffTab.ATTENDANCE, StaffTab.SALARIES, StaffTab.ROSTER)
+    } else {
+        listOf(StaffTab.ATTENDANCE, StaffTab.ROSTER)
+    }
+    val tabTitles = visibleTabs.map {
+        when (it) {
+            StaffTab.ATTENDANCE -> "Attendance"
+            StaffTab.SALARIES -> "Salaries"
+            StaffTab.ROSTER -> "Roster"
+        }
+    }
+    val currentTabIndex = visibleTabs.indexOf(selectedTab).coerceAtLeast(0)
+
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            VyavsaTopAppBar(title = "Staff & Payroll")
+            VyavsaTopAppBar(
+                title = "Staff & Payroll",
+                subtitle = "Daily attendance, advances & salary payouts"
+            )
         },
         floatingActionButton = {
             if (isAdmin) {
-                FloatingActionButton(
+                ExtendedFloatingActionButton(
                     onClick = { showAddEmployeeDialog = true },
+                    shape = RoundedCornerShape(20.dp),
                     containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White
-                ) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = "Add Staff")
-                }
+                    contentColor = Color.White,
+                    icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Add Staff", fontWeight = FontWeight.Bold) }
+                )
             }
         },
         modifier = modifier
@@ -109,34 +126,20 @@ fun StaffScreen(
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            // Tab Header
-            PrimaryTabRow(
-                selectedTabIndex = selectedTab.ordinal,
-                containerColor = MaterialTheme.colorScheme.surface
-            ) {
-                Tab(
-                    selected = selectedTab == StaffTab.ATTENDANCE,
-                    onClick = { viewModel.selectTab(StaffTab.ATTENDANCE) },
-                    text = { Text("Daily Attendance") }
-                )
-                if (isAdmin) {
-                    Tab(
-                        selected = selectedTab == StaffTab.SALARIES,
-                        onClick = { viewModel.selectTab(StaffTab.SALARIES) },
-                        text = { Text("Salaries Due") }
-                    )
-                }
-                Tab(
-                    selected = selectedTab == StaffTab.ROSTER,
-                    onClick = { viewModel.selectTab(StaffTab.ROSTER) },
-                    text = { Text("Staff Roster") }
-                )
-            }
+            // Pill Segmented Tab Header
+            VyavsaSegmentedTabs(
+                tabs = tabTitles,
+                selectedIndex = currentTabIndex,
+                onTabSelected = { index ->
+                    viewModel.selectTab(visibleTabs[index])
+                },
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+            )
 
             if (actionState is UiState.Error) {
                 ErrorBanner(
                     message = (actionState as UiState.Error).message,
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
             }
 
@@ -230,46 +233,37 @@ private fun AttendanceTabContent(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize()
     ) {
         items(employees) { employee ->
             val record = attendanceMap[employee.id]
             Card(
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.padding(14.dp)
+                    modifier = Modifier.padding(16.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        AvatarInitialCircle(name = employee.name)
+                        Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
                                 text = employee.name,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "Base Salary: ${FormatUtils.formatCurrency(employee.salary)}/mo",
                                 style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -287,6 +281,7 @@ private fun AttendanceTabContent(
                             }
                             StatBadge(text = badgeText, backgroundColor = badgeBg, textColor = textCol)
                             if (record.advance.toDoubleOrNull() ?: 0.0 > 0.0) {
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "Adv: ${FormatUtils.formatCurrency(record.advance)}",
                                     style = MaterialTheme.typography.labelSmall.copy(color = Crimson600)
@@ -294,17 +289,22 @@ private fun AttendanceTabContent(
                             }
                         }
                     } else {
-                        Text(
-                            text = "Mark Today",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
-                            ),
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(CircleShape)
                                 .clickable { onMarkAttendance(employee) }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
+                        ) {
+                            Text(
+                                text = "Mark Today",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -331,79 +331,95 @@ private fun SalariesTabContent(
             )
         }
         is UiState.Error -> {
-            Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
                 ErrorBanner(message = salariesState.message)
             }
         }
         is UiState.Success -> {
             LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(salariesState.data) { salary ->
                     Card(
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(24.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
                     ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
+                        Column(modifier = Modifier.padding(18.dp)) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(
-                                    text = salary.employeeName,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    AvatarInitialCircle(name = salary.employeeName)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = salary.employeeName,
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                }
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(
                                         text = "Pending Net",
-                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     )
                                     Text(
                                         text = FormatUtils.formatCurrency(salary.balance),
                                         style = MaterialTheme.typography.titleMedium.copy(
-                                            fontWeight = FontWeight.Bold,
+                                            fontWeight = FontWeight.ExtraBold,
                                             color = Crimson600
                                         )
                                     )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                            Row(
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(
-                                    text = "Gross: ${FormatUtils.formatCurrency(salary.grossSalary)}",
-                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                )
-                                Text(
-                                    text = "Advances Paid: ${FormatUtils.formatCurrency(salary.totalAdvances)}",
-                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                                ) {
+                                    Text(
+                                        text = "Gross: ${FormatUtils.formatCurrency(salary.grossSalary)}",
+                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    )
+                                    Text(
+                                        text = "Advances Paid: ${FormatUtils.formatCurrency(salary.totalAdvances)}",
+                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    )
+                                }
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                                Text(
-                                    text = "Disburse Salary Payout →",
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold
-                                    ),
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
+                                        .clip(CircleShape)
                                         .clickable { onDisburseSalary(salary) }
-                                        .padding(4.dp)
-                                )
+                                ) {
+                                    Text(
+                                        text = "Disburse Salary Payout →",
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            fontWeight = FontWeight.Bold
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -433,41 +449,51 @@ private fun RosterTabContent(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize()
     ) {
         items(employees) { employee ->
             Card(
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.padding(14.dp)
+                    modifier = Modifier.padding(16.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = employee.name,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                        )
-                        if (!employee.phone.isNullOrBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        AvatarInitialCircle(name = employee.name)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
                             Text(
-                                text = employee.phone,
-                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                text = employee.name,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                             )
+                            if (!employee.phone.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = employee.phone,
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                )
+                            }
                         }
                     }
 
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
                             text = FormatUtils.formatCurrency(employee.salary),
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
                         StatBadge(text = employee.status.uppercase())
                     }
                 }
@@ -490,24 +516,36 @@ fun MarkAttendanceDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Mark Attendance: ${employee.name}", fontWeight = FontWeight.Bold) },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Mark Attendance: ${employee.name}", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Select Status", style = MaterialTheme.typography.labelMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Select Status", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     statusOptions.take(2).forEach { s ->
                         FilterChip(
                             selected = status == s,
                             onClick = { status = s },
+                            shape = CircleShape,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
                             label = { Text(s.replace("_", " ").replaceFirstChar { it.uppercase() }) }
                         )
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     statusOptions.drop(2).forEach { s ->
                         FilterChip(
                             selected = status == s,
                             onClick = { status = s },
+                            shape = CircleShape,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
                             label = { Text(s.replace("_", " ").replaceFirstChar { it.uppercase() }) }
                         )
                     }
@@ -553,7 +591,9 @@ fun AddEmployeeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add New Employee", fontWeight = FontWeight.Bold) },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Add New Employee", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 VyavsaTextField(value = name, onValueChange = { name = it }, label = "Full Name *")
@@ -588,13 +628,22 @@ fun DisburseSalaryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Disburse Salary: ${salary.employeeName}", fontWeight = FontWeight.Bold) },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Disburse Salary: ${salary.employeeName}", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "Pending Payable: ${FormatUtils.formatCurrency(salary.balance)}",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold, color = Crimson600)
-                )
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Crimson50,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Pending Payable: ${FormatUtils.formatCurrency(salary.balance)}",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = Crimson600),
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
                 VyavsaTextField(
                     value = amount,
                     onValueChange = { amount = it },

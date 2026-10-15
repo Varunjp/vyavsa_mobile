@@ -6,6 +6,8 @@ import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.CustomerStatement
+import com.vyavsa.app.core.sync.DataMutation
+import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +17,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DuesViewModel @Inject constructor(
-    private val repository: DuesRepository
+    private val repository: DuesRepository,
+    private val refreshCoordinator: DataRefreshCoordinator
 ) : ViewModel() {
 
     private val _customersState = MutableStateFlow<UiState<List<Customer>>>(UiState.Loading)
@@ -32,6 +35,22 @@ class DuesViewModel @Inject constructor(
 
     init {
         loadCustomers()
+        observeRefreshEvents()
+    }
+
+    private fun observeRefreshEvents() {
+        viewModelScope.launch {
+            refreshCoordinator.refreshEvents.collect { mutation ->
+                when (mutation) {
+                    DataMutation.DUES,
+                    DataMutation.SALES,
+                    DataMutation.ALL -> {
+                        loadCustomers()
+                    }
+                    else -> Unit
+                }
+            }
+        }
     }
 
     fun onSearchChange(query: String) {
@@ -75,6 +94,7 @@ class DuesViewModel @Inject constructor(
                 _actionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
+                        refreshCoordinator.notifyMutation(DataMutation.DUES)
                         loadCustomers()
                         UiState.Success(Unit)
                     }
@@ -101,6 +121,12 @@ class DuesViewModel @Inject constructor(
                 _actionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
+                        refreshCoordinator.notifyMutation(DataMutation.DUES)
+                        if (paymentMethod == "bank") {
+                            refreshCoordinator.notifyMutation(DataMutation.BANK)
+                        } else {
+                            refreshCoordinator.notifyMutation(DataMutation.CASH)
+                        }
                         loadCustomers()
                         loadStatement(customerId)
                         UiState.Success(Unit)
