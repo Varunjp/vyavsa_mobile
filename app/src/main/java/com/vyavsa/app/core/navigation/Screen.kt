@@ -16,6 +16,7 @@ sealed class Screen(val route: String) {
     object MainShell : Screen("main_shell")
 
     // Sub-screens
+    object CreateSale : Screen("create_line_sale")
     object CreateLineSale : Screen("create_line_sale")
     object CreateExpense : Screen("create_expense")
     object CustomerStatement : Screen("customer_statement/{customerId}/{customerName}") {
@@ -23,6 +24,7 @@ sealed class Screen(val route: String) {
             "customer_statement/$customerId/$customerName"
     }
     object CashDrawer : Screen("cash_drawer")
+    object BankAccounts : Screen("bank_accounts")
 }
 
 enum class BottomBarDestination(

@@ -8,6 +8,8 @@ import com.vyavsa.app.core.model.FinancialMetrics
 import com.vyavsa.app.core.model.TenantProfile
 import com.vyavsa.app.core.model.TenantSubscription
 import com.vyavsa.app.core.security.TokenManager
+import com.vyavsa.app.core.sync.DataMutation
+import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +20,7 @@ import javax.inject.Inject
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val repository: DashboardRepository,
+    private val refreshCoordinator: DataRefreshCoordinator,
     val tokenManager: TokenManager
 ) : ViewModel() {
 
@@ -32,6 +35,15 @@ class DashboardViewModel @Inject constructor(
 
     init {
         loadDashboard()
+        observeRefreshEvents()
+    }
+
+    private fun observeRefreshEvents() {
+        viewModelScope.launch {
+            refreshCoordinator.refreshEvents.collect {
+                loadDashboard()
+            }
+        }
     }
 
     fun loadDashboard() {

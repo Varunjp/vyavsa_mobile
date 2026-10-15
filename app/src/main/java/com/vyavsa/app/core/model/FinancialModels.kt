@@ -39,10 +39,30 @@ data class TodayAttendanceOverview(
 @Serializable
 data class TenantBank(
     val id: String = "",
+    @SerialName("tenant_id") val tenantId: String = "",
     @SerialName("bank_name") val bankName: String = "",
     @SerialName("account_number") val accountNumber: String? = null,
     val ifsc: String? = null,
     @SerialName("current_balance") val currentBalance: String = "0.00",
+    val status: String = "active",
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("updated_at") val updatedAt: String = ""
+)
+
+@Serializable
+data class CreateBankRequest(
+    @SerialName("bank_name") val bankName: String,
+    @SerialName("account_number") val accountNumber: String? = null,
+    val ifsc: String? = null,
+    @SerialName("opening_balance") val openingBalance: String = "0.00",
+    val status: String = "active"
+)
+
+@Serializable
+data class UpdateBankRequest(
+    @SerialName("bank_name") val bankName: String,
+    @SerialName("account_number") val accountNumber: String? = null,
+    val ifsc: String? = null,
     val status: String = "active"
 )
 

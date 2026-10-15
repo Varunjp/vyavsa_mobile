@@ -9,6 +9,8 @@ import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.network.VyavsaApiService
+import com.vyavsa.app.core.sync.DataMutation
+import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -28,7 +30,8 @@ interface TransactionsRepository {
 
 @Singleton
 class TransactionsRepositoryImpl @Inject constructor(
-    private val apiService: VyavsaApiService
+    private val apiService: VyavsaApiService,
+    private val refreshCoordinator: DataRefreshCoordinator
 ) : TransactionsRepository {
 
     override fun listLineSales(date: String?, search: String?): Flow<Resource<List<LineSale>>> = flow {
@@ -50,6 +53,11 @@ class TransactionsRepositoryImpl @Inject constructor(
         try {
             val response = apiService.createLineSale(request)
             if (response.success && response.data != null) {
+                refreshCoordinator.notifyMutation(DataMutation.SALES)
+                if (!request.bankId.isNullOrBlank() || (request.bankAmount.toDoubleOrNull() ?: 0.0) > 0.0) {
+                    refreshCoordinator.notifyMutation(DataMutation.BANK)
+                }
+                refreshCoordinator.notifyMutation(DataMutation.DUES)
                 emit(Resource.Success(response.data, response.message))
             } else {
                 emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to create line sale", response.error?.code))
@@ -78,6 +86,10 @@ class TransactionsRepositoryImpl @Inject constructor(
         try {
             val response = apiService.createCounterSale(request)
             if (response.success && response.data != null) {
+                refreshCoordinator.notifyMutation(DataMutation.SALES)
+                if (!request.bankId.isNullOrBlank() || (request.bankAmount.toDoubleOrNull() ?: 0.0) > 0.0) {
+                    refreshCoordinator.notifyMutation(DataMutation.BANK)
+                }
                 emit(Resource.Success(response.data, response.message))
             } else {
                 emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to record counter sale", response.error?.code))
@@ -106,6 +118,12 @@ class TransactionsRepositoryImpl @Inject constructor(
         try {
             val response = apiService.createExpense(request)
             if (response.success && response.data != null) {
+                refreshCoordinator.notifyMutation(DataMutation.EXPENSES)
+                if (request.paymentMethod == "bank") {
+                    refreshCoordinator.notifyMutation(DataMutation.BANK)
+                } else if (request.paymentMethod == "cash") {
+                    refreshCoordinator.notifyMutation(DataMutation.CASH)
+                }
                 emit(Resource.Success(response.data, response.message))
             } else {
                 emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to record expense", response.error?.code))

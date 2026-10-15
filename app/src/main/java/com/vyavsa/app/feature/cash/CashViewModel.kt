@@ -6,6 +6,8 @@ import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.CashBalanceResponse
 import com.vyavsa.app.core.model.CashTransaction
+import com.vyavsa.app.core.sync.DataMutation
+import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +17,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class CashViewModel @Inject constructor(
-    private val repository: CashRepository
+    private val repository: CashRepository,
+    private val refreshCoordinator: DataRefreshCoordinator
 ) : ViewModel() {
 
     private val _balanceState = MutableStateFlow<UiState<CashBalanceResponse>>(UiState.Loading)
@@ -29,6 +32,23 @@ class CashViewModel @Inject constructor(
 
     init {
         loadData()
+        observeRefreshEvents()
+    }
+
+    private fun observeRefreshEvents() {
+        viewModelScope.launch {
+            refreshCoordinator.refreshEvents.collect { mutation ->
+                when (mutation) {
+                    DataMutation.CASH,
+                    DataMutation.SALES,
+                    DataMutation.EXPENSES,
+                    DataMutation.ALL -> {
+                        loadData()
+                    }
+                    else -> Unit
+                }
+            }
+        }
     }
 
     fun loadData() {
@@ -64,6 +84,7 @@ class CashViewModel @Inject constructor(
                 _actionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
+                        refreshCoordinator.notifyMutation(DataMutation.CASH)
                         loadData()
                         UiState.Success(Unit)
                     }
@@ -84,6 +105,7 @@ class CashViewModel @Inject constructor(
                 _actionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
+                        refreshCoordinator.notifyMutation(DataMutation.CASH)
                         loadData()
                         UiState.Success(Unit)
                     }

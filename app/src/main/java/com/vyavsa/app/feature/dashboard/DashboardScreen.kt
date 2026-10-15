@@ -76,6 +76,7 @@ fun DashboardScreen(
     onNavigateToCreateExpense: () -> Unit,
     onNavigateToCashDrawer: () -> Unit,
     onNavigateToStaff: () -> Unit,
+    onNavigateToBankAccounts: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val metricsState by viewModel.metricsState.collectAsState()
@@ -161,7 +162,8 @@ fun DashboardScreen(
                     onNavigateToCreateSale = onNavigateToCreateSale,
                     onNavigateToCreateExpense = onNavigateToCreateExpense,
                     onNavigateToCashDrawer = onNavigateToCashDrawer,
-                    onNavigateToStaff = onNavigateToStaff
+                    onNavigateToStaff = onNavigateToStaff,
+                    onNavigateToBankAccounts = onNavigateToBankAccounts
                 )
             }
             else -> {}
@@ -176,7 +178,8 @@ private fun DashboardBody(
     onNavigateToCreateSale: () -> Unit,
     onNavigateToCreateExpense: () -> Unit,
     onNavigateToCashDrawer: () -> Unit,
-    onNavigateToStaff: () -> Unit
+    onNavigateToStaff: () -> Unit,
+    onNavigateToBankAccounts: () -> Unit = {}
 ) {
     val cashVal = metrics.cashBalance.toDoubleOrNull() ?: 0.0
     val bankVal = metrics.bankBalance.toDoubleOrNull() ?: 0.0
@@ -339,11 +342,13 @@ private fun DashboardBody(
                             }
                         }
 
-                        // Bank Total Sub-Card
+                        // Bank Total Sub-Card (Clickable)
                         Surface(
                             shape = RoundedCornerShape(20.dp),
                             color = Color.White.copy(alpha = 0.14f),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable(onClick = onNavigateToBankAccounts)
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -386,41 +391,182 @@ private fun DashboardBody(
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        // Quick Actions Row
+        // Quick Actions (2x2 Grid)
         VyavsaSectionHeader(title = "Quick Actions")
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                QuickActionButton(
+                    label = "Record Sale",
+                    icon = Icons.Default.Add,
+                    backgroundColor = Emerald50,
+                    iconTint = Emerald600,
+                    onClick = onNavigateToCreateSale,
+                    modifier = Modifier.weight(1f)
+                )
+
+                QuickActionButton(
+                    label = "Add Expense",
+                    icon = Icons.Default.Receipt,
+                    backgroundColor = Crimson50,
+                    iconTint = Crimson600,
+                    onClick = onNavigateToCreateExpense,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                QuickActionButton(
+                    label = "Cash Drawer",
+                    icon = Icons.Default.PointOfSale,
+                    backgroundColor = Amber50,
+                    iconTint = Amber600,
+                    onClick = onNavigateToCashDrawer,
+                    modifier = Modifier.weight(1f)
+                )
+
+                QuickActionButton(
+                    label = "Bank Accounts",
+                    icon = Icons.Default.AccountBalance,
+                    backgroundColor = Blue50,
+                    iconTint = Blue600,
+                    onClick = onNavigateToBankAccounts,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(22.dp))
+
+        // Registered Bank Accounts Overview (Matching Web dashboard)
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxWidth()
         ) {
-            QuickActionButton(
-                label = "Record Sale",
-                icon = Icons.Default.Add,
-                backgroundColor = Emerald50,
-                iconTint = Emerald600,
-                onClick = onNavigateToCreateSale,
-                modifier = Modifier.weight(1f)
+            VyavsaSectionHeader(title = "Bank Accounts")
+            Text(
+                text = "Manage",
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                ),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onNavigateToBankAccounts)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             )
+        }
 
-            QuickActionButton(
-                label = "Add Expense",
-                icon = Icons.Default.Receipt,
-                backgroundColor = Crimson50,
-                iconTint = Crimson600,
-                onClick = onNavigateToCreateExpense,
-                modifier = Modifier.weight(1f)
-            )
+        Spacer(modifier = Modifier.height(10.dp))
 
-            QuickActionButton(
-                label = "Cash Drawer",
-                icon = Icons.Default.PointOfSale,
-                backgroundColor = Blue50,
-                iconTint = Blue600,
-                onClick = onNavigateToCashDrawer,
-                modifier = Modifier.weight(1f)
-            )
+        if (metrics.bankBalances.isEmpty()) {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp))
+                    .clickable(onClick = onNavigateToBankAccounts)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Blue50)
+                    ) {
+                        Icon(imageVector = Icons.Default.AccountBalance, contentDescription = null, tint = Blue600, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "No bank accounts registered",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Text(
+                            text = "Tap here to add bank accounts for electronic collections",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        )
+                    }
+                }
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                metrics.bankBalances.forEach { bank ->
+                    Card(
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(18.dp))
+                            .clickable(onClick = onNavigateToBankAccounts)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.padding(14.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Blue50)
+                                ) {
+                                    Icon(imageVector = Icons.Default.AccountBalance, contentDescription = null, tint = Blue600, modifier = Modifier.size(18.dp))
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = bank.bankName,
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                    if (!bank.accountNumber.isNullOrBlank()) {
+                                        Text(
+                                            text = "A/C: ${bank.accountNumber}",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = FormatUtils.formatCurrency(bank.currentBalance),
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Blue600
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                StatBadge(
+                                    text = bank.status.uppercase(),
+                                    backgroundColor = if (bank.status == "active") Emerald50 else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    textColor = if (bank.status == "active") Emerald600 else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(22.dp))

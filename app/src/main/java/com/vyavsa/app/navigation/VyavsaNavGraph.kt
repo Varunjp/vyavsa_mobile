@@ -21,6 +21,8 @@ import com.vyavsa.app.feature.auth.LoginScreen
 import com.vyavsa.app.feature.auth.RegisterScreen
 import com.vyavsa.app.feature.auth.ResetPasswordScreen
 import com.vyavsa.app.feature.auth.VerifyOtpScreen
+import com.vyavsa.app.feature.bank.BankAccountsScreen
+import com.vyavsa.app.feature.bank.BankViewModel
 import com.vyavsa.app.feature.cash.CashDrawerScreen
 import com.vyavsa.app.feature.cash.CashViewModel
 import com.vyavsa.app.feature.dues.CustomerStatementScreen
@@ -157,6 +159,9 @@ fun VyavsaNavGraph(
                 onNavigateToCashDrawer = {
                     navController.navigate(Screen.CashDrawer.route)
                 },
+                onNavigateToBankAccounts = {
+                    navController.navigate(Screen.BankAccounts.route)
+                },
                 onNavigateToStatement = { customerId, customerName ->
                     navController.navigate(Screen.CustomerStatement.createRoute(customerId, customerName))
                 },
@@ -211,6 +216,14 @@ fun VyavsaNavGraph(
                 customerId = customerId,
                 customerName = customerName,
                 viewModel = duesViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.BankAccounts.route) {
+            val bankViewModel: BankViewModel = hiltViewModel()
+            BankAccountsScreen(
+                viewModel = bankViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

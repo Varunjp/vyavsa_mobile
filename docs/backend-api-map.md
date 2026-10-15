@@ -212,9 +212,75 @@ All tenant operations require:
 
 ---
 
-## 4. Line Sales & Counter Sales (Transactions)
+## 4. Bank Account Management
 
-### 4.1 Line Sales
+All bank account operations require `Authorization: Bearer <access_token>` and tenant context (`tenant_admin` or `tenant_user`).
+
+### 4.1 List Tenant Bank Accounts
+- **Route**: `GET /api/v1/tenant/banks?page=1&page_size=100`
+- **Auth**: Bearer Token
+- **Response**: Array of `TenantBank` objects:
+  ```json
+  [
+    {
+      "id": "uuid",
+      "tenant_id": "uuid",
+      "bank_name": "HDFC Bank",
+      "account_number": "50100234567890",
+      "ifsc": "HDFC0001234",
+      "current_balance": "45000.00",
+      "status": "active",
+      "created_at": "2026-10-01T10:00:00Z",
+      "updated_at": "2026-10-15T12:00:00Z"
+    }
+  ]
+  ```
+
+### 4.2 Create Bank Account
+- **Route**: `POST /api/v1/tenant/banks`
+- **Auth**: Bearer Token (`tenant_admin` or authorized tenant user)
+- **Request Body (`CreateBankRequest`)**:
+  ```json
+  {
+    "bank_name": "HDFC Bank",
+    "account_number": "50100234567890",
+    "ifsc": "HDFC0001234",
+    "opening_balance": "10000.00",
+    "status": "active"
+  }
+  ```
+- **Business Rules**:
+  - `opening_balance` is credited to the bank ledger automatically upon creation.
+  - Subsequent balances are authoritatively tracked and calculated by backend transaction entries (sales, settlements, expenses). Direct arbitrary balance manipulation is prohibited by accounting rules.
+
+### 4.3 Get Bank Account Details
+- **Route**: `GET /api/v1/tenant/banks/:id`
+- **Auth**: Bearer Token
+- **Response**: `TenantBank` object.
+
+### 4.4 Update Bank Account
+- **Route**: `PUT /api/v1/tenant/banks/:id`
+- **Auth**: Bearer Token
+- **Request Body (`UpdateBankRequest`)**:
+  ```json
+  {
+    "bank_name": "HDFC Bank - Current",
+    "account_number": "50100234567890",
+    "ifsc": "HDFC0001234",
+    "status": "active"
+  }
+  ```
+
+### 4.5 Delete Bank Account
+- **Route**: `DELETE /api/v1/tenant/banks/:id`
+- **Auth**: Bearer Token
+- **Response**: `{"message": "bank account deleted successfully"}`
+
+---
+
+## 5. Line Sales & Counter Sales (Transactions)
+
+### 5.1 Line Sales
 - **List**: `GET /api/v1/tenant/line-sales?page=1&page_size=20&date=YYYY-MM-DD&search=`
 - **Create**: `POST /api/v1/tenant/line-sales`
   - Request:
@@ -227,14 +293,14 @@ All tenant operations require:
       "total_amount": "1500.00",
       "total_cash_in": "1000.00",
       "bank_amount": "500.00",
-      "bank_id": "optional-uuid"
+      "bank_id": "optional-uuid-null-if-no-bank"
     }
     ```
 - **Details**: `GET /api/v1/tenant/line-sales/:id`
 - **Payments**: `GET /api/v1/tenant/line-sales/:id/payments`
 - **Add Payment**: `POST /api/v1/tenant/line-sales/:id/payments`
 
-### 4.2 Counter Sales
+### 5.2 Counter Sales
 - **List**: `GET /api/v1/tenant/counter-sales?page=1&page_size=20&date=YYYY-MM-DD&search=`
 - **Create**: `POST /api/v1/tenant/counter-sales`
   - Request:
@@ -244,16 +310,18 @@ All tenant operations require:
       "price": "250.00",
       "total_amount": "250.00",
       "payment_method": "cash",
-      "cash": "250.00"
+      "cash": "200.00",
+      "bank_amount": "50.00",
+      "bank_id": "optional-uuid-null-if-no-bank"
     }
     ```
 - **Details**: `GET /api/v1/tenant/counter-sales/:id`
 
 ---
 
-## 5. Purchases & Supplier Dues
+## 6. Purchases & Supplier Dues
 
-### 5.1 Purchases
+### 6.1 Purchases
 - **List**: `GET /api/v1/tenant/purchases?page=1&page_size=20&date=YYYY-MM-DD&search=`
 - **Create**: `POST /api/v1/tenant/purchases`
   - Request:
@@ -269,7 +337,7 @@ All tenant operations require:
 - **Details**: `GET /api/v1/tenant/purchases/:id`
 - **Record Settlement Payment**: `POST /api/v1/tenant/purchases/:id/payments`
 
-### 5.2 Customer & Supplier Ledger (Dues)
+### 6.2 Customer & Supplier Ledger (Dues)
 - **List Customers**: `GET /api/v1/tenant/customers?page=1&page_size=20&search=` (`tenant_admin`)
 - **Customer Balance**: `GET /api/v1/tenant/customers/:id/balance`
   - Returns: `current_balance`, `total_purchases`, `total_paid`, `outstanding_payable`
@@ -288,7 +356,7 @@ All tenant operations require:
 
 ---
 
-## 6. Expenses
+## 7. Expenses
 
 - **List**: `GET /api/v1/tenant/expenses?page=1&page_size=20&date=YYYY-MM-DD&search=`
 - **Create**: `POST /api/v1/tenant/expenses`
@@ -305,9 +373,9 @@ All tenant operations require:
 
 ---
 
-## 7. Employees, Attendance & Salary
+## 8. Employees, Attendance & Salary
 
-### 7.1 Employees
+### 8.1 Employees
 - **List**: `GET /api/v1/tenant/employees?page=1&page_size=20&search=` (`tenant_admin`)
 - **Create**: `POST /api/v1/tenant/employees`
   - Request:
@@ -321,7 +389,7 @@ All tenant operations require:
     }
     ```
 
-### 7.2 Attendance
+### 8.2 Attendance
 - **List**: `GET /api/v1/tenant/attendance?date=YYYY-MM-DD`
 - **Record**: `POST /api/v1/tenant/attendance`
   - Request:
@@ -335,7 +403,7 @@ All tenant operations require:
     }
     ```
 
-### 7.3 Salary Management (`tenant_admin`)
+### 8.3 Salary Management (`tenant_admin`)
 - **Pending Salaries**: `GET /api/v1/tenant/salaries/pending`
 - **Employee Statement**: `GET /api/v1/tenant/salaries/:employee_id/statement`
 - **Disburse Salary**: `POST /api/v1/tenant/salaries/:employee_id/pay`
@@ -351,7 +419,7 @@ All tenant operations require:
 
 ---
 
-## 8. Cash Book Management
+## 9. Cash Book Management
 
 - **Get Authoritative Cash Balance**: `GET /api/v1/tenant/cash/balance`
 - **List Cash Transactions**: `GET /api/v1/tenant/cash/transactions?page=1&page_size=20`
@@ -362,7 +430,7 @@ All tenant operations require:
 
 ---
 
-## 9. Reports
+## 10. Reports
 
 - **Daily Operations Report**: `GET /api/v1/tenant/reports/daily?date=YYYY-MM-DD`
 - **Daily Report PDF**: `GET /api/v1/tenant/reports/daily/pdf?date=YYYY-MM-DD`

@@ -56,6 +56,7 @@ fun MainShellScreen(
     onNavigateToCreateSale: () -> Unit,
     onNavigateToCreateExpense: () -> Unit,
     onNavigateToCashDrawer: () -> Unit,
+    onNavigateToBankAccounts: () -> Unit,
     onNavigateToStatement: (customerId: String, customerName: String) -> Unit,
     onLogoutSuccess: () -> Unit,
     modifier: Modifier = Modifier
@@ -142,7 +143,8 @@ fun MainShellScreen(
                             onNavigateToCreateSale = onNavigateToCreateSale,
                             onNavigateToCreateExpense = onNavigateToCreateExpense,
                             onNavigateToCashDrawer = onNavigateToCashDrawer,
-                            onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF }
+                            onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF },
+                            onNavigateToBankAccounts = onNavigateToBankAccounts
                         )
                     }
                     BottomBarDestination.TRANSACTIONS -> {
@@ -166,7 +168,8 @@ fun MainShellScreen(
                     BottomBarDestination.MORE -> {
                         ProfileScreen(
                             viewModel = profileViewModel,
-                            onLogoutSuccess = onLogoutSuccess
+                            onLogoutSuccess = onLogoutSuccess,
+                            onNavigateToBankAccounts = onNavigateToBankAccounts
                         )
                     }
                 }
