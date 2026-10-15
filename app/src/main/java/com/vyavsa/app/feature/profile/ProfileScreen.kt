@@ -23,16 +23,19 @@ import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CardMembership
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,12 +50,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.vyavsa.app.BuildConfig
-import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
-import com.vyavsa.app.core.designsystem.Amber50
-import com.vyavsa.app.core.designsystem.Amber600
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
@@ -62,7 +61,6 @@ import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaButton
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
-import com.vyavsa.app.core.model.TenantProfile
 
 @Composable
 fun ProfileScreen(
@@ -80,8 +78,12 @@ fun ProfileScreen(
     var showLogoutConfirmDialog by remember { mutableStateOf(false) }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            VyavsaTopAppBar(title = "Business Profile & Settings")
+            VyavsaTopAppBar(
+                title = "Business Profile & Settings",
+                subtitle = "Organization details, subscription & system info"
+            )
         },
         modifier = modifier
     ) { paddingValues ->
@@ -91,7 +93,7 @@ fun ProfileScreen(
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(horizontal = 20.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             if (updateState is UiState.Error) {
@@ -100,74 +102,114 @@ fun ProfileScreen(
                 )
             }
 
-            // Organization Card
+            // Organization Hero Card
             Card(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(28.dp))
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(20.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Box(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
+                                    .size(52.dp)
+                                    .clip(RoundedCornerShape(18.dp))
                                     .background(MaterialTheme.colorScheme.primary)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Business,
                                     contentDescription = null,
                                     tint = Color.White,
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(26.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(14.dp))
                             Column {
                                 val tenantName = (profileState as? UiState.Success)?.data?.name ?: "Business Organization"
                                 Text(
                                     text = tenantName,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold)
                                 )
-                                Text(
-                                    text = "Role: ${userProfile?.role ?: "Tenant Member"}",
-                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                StatBadge(
+                                    text = (userProfile?.role ?: "Tenant Member").uppercase(),
+                                    backgroundColor = MaterialTheme.colorScheme.primaryContainer,
+                                    textColor = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
                         }
 
                         if (isAdmin && profileState is UiState.Success) {
-                            IconButton(onClick = { showEditProfileDialog = true }) {
+                            FilledTonalIconButton(
+                                onClick = { showEditProfileDialog = true },
+                                shape = CircleShape,
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Edit,
                                     contentDescription = "Edit Profile",
-                                    tint = MaterialTheme.colorScheme.primary
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
-
                     val profile = (profileState as? UiState.Success)?.data
                     if (profile != null) {
-                        Text(
-                            text = "Email: ${profile.email}",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        if (!profile.phone.isNullOrBlank()) {
-                            Text(
-                                text = "Phone: ${profile.phone}",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                        Spacer(modifier = Modifier.height(18.dp))
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Email,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = profile.email,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                                if (!profile.phone.isNullOrBlank()) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.Phone,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = profile.phone,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -175,14 +217,14 @@ fun ProfileScreen(
 
             // Subscription Card
             Card(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(20.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -192,18 +234,18 @@ fun ProfileScreen(
                             Box(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(14.dp))
                                     .background(Emerald50)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.CardMembership,
                                     contentDescription = null,
                                     tint = Emerald600,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Text(
                                 text = "Active Subscription",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
@@ -220,18 +262,32 @@ fun ProfileScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     val sub = (subscriptionState as? UiState.Success)?.data
                     if (sub != null) {
-                        Text(
-                            text = "Plan: ${sub.currentPlanName}",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                        )
-                        Text(
-                            text = "Status: ${sub.status.uppercase()}",
-                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.padding(14.dp)
+                            ) {
+                                Text(
+                                    text = "Plan: ${sub.currentPlanName}",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                                Text(
+                                    text = sub.status.uppercase(),
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                )
+                            }
+                        }
                     } else if (subscriptionState is UiState.Loading) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     }
@@ -240,42 +296,51 @@ fun ProfileScreen(
 
             // Environment & Server Information
             Card(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Dns,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Dns,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = "API & Connectivity Info",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
                         text = "Base Server: ${BuildConfig.BASE_URL}",
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "App Version: ${BuildConfig.VERSION_NAME}",
+                        text = "App Version: ${BuildConfig.VERSION_NAME} (Material 3 Expressive)",
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Logout Button
             VyavsaButton(
@@ -290,7 +355,9 @@ fun ProfileScreen(
     if (showLogoutConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutConfirmDialog = false },
-            title = { Text("Confirm Sign Out") },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Confirm Sign Out", fontWeight = FontWeight.ExtraBold) },
             text = { Text("Are you sure you want to log out? Local access tokens will be securely removed.") },
             confirmButton = {
                 TextButton(onClick = {
@@ -337,7 +404,9 @@ fun EditProfileDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Update Organization Details", fontWeight = FontWeight.Bold) },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Update Organization Details", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 VyavsaTextField(value = name, onValueChange = { name = it }, label = "Business Name *")

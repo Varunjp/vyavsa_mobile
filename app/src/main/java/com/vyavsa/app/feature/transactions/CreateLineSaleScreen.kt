@@ -1,7 +1,7 @@
 package com.vyavsa.app.feature.transactions
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -79,9 +79,11 @@ fun CreateLineSaleScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             VyavsaTopAppBar(
                 title = "Record Field Sale",
+                subtitle = "Log customer route delivery & cash collected",
                 navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 onNavigationClick = onNavigateBack
             )
@@ -101,21 +103,30 @@ fun CreateLineSaleScreen(
                     .padding(20.dp)
             ) {
                 Card(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(28.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(28.dp))
                 ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
+                    Column(modifier = Modifier.padding(24.dp)) {
                         Text(
                             text = "Line Sale Entry",
                             style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.ExtraBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Any unpaid difference is automatically added to customer dues",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
 
                         if (createActionState is UiState.Error) {
                             ErrorBanner(
@@ -136,10 +147,12 @@ fun CreateLineSaleScreen(
                                 readOnly = true,
                                 label = { Text("Select Customer *") },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = customerDropdownExpanded) },
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(18.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                                     focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -232,7 +245,7 @@ fun CreateLineSaleScreen(
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
                         )
 
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(26.dp))
 
                         VyavsaButton(
                             text = "Save Sale Entry",

@@ -3,7 +3,6 @@ package com.vyavsa.app.feature.transactions
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,25 +17,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.CallMade
+import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.ReceiptLong
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -47,7 +40,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.Crimson50
@@ -57,6 +49,9 @@ import com.vyavsa.app.core.designsystem.Emerald600
 import com.vyavsa.app.core.designsystem.EmptyStateView
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
+import com.vyavsa.app.core.designsystem.VyavsaSearchBar
+import com.vyavsa.app.core.designsystem.VyavsaSectionHeader
+import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.Expense
@@ -76,20 +71,30 @@ fun TransactionsScreen(
     val expensesState by viewModel.expensesState.collectAsState()
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            VyavsaTopAppBar(title = "Business Ledger")
+            VyavsaTopAppBar(
+                title = "Business Ledger",
+                subtitle = "Daily sales inflows & operating expenses"
+            )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            ExtendedFloatingActionButton(
                 onClick = {
                     if (selectedTab == TransactionTab.SALES) onNavigateToCreateSale()
                     else onNavigateToCreateExpense()
                 },
+                shape = RoundedCornerShape(20.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White
-            ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Transaction")
-            }
+                contentColor = Color.White,
+                icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) },
+                text = {
+                    Text(
+                        text = if (selectedTab == TransactionTab.SALES) "New Sale" else "New Expense",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            )
         },
         modifier = modifier
     ) { paddingValues ->
@@ -99,48 +104,22 @@ fun TransactionsScreen(
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            // Tabs: Sales vs Expenses
-            PrimaryTabRow(
-                selectedTabIndex = selectedTab.ordinal,
-                containerColor = MaterialTheme.colorScheme.surface
-            ) {
-                Tab(
-                    selected = selectedTab == TransactionTab.SALES,
-                    onClick = { viewModel.selectTab(TransactionTab.SALES) },
-                    text = {
-                        Text(
-                            text = "Sales & Inflow",
-                            fontWeight = if (selectedTab == TransactionTab.SALES) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                )
-                Tab(
-                    selected = selectedTab == TransactionTab.EXPENSES,
-                    onClick = { viewModel.selectTab(TransactionTab.EXPENSES) },
-                    text = {
-                        Text(
-                            text = "Expenses & Outflow",
-                            fontWeight = if (selectedTab == TransactionTab.EXPENSES) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                )
-            }
+            // Pill Segmented Tabs: Sales vs Expenses
+            VyavsaSegmentedTabs(
+                tabs = listOf("Sales & Inflow", "Expenses & Outflow"),
+                selectedIndex = selectedTab.ordinal,
+                onTabSelected = { idx ->
+                    viewModel.selectTab(if (idx == 0) TransactionTab.SALES else TransactionTab.EXPENSES)
+                },
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+            )
 
-            // Search Bar
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { viewModel.onSearchChange(it) },
-                placeholder = { Text("Search transactions, customer, item...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            // Modern Pill Search Bar
+            VyavsaSearchBar(
+                query = searchQuery,
+                onQueryChange = { viewModel.onSearchChange(it) },
+                placeholder = "Search transactions, customer, item...",
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
 
             // Content List based on Tab
@@ -191,18 +170,15 @@ private fun SalesListContent(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize()
     ) {
         if (lineSales.isNotEmpty()) {
             item {
-                Text(
-                    text = "Line / Field Sales (${lineSales.size})",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
+                VyavsaSectionHeader(
+                    title = "Line / Field Sales",
+                    badgeText = "${lineSales.size}",
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
             }
@@ -215,12 +191,9 @@ private fun SalesListContent(
         if (counterSales.isNotEmpty()) {
             item {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Counter / POS Sales (${counterSales.size})",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
+                VyavsaSectionHeader(
+                    title = "Counter / POS Sales",
+                    badgeText = "${counterSales.size}",
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
             }
@@ -235,24 +208,27 @@ private fun SalesListContent(
 @Composable
 private fun LineSaleCard(sale: LineSale) {
     Card(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.padding(14.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(15.dp))
                         .background(Emerald50)
                 ) {
                     Icon(
@@ -262,12 +238,13 @@ private fun LineSaleCard(sale: LineSale) {
                         modifier = Modifier.size(20.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(14.dp))
                 Column {
                     Text(
                         text = sale.customerName.ifBlank { "Line Customer" },
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = if (!sale.route.isNullOrBlank()) "Route: ${sale.route}" else FormatUtils.formatDateForDisplay(sale.createdAt),
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -279,14 +256,16 @@ private fun LineSaleCard(sale: LineSale) {
                 Text(
                     text = "+${FormatUtils.formatCurrency(sale.totalAmount)}",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         color = Emerald600
                     )
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 if (sale.balance.toDoubleOrNull() ?: 0.0 > 0.0) {
-                    Text(
+                    StatBadge(
                         text = "Due: ${FormatUtils.formatCurrency(sale.balance)}",
-                        style = MaterialTheme.typography.labelSmall.copy(color = Crimson600)
+                        backgroundColor = Crimson50,
+                        textColor = Crimson600
                     )
                 } else {
                     StatBadge(text = "Paid")
@@ -299,24 +278,27 @@ private fun LineSaleCard(sale: LineSale) {
 @Composable
 private fun CounterSaleCard(sale: CounterSale) {
     Card(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.padding(14.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(15.dp))
                         .background(Emerald50)
                 ) {
                     Icon(
@@ -326,12 +308,13 @@ private fun CounterSaleCard(sale: CounterSale) {
                         modifier = Modifier.size(20.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(14.dp))
                 Column {
                     Text(
                         text = sale.item.ifBlank { "Store Sale" },
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Paid via ${sale.paymentMethod.uppercase()}",
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -343,10 +326,11 @@ private fun CounterSaleCard(sale: CounterSale) {
                 Text(
                     text = "+${FormatUtils.formatCurrency(sale.totalAmount)}",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         color = Emerald600
                     )
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = FormatUtils.formatDateForDisplay(sale.createdAt),
                     style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -377,14 +361,14 @@ private fun ExpensesListContent(
             )
         }
         is UiState.Error -> {
-            Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
                 ErrorBanner(message = expensesState.message)
             }
         }
         is UiState.Success -> {
             LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(expensesState.data) { expense ->
@@ -399,24 +383,27 @@ private fun ExpensesListContent(
 @Composable
 private fun ExpenseCard(expense: Expense) {
     Card(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.padding(14.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(15.dp))
                         .background(Crimson50)
                 ) {
                     Icon(
@@ -426,12 +413,13 @@ private fun ExpenseCard(expense: Expense) {
                         modifier = Modifier.size(20.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(14.dp))
                 Column {
                     Text(
                         text = expense.item,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = if (!expense.category.isNullOrBlank()) "${expense.category} • ${expense.paymentMethod}" else expense.paymentMethod,
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -443,10 +431,11 @@ private fun ExpenseCard(expense: Expense) {
                 Text(
                     text = "-${FormatUtils.formatCurrency(if (expense.totalAmount != "0.00") expense.totalAmount else expense.amount)}",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         color = Crimson600
                     )
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = FormatUtils.formatDateForDisplay(expense.createdAt),
                     style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)

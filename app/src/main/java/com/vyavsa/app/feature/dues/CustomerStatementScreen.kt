@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,13 +34,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
+import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
+import com.vyavsa.app.core.designsystem.Emerald50
 import com.vyavsa.app.core.designsystem.Emerald600
 import com.vyavsa.app.core.designsystem.EmptyStateView
 import com.vyavsa.app.core.designsystem.ErrorBanner
+import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.CustomerStatementEntry
 
@@ -61,9 +62,11 @@ fun CustomerStatementScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             VyavsaTopAppBar(
-                title = "$customerName • Statement",
+                title = customerName,
+                subtitle = "Customer Ledger Statement",
                 navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 onNavigationClick = onNavigateBack
             )
@@ -83,7 +86,7 @@ fun CustomerStatementScreen(
                     }
                 }
                 is UiState.Error -> {
-                    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
                         ErrorBanner(message = state.message)
                     }
                 }
@@ -99,44 +102,51 @@ fun CustomerStatementScreen(
                         )
                     } else {
                         LazyColumn(
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
                             // Statement Header Balance
                             item {
                                 Card(
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                                    shape = RoundedCornerShape(26.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween,
-                                        modifier = Modifier.padding(16.dp)
+                                        modifier = Modifier.padding(20.dp)
                                     ) {
                                         Column {
                                             Text(
                                                 text = "Total Purchases",
-                                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                                                )
                                             )
+                                            Spacer(modifier = Modifier.height(4.dp))
                                             Text(
                                                 text = FormatUtils.formatCurrency(statement.totalPurchases),
-                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                                style = MaterialTheme.typography.headlineSmall.copy(
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
                                             )
                                         }
 
                                         Column(horizontalAlignment = Alignment.End) {
                                             Text(
                                                 text = "Outstanding Due",
-                                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                                                )
                                             )
+                                            Spacer(modifier = Modifier.height(4.dp))
                                             Text(
                                                 text = FormatUtils.formatCurrency(statement.currentBalance),
-                                                style = MaterialTheme.typography.titleMedium.copy(
-                                                    fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.headlineSmall.copy(
+                                                    fontWeight = FontWeight.ExtraBold,
                                                     color = Crimson600
                                                 )
                                             )
@@ -163,22 +173,24 @@ private fun StatementEntryCard(entry: CustomerStatementEntry) {
     val isPayment = entry.entryType.contains("payment", ignoreCase = true) || entry.paidAmount.toDoubleOrNull() ?: 0.0 > 0.0
 
     Card(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.padding(14.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = entry.description.ifBlank { if (isPayment) "Settlement Payment" else "Purchase / Delivery" },
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "${entry.formattedDate.ifBlank { entry.date }} • ${entry.paymentMethod ?: "Cash"}",
                     style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -189,13 +201,15 @@ private fun StatementEntryCard(entry: CustomerStatementEntry) {
                 Text(
                     text = if (isPayment) "-${FormatUtils.formatCurrency(entry.paidAmount)}" else "+${FormatUtils.formatCurrency(entry.purchaseAmount)}",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         color = if (isPayment) Emerald600 else Crimson600
                     )
                 )
-                Text(
+                Spacer(modifier = Modifier.height(4.dp))
+                StatBadge(
                     text = "Bal: ${FormatUtils.formatCurrency(entry.balance)}",
-                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    backgroundColor = if (isPayment) Emerald50 else Crimson50,
+                    textColor = if (isPayment) Emerald600 else Crimson600
                 )
             }
         }

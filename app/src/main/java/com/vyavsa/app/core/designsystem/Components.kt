@@ -1,14 +1,18 @@
 package com.vyavsa.app.core.designsystem
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +26,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -31,8 +37,10 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -55,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -63,34 +72,60 @@ import androidx.compose.ui.unit.sp
 fun VyavsaTopAppBar(
     title: String,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
     navigationIcon: ImageVector? = null,
     onNavigationClick: (() -> Unit)? = null,
     actions: @Composable () -> Unit = {}
 ) {
     TopAppBar(
         title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 18.sp
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-            )
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         },
         navigationIcon = {
             if (navigationIcon != null && onNavigationClick != null) {
-                IconButton(onClick = onNavigationClick) {
+                FilledTonalIconButton(
+                    onClick = onNavigationClick,
+                    shape = CircleShape,
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier
+                        .padding(start = 8.dp, end = 4.dp)
+                        .size(40.dp)
+                ) {
                     Icon(
                         imageVector = navigationIcon,
-                        contentDescription = "Navigate back"
+                        contentDescription = "Navigate back",
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
         },
         actions = { actions() },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface
+            containerColor = MaterialTheme.colorScheme.background,
+            titleContentColor = MaterialTheme.colorScheme.onBackground
         ),
         modifier = modifier
     )
@@ -109,14 +144,21 @@ fun VyavsaButton(
     Button(
         onClick = onClick,
         enabled = enabled && !isLoading,
-        shape = RoundedCornerShape(12.dp),
+        shape = CircleShape,
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 0.dp
+        ),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
-            contentColor = Color.White
+            contentColor = Color.White,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(54.dp)
     ) {
         if (isLoading) {
             CircularProgressIndicator(
@@ -133,14 +175,14 @@ fun VyavsaButton(
                     Icon(
                         imageVector = leadingIcon,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
                 Text(
                     text = text,
                     style = MaterialTheme.typography.labelLarge.copy(
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
                 )
@@ -160,10 +202,16 @@ fun VyavsaOutlinedButton(
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
+        shape = CircleShape,
+        border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.outline),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp),
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(54.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -173,14 +221,14 @@ fun VyavsaOutlinedButton(
                 Icon(
                     imageVector = leadingIcon,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
             }
             Text(
                 text = text,
                 style = MaterialTheme.typography.labelLarge.copy(
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )
             )
@@ -209,16 +257,25 @@ fun VyavsaTextField(
             label = { Text(label) },
             placeholder = placeholder?.let { { Text(it) } },
             leadingIcon = leadingIcon?.let {
-                { Icon(imageVector = it, contentDescription = null, modifier = Modifier.size(20.dp)) }
+                {
+                    Icon(
+                        imageVector = it,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             },
             isError = isError,
             singleLine = singleLine,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(18.dp),
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions,
             colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -227,7 +284,7 @@ fun VyavsaTextField(
                 text = errorMessage,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(start = 12.dp, top = 4.dp)
+                modifier = Modifier.padding(start = 16.dp, top = 4.dp)
             )
         }
     }
@@ -252,7 +309,7 @@ fun VyavsaPasswordField(
             onValueChange = onValueChange,
             label = { Text(label) },
             singleLine = true,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(18.dp),
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions,
@@ -265,8 +322,10 @@ fun VyavsaPasswordField(
                 }
             },
             colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -275,9 +334,191 @@ fun VyavsaPasswordField(
                 text = errorMessage,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(start = 12.dp, top = 4.dp)
+                modifier = Modifier.padding(start = 16.dp, top = 4.dp)
             )
         }
+    }
+}
+
+/**
+ * Modern Android 14/15 Pill Search Bar with tonal fill and clear button
+ */
+@Composable
+fun VyavsaSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        placeholder = {
+            Text(
+                text = placeholder,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Search",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Clear search",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        },
+        singleLine = true,
+        shape = CircleShape,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = Color.Transparent
+        ),
+        modifier = modifier.fillMaxWidth()
+    )
+}
+
+/**
+ * Modern Android Material 3 Pill Segmented Tab Switcher
+ */
+@Composable
+fun VyavsaSegmentedTabs(
+    tabs: List<String>,
+    selectedIndex: Int,
+    onTabSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            tabs.forEachIndexed { index, title ->
+                val isSelected = selectedIndex == index
+                val bgColor by animateColorAsState(
+                    targetValue = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    animationSpec = tween(220),
+                    label = "SegmentTabBg"
+                )
+                val contentColor by animateColorAsState(
+                    targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    animationSpec = tween(220),
+                    label = "SegmentTabText"
+                )
+
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(CircleShape)
+                        .background(bgColor)
+                        .clickable { onTabSelected(index) }
+                        .padding(vertical = 10.dp, horizontal = 8.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = contentColor
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun VyavsaSectionHeader(
+    title: String,
+    modifier: Modifier = Modifier,
+    badgeText: String? = null,
+    actionText: String? = null,
+    onActionClick: (() -> Unit)? = null
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            )
+            if (!badgeText.isNullOrBlank()) {
+                Spacer(modifier = Modifier.width(8.dp))
+                StatBadge(
+                    text = badgeText,
+                    backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    textColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (!actionText.isNullOrBlank() && onActionClick != null) {
+            Text(
+                text = actionText,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                ),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { onActionClick() }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun AvatarInitialCircle(
+    name: String,
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer
+) {
+    val initial = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "V"
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(44.dp)
+            .clip(RoundedCornerShape(15.dp))
+            .background(containerColor)
+    ) {
+        Text(
+            text = initial,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.ExtraBold,
+                color = contentColor
+            )
+        )
     }
 }
 
@@ -289,32 +530,40 @@ fun MetricCard(
     badgeText: String? = null,
     icon: ImageVector? = null,
     iconTint: Color = MaterialTheme.colorScheme.primary,
-    iconBackground: Color = MaterialTheme.colorScheme.surfaceVariant,
+    iconBackground: Color = MaterialTheme.colorScheme.primaryContainer,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f),
+                shape = RoundedCornerShape(24.dp)
+            )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
                     if (icon != null) {
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(14.dp))
                                 .background(iconBackground)
                         ) {
                             Icon(
@@ -328,27 +577,32 @@ fun MetricCard(
                     }
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.bodyMedium.copy(
+                        style = MaterialTheme.typography.labelLarge.copy(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Medium
-                        )
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
                 if (badgeText != null) {
+                    Spacer(modifier = Modifier.width(6.dp))
                     StatBadge(text = badgeText)
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Text(
                 text = amount,
                 style = MaterialTheme.typography.headlineSmall.copy(
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                     fontSize = 22.sp,
                     color = MaterialTheme.colorScheme.onSurface
-                )
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
 
             if (subtitle != null) {
@@ -357,7 +611,9 @@ fun MetricCard(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -373,14 +629,14 @@ fun StatBadge(
 ) {
     Surface(
         color = backgroundColor,
-        shape = RoundedCornerShape(6.dp),
+        shape = CircleShape,
         modifier = modifier
     ) {
         Text(
             text = text,
             color = textColor,
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
         )
     }
 }
@@ -398,14 +654,21 @@ fun ErrorBanner(
         modifier = modifier
     ) {
         Card(
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(14.dp)
+                modifier = Modifier.padding(16.dp)
             ) {
+                Icon(
+                    imageVector = Icons.Default.ErrorOutline,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = message,
                     style = MaterialTheme.typography.bodyMedium.copy(
@@ -422,8 +685,9 @@ fun ErrorBanner(
                             fontWeight = FontWeight.Bold
                         ),
                         modifier = Modifier
+                            .clip(CircleShape)
                             .clickable { onDismiss() }
-                            .padding(start = 8.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -451,30 +715,30 @@ fun EmptyStateView(
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f))
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(32.dp)
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(34.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(18.dp))
         }
 
         Text(
             text = title,
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             ),
             textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
             text = description,
@@ -485,11 +749,11 @@ fun EmptyStateView(
         )
 
         if (actionText != null && onActionClick != null) {
-            Spacer(modifier = Modifier.height(16.dp))
-            VyavsaOutlinedButton(
+            Spacer(modifier = Modifier.height(20.dp))
+            VyavsaButton(
                 text = actionText,
                 onClick = onActionClick,
-                modifier = Modifier.width(180.dp)
+                modifier = Modifier.width(210.dp)
             )
         }
     }
@@ -511,10 +775,10 @@ fun LoadingOverlay(
                     .background(Color.Black.copy(alpha = 0.25f))
             ) {
                 Card(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                    modifier = Modifier.size(80.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                    modifier = Modifier.size(88.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         CircularProgressIndicator(

@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachMoney
@@ -26,12 +27,15 @@ import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -50,16 +55,17 @@ import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.Amber50
 import com.vyavsa.app.core.designsystem.Amber600
+import com.vyavsa.app.core.designsystem.AvatarInitialCircle
 import com.vyavsa.app.core.designsystem.Blue50
 import com.vyavsa.app.core.designsystem.Blue600
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
 import com.vyavsa.app.core.designsystem.Emerald600
-import com.vyavsa.app.core.designsystem.EmptyStateView
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.MetricCard
 import com.vyavsa.app.core.designsystem.StatBadge
+import com.vyavsa.app.core.designsystem.VyavsaSectionHeader
 import com.vyavsa.app.core.model.FinancialMetrics
 import com.vyavsa.app.core.model.TenantSubscription
 
@@ -75,16 +81,16 @@ fun DashboardScreen(
     val metricsState by viewModel.metricsState.collectAsState()
     val subscriptionState by viewModel.subscriptionState.collectAsState()
     val userProfile = viewModel.tokenManager.getUserProfile()
+    val partnerName = userProfile?.name?.ifBlank { "Partner" } ?: "Partner"
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // App Bar & Greeting Header
+        // Modern Material 3 Expressive Header
         Surface(
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp,
+            color = MaterialTheme.colorScheme.background,
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -94,27 +100,43 @@ fun DashboardScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 14.dp)
             ) {
-                Column {
-                    Text(
-                        text = "Hello, ${userProfile?.name?.ifBlank { "Partner" } ?: "Partner"}",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AvatarInitialCircle(
+                        name = partnerName,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-                    Text(
-                        text = "Today • ${FormatUtils.todayDateString()}",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Hello, $partnerName",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
                         )
-                    )
+                        Text(
+                            text = "Today • ${FormatUtils.todayDateString()}",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                    }
                 }
 
-                IconButton(onClick = { viewModel.loadDashboard() }) {
+                FilledTonalIconButton(
+                    onClick = { viewModel.loadDashboard() },
+                    shape = CircleShape,
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "Refresh Dashboard",
-                        tint = MaterialTheme.colorScheme.primary
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -156,33 +178,45 @@ private fun DashboardBody(
     onNavigateToCashDrawer: () -> Unit,
     onNavigateToStaff: () -> Unit
 ) {
+    val cashVal = metrics.cashBalance.toDoubleOrNull() ?: 0.0
+    val bankVal = metrics.bankBalance.toDoubleOrNull() ?: 0.0
+    val totalLiquidity = cashVal + bankVal
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp)
+            .padding(horizontal = 20.dp, vertical = 8.dp)
     ) {
         // Subscription Status Alert if near expiration
         if (subscription != null && (subscription.isExpired || subscription.daysRemaining <= 7)) {
             Card(
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = Amber50),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp)
-                    .border(1.dp, Amber600.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                    .border(1.dp, Amber600.copy(alpha = 0.35f), RoundedCornerShape(22.dp))
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(12.dp)
+                    modifier = Modifier.padding(16.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = Amber600,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Amber600.copy(alpha = 0.15f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = Amber600,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = if (subscription.isExpired) "Plan Expired: Please renew to maintain access"
                         else "Subscription expiring in ${subscription.daysRemaining} days (${subscription.currentPlanName})",
@@ -195,124 +229,170 @@ private fun DashboardBody(
             }
         }
 
-        // Section: Liquidity & Balances
-        Text(
-            text = "Live Liquidity",
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        // Hero Card: Combined Live Liquidity + Cash & Bank Pills
+        Card(
+            shape = RoundedCornerShape(28.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
             modifier = Modifier.fillMaxWidth()
         ) {
-            MetricCard(
-                title = "Cash in Till",
-                amount = FormatUtils.formatCurrency(metrics.cashBalance),
-                icon = Icons.Default.AttachMoney,
-                iconTint = Emerald600,
-                iconBackground = Emerald50,
-                onClick = onNavigateToCashDrawer,
-                modifier = Modifier.weight(1f)
-            )
-
-            MetricCard(
-                title = "Bank Total",
-                amount = FormatUtils.formatCurrency(metrics.bankBalance),
-                icon = Icons.Default.AccountBalance,
-                iconTint = Blue600,
-                iconBackground = Blue50,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Section: Dues Summary
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Net Outstanding Dues",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-                    StatBadge(
-                        text = "Net: ${FormatUtils.formatCurrency(metrics.netDues)}",
-                        backgroundColor = if (metrics.netDues.startsWith("-")) Crimson50 else Emerald50,
-                        textColor = if (metrics.netDues.startsWith("-")) Crimson600 else Emerald600
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column {
-                        Text(
-                            text = "Customer Receivable",
-                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        )
-                        Text(
-                            text = FormatUtils.formatCurrency(metrics.totalReceivable),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = Emerald600
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                Color(0xFF1E2FA8)
                             )
                         )
+                    )
+                    .padding(22.dp)
+            ) {
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "TOTAL LIVE LIQUIDITY",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.8.sp
+                            )
+                        )
+                        Surface(
+                            color = Color.White.copy(alpha = 0.16f),
+                            shape = CircleShape
+                        ) {
+                            Text(
+                                text = "Cash + Bank",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
                     }
 
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "Supplier Payable",
-                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = FormatUtils.formatCurrency(totalLiquidity),
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 32.sp
                         )
-                        Text(
-                            text = FormatUtils.formatCurrency(metrics.totalPayable),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = Crimson600
-                            )
-                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // Cash in Till Sub-Card
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.White.copy(alpha = 0.14f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable { onNavigateToCashDrawer() }
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Emerald50)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AttachMoney,
+                                            contentDescription = null,
+                                            tint = Emerald600,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Cash in Till",
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            color = Color.White.copy(alpha = 0.85f)
+                                        )
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = FormatUtils.formatCurrency(metrics.cashBalance),
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                )
+                            }
+                        }
+
+                        // Bank Total Sub-Card
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.White.copy(alpha = 0.14f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Blue50)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AccountBalance,
+                                            contentDescription = null,
+                                            tint = Blue600,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Bank Total",
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            color = Color.White.copy(alpha = 0.85f)
+                                        )
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = FormatUtils.formatCurrency(metrics.bankBalance),
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
         // Quick Actions Row
-        Text(
-            text = "Quick Actions",
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        )
+        VyavsaSectionHeader(title = "Quick Actions")
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             QuickActionButton(
@@ -343,18 +423,94 @@ private fun DashboardBody(
             )
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(22.dp))
+
+        // Section: Dues Summary
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Net Outstanding Dues",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                    StatBadge(
+                        text = "Net: ${FormatUtils.formatCurrency(metrics.netDues)}",
+                        backgroundColor = if (metrics.netDues.startsWith("-")) Crimson50 else Emerald50,
+                        textColor = if (metrics.netDues.startsWith("-")) Crimson600 else Emerald600
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = Emerald50.copy(alpha = 0.65f),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "Customer Receivable",
+                                style = MaterialTheme.typography.labelSmall.copy(color = Emerald600)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = FormatUtils.formatCurrency(metrics.totalReceivable),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Emerald600
+                                )
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = Crimson50.copy(alpha = 0.65f),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "Supplier Payable",
+                                style = MaterialTheme.typography.labelSmall.copy(color = Crimson600)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = FormatUtils.formatCurrency(metrics.totalPayable),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Crimson600
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(22.dp))
 
         // Section: Today's Operations
-        Text(
-            text = "Today's Activity",
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        )
+        VyavsaSectionHeader(title = "Today's Activity")
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         val today = metrics.todayOverview
         Row(
@@ -364,53 +520,64 @@ private fun DashboardBody(
             MetricCard(
                 title = "Line Sales",
                 amount = FormatUtils.formatCurrency(today?.lineSale ?: "0.00"),
+                icon = Icons.Default.TrendingUp,
+                iconTint = Emerald600,
+                iconBackground = Emerald50,
                 modifier = Modifier.weight(1f)
             )
             MetricCard(
                 title = "Counter Sales",
                 amount = FormatUtils.formatCurrency(today?.counterSale ?: "0.00"),
+                icon = Icons.Default.Storefront,
+                iconTint = MaterialTheme.colorScheme.primary,
+                iconBackground = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.weight(1f)
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         // Staff Attendance & Wages Card
         Card(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
                 .clickable { onNavigateToStaff() }
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(18.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(15.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Badge,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(14.dp))
                     Column {
                         Text(
                             text = "Staff Attendance Today",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = if (today?.attendance?.hasRecords == true)
                                 "${today.attendance.present} present out of ${today.attendance.total}"
@@ -420,15 +587,33 @@ private fun DashboardBody(
                     }
                 }
 
-                StatBadge(
-                    text = "Manage Staff",
-                    backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-                    textColor = MaterialTheme.colorScheme.primary
-                )
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "Manage",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(28.dp))
     }
 }
 
@@ -442,36 +627,39 @@ private fun QuickActionButton(
     modifier: Modifier = Modifier
 ) {
     Card(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = modifier
+            .clip(RoundedCornerShape(22.dp))
             .clickable { onClick() }
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(vertical = 14.dp, horizontal = 8.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp, horizontal = 8.dp)
         ) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(backgroundColor)
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     tint = iconTint,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             )

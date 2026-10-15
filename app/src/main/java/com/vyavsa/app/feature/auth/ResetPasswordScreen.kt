@@ -1,6 +1,7 @@
 package com.vyavsa.app.feature.auth
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -60,6 +61,7 @@ fun ResetPasswordScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             VyavsaTopAppBar(
                 title = "Set New Password",
@@ -77,21 +79,23 @@ fun ResetPasswordScreen(
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Card(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(28.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(28.dp))
                 ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
+                    Column(modifier = Modifier.padding(24.dp)) {
                         Text(
                             text = "Create New Password",
                             style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.ExtraBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         )
 
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
                             text = "Please enter and confirm your new account password",
@@ -100,7 +104,7 @@ fun ResetPasswordScreen(
                             )
                         )
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(22.dp))
 
                         if (state is UiState.Error) {
                             ErrorBanner(
@@ -131,7 +135,7 @@ fun ResetPasswordScreen(
                             )
                         )
 
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(26.dp))
 
                         VyavsaButton(
                             text = "Update Password",
