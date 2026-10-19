@@ -54,6 +54,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -77,12 +78,18 @@ import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.Blue50
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.ShoppingBag
 import com.vyavsa.app.core.designsystem.Blue600
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
 import com.vyavsa.app.core.designsystem.Emerald600
 import com.vyavsa.app.core.designsystem.ErrorBanner
+import com.vyavsa.app.core.designsystem.ProductSelectorBottomSheet
+import com.vyavsa.app.core.designsystem.SaleItemCard
 import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaButton
 import com.vyavsa.app.core.designsystem.VyavsaOutlinedButton
@@ -91,6 +98,8 @@ import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.BankPaymentSplit
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.Product
+import com.vyavsa.app.core.model.SaleItemRequest
 import com.vyavsa.app.core.model.TenantBank
 
 @Immutable
@@ -100,6 +109,24 @@ data class BankPaymentEntry(
     val amount: String = "",
     val note: String? = null
 )
+
+@Immutable
+data class SaleItemEntry(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val productId: String,
+    val productName: String,
+    val catalogUnitPrice: String,
+    val quantity: String = "1",
+    val unitPrice: String = catalogUnitPrice
+) {
+    val lineTotal: String
+        get() {
+            val q = quantity.toDoubleOrNull() ?: 0.0
+            val p = unitPrice.toDoubleOrNull() ?: 0.0
+            return String.format(java.util.Locale.US, "%.2f", q * p)
+        }
+}
+
 
 @Composable
 fun CreateLineSaleScreen(
@@ -131,6 +158,7 @@ fun CreateSaleScreen(
     val createActionState by viewModel.createActionState.collectAsState()
     val customersState by viewModel.customersState.collectAsState()
     val banksState by viewModel.banksState.collectAsState()
+    val productsState by viewModel.productsState.collectAsState()
     val focusManager = LocalFocusManager.current
 
     val customers = (customersState as? UiState.Success)?.data ?: emptyList()
@@ -149,6 +177,7 @@ fun CreateSaleScreen(
     var lineIncludeBank by remember { mutableStateOf(false) }
     var lineBankEntries by remember { mutableStateOf<List<BankPaymentEntry>>(emptyList()) }
     var note by remember { mutableStateOf("") }
+    var lineItems by remember { mutableStateOf<List<SaleItemEntry>>(emptyList()) }
 
     // Form fields for Counter Sale
     var counterItem by remember { mutableStateOf("") }
@@ -157,6 +186,12 @@ fun CreateSaleScreen(
     var counterCash by remember { mutableStateOf("0.00") }
     var counterIncludeBank by remember { mutableStateOf(false) }
     var counterBankEntries by remember { mutableStateOf<List<BankPaymentEntry>>(emptyList()) }
+    var counterItems by remember { mutableStateOf<List<SaleItemEntry>>(emptyList()) }
+
+    // Searchable Product Selector Sheet State
+    var showProductSelectorSheet by remember { mutableStateOf(false) }
+    var selectorTarget by remember { mutableStateOf(SaleType.LINE_SALE) }
+    var productSearchQuery by remember { mutableStateOf("") }
 
     LaunchedEffect(createActionState) {
         if (createActionState is UiState.Success) {
@@ -174,6 +209,142 @@ fun CreateSaleScreen(
                 navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 onNavigationClick = onNavigateBack
             )
+        },
+        bottomBar = {
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    val totalVal = if (selectedSaleType == SaleType.LINE_SALE) lineTotalAmount else counterTotalAmount
+                    val cashVal = (if (selectedSaleType == SaleType.LINE_SALE) lineCashIn else counterCash).toDoubleOrNull() ?: 0.0
+                    val bankEntriesVal = if (selectedSaleType == SaleType.LINE_SALE) {
+                        if (lineIncludeBank) lineBankEntries else emptyList()
+                    } else {
+                        if (counterIncludeBank) counterBankEntries else emptyList()
+                    }
+                    val bankVal = bankEntriesVal.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                    val totVal = totalVal.toDoubleOrNull() ?: 0.0
+                    val dueVal = if (totVal > (cashVal + bankVal)) totVal - (cashVal + bankVal) else 0.0
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    ) {
+                        Column {
+                            Text(
+                                text = "Total Sale Amount",
+                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            )
+                            Text(
+                                text = FormatUtils.formatCurrency(totalVal.ifBlank { "0.00" }),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                        }
+
+                        if (selectedSaleType == SaleType.LINE_SALE && dueVal > 0.0) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "Due to Customer Ledger",
+                                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                )
+                                Text(
+                                    text = FormatUtils.formatCurrency(dueVal.toString()),
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = Crimson600
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    VyavsaButton(
+                        text = if (selectedSaleType == SaleType.LINE_SALE) "Record Line Sale" else "Record Counter Sale",
+                        onClick = {
+                            focusManager.clearFocus()
+                            if (selectedSaleType == SaleType.LINE_SALE) {
+                                val splits = if (lineIncludeBank) {
+                                    lineBankEntries.map {
+                                        BankPaymentSplit(
+                                            bankId = it.bank?.id ?: "",
+                                            bankName = it.bank?.bankName,
+                                            amount = it.amount.trim()
+                                        )
+                                    }
+                                } else {
+                                    emptyList()
+                                }
+                                val bankTotal = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                                val itemRequests = lineItems.map {
+                                    SaleItemRequest(
+                                        productId = it.productId,
+                                        quantity = it.quantity.trim(),
+                                        unitPrice = it.unitPrice.trim()
+                                    )
+                                }
+                                viewModel.createLineSale(
+                                    customerId = selectedCustomer?.id ?: "",
+                                    route = route,
+                                    salesman = salesman,
+                                    totalAmount = lineTotalAmount,
+                                    cashIn = lineCashIn,
+                                    bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
+                                    bankId = splits.firstOrNull()?.bankId,
+                                    bankPayments = splits,
+                                    note = note,
+                                    items = itemRequests
+                                )
+                            } else {
+                                val splits = if (counterIncludeBank) {
+                                    counterBankEntries.map {
+                                        BankPaymentSplit(
+                                            bankId = it.bank?.id ?: "",
+                                            bankName = it.bank?.bankName,
+                                            amount = it.amount.trim()
+                                        )
+                                    }
+                                } else {
+                                    emptyList()
+                                }
+                                val bankTotal = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                                val itemRequests = counterItems.map {
+                                    SaleItemRequest(
+                                        productId = it.productId,
+                                        quantity = it.quantity.trim(),
+                                        unitPrice = it.unitPrice.trim()
+                                    )
+                                }
+                                viewModel.createCounterSale(
+                                    item = counterItem.ifBlank { if (counterItems.isNotEmpty()) counterItems.first().productName else "" },
+                                    price = counterPrice.ifBlank { counterTotalAmount },
+                                    totalAmount = counterTotalAmount,
+                                    cash = counterCash,
+                                    bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
+                                    bankId = splits.firstOrNull()?.bankId,
+                                    bankPayments = splits,
+                                    items = itemRequests
+                                )
+                            }
+                        },
+                        isLoading = createActionState is UiState.Loading
+                    )
+                }
+            }
         },
         modifier = modifier
     ) { paddingValues ->
@@ -361,6 +532,60 @@ fun CreateSaleScreen(
 
                                 Spacer(modifier = Modifier.height(14.dp))
 
+                                // Items in Line Sale Section
+                                val lineItemsSubtotal = if (lineItems.isNotEmpty()) {
+                                    lineItems.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                                } else null
+
+                                SaleItemsSection(
+                                    items = lineItems,
+                                    onAddItemClick = {
+                                        selectorTarget = SaleType.LINE_SALE
+                                        productSearchQuery = ""
+                                        viewModel.loadProducts()
+                                        showProductSelectorSheet = true
+                                    },
+                                    onQuantityChange = { entry, newQty ->
+                                        val filtered = newQty.filter { it.isDigit() }
+                                        val updated = lineItems.map { if (it.id == entry.id) it.copy(quantity = filtered) else it }
+                                        lineItems = updated
+                                        val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                                        lineTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                    },
+                                    onQuantityIncrement = { entry ->
+                                        val currentQ = entry.quantity.toIntOrNull() ?: 1
+                                        val updated = lineItems.map { if (it.id == entry.id) it.copy(quantity = (currentQ + 1).toString()) else it }
+                                        lineItems = updated
+                                        val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                                        lineTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                    },
+                                    onQuantityDecrement = { entry ->
+                                        val currentQ = entry.quantity.toIntOrNull() ?: 1
+                                        if (currentQ > 1) {
+                                            val updated = lineItems.map { if (it.id == entry.id) it.copy(quantity = (currentQ - 1).toString()) else it }
+                                            lineItems = updated
+                                            val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                                            lineTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        }
+                                    },
+                                    onUnitPriceChange = { entry, newPrice ->
+                                        val updated = lineItems.map { if (it.id == entry.id) it.copy(unitPrice = newPrice) else it }
+                                        lineItems = updated
+                                        val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                                        lineTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                    },
+                                    onRemoveItem = { entry ->
+                                        val updated = lineItems.filterNot { it.id == entry.id }
+                                        lineItems = updated
+                                        val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                                        if (updated.isNotEmpty()) {
+                                            lineTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        }
+                                    }
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
                                 // Invoice Amount & Cash In
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -404,7 +629,8 @@ fun CreateSaleScreen(
                                     totalAmount = lineTotalAmount,
                                     cashAmount = lineCashIn,
                                     bankEntries = if (lineIncludeBank) lineBankEntries else emptyList(),
-                                    isLineSale = true
+                                    isLineSale = true,
+                                    itemsSubtotal = lineItemsSubtotal
                                 )
 
                                 Spacer(modifier = Modifier.height(14.dp))
@@ -417,38 +643,7 @@ fun CreateSaleScreen(
                                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
                                 )
 
-                                Spacer(modifier = Modifier.height(24.dp))
-
-                                VyavsaButton(
-                                    text = "Record Line Sale",
-                                    onClick = {
-                                        focusManager.clearFocus()
-                                        val splits = if (lineIncludeBank) {
-                                            lineBankEntries.map {
-                                                BankPaymentSplit(
-                                                    bankId = it.bank?.id ?: "",
-                                                    bankName = it.bank?.bankName,
-                                                    amount = it.amount.trim()
-                                                )
-                                            }
-                                        } else {
-                                            emptyList()
-                                        }
-                                        val bankTotal = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                                        viewModel.createLineSale(
-                                            customerId = selectedCustomer?.id ?: "",
-                                            route = route,
-                                            salesman = salesman,
-                                            totalAmount = lineTotalAmount,
-                                            cashIn = lineCashIn,
-                                            bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
-                                            bankId = splits.firstOrNull()?.bankId,
-                                            bankPayments = splits,
-                                            note = note
-                                        )
-                                    },
-                                    isLoading = createActionState is UiState.Loading
-                                )
+                                Spacer(modifier = Modifier.height(20.dp))
 
                             } else {
                                 // ==========================================
@@ -465,6 +660,60 @@ fun CreateSaleScreen(
                                 )
 
                                 Spacer(modifier = Modifier.height(18.dp))
+
+                                // Items in Counter Sale Section
+                                val counterItemsSubtotal = if (counterItems.isNotEmpty()) {
+                                    counterItems.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                                } else null
+
+                                SaleItemsSection(
+                                    items = counterItems,
+                                    onAddItemClick = {
+                                        selectorTarget = SaleType.COUNTER_SALE
+                                        productSearchQuery = ""
+                                        viewModel.loadProducts()
+                                        showProductSelectorSheet = true
+                                    },
+                                    onQuantityChange = { entry, newQty ->
+                                        val filtered = newQty.filter { it.isDigit() }
+                                        val updated = counterItems.map { if (it.id == entry.id) it.copy(quantity = filtered) else it }
+                                        counterItems = updated
+                                        val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                                        counterTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                    },
+                                    onQuantityIncrement = { entry ->
+                                        val currentQ = entry.quantity.toIntOrNull() ?: 1
+                                        val updated = counterItems.map { if (it.id == entry.id) it.copy(quantity = (currentQ + 1).toString()) else it }
+                                        counterItems = updated
+                                        val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                                        counterTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                    },
+                                    onQuantityDecrement = { entry ->
+                                        val currentQ = entry.quantity.toIntOrNull() ?: 1
+                                        if (currentQ > 1) {
+                                            val updated = counterItems.map { if (it.id == entry.id) it.copy(quantity = (currentQ - 1).toString()) else it }
+                                            counterItems = updated
+                                            val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                                            counterTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        }
+                                    },
+                                    onUnitPriceChange = { entry, newPrice ->
+                                        val updated = counterItems.map { if (it.id == entry.id) it.copy(unitPrice = newPrice) else it }
+                                        counterItems = updated
+                                        val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                                        counterTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                    },
+                                    onRemoveItem = { entry ->
+                                        val updated = counterItems.filterNot { it.id == entry.id }
+                                        counterItems = updated
+                                        val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                                        if (updated.isNotEmpty()) {
+                                            counterTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        }
+                                    }
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
 
                                 VyavsaTextField(
                                     value = counterItem,
@@ -531,40 +780,226 @@ fun CreateSaleScreen(
                                     totalAmount = counterTotalAmount,
                                     cashAmount = counterCash,
                                     bankEntries = if (counterIncludeBank) counterBankEntries else emptyList(),
-                                    isLineSale = false
+                                    isLineSale = false,
+                                    itemsSubtotal = counterItemsSubtotal
                                 )
 
-                                Spacer(modifier = Modifier.height(24.dp))
-
-                                VyavsaButton(
-                                    text = "Record Counter Sale",
-                                    onClick = {
-                                        focusManager.clearFocus()
-                                        val splits = if (counterIncludeBank) {
-                                            counterBankEntries.map {
-                                                BankPaymentSplit(
-                                                    bankId = it.bank?.id ?: "",
-                                                    bankName = it.bank?.bankName,
-                                                    amount = it.amount.trim()
-                                                )
-                                            }
-                                        } else {
-                                            emptyList()
-                                        }
-                                        val bankTotal = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                                        viewModel.createCounterSale(
-                                            item = counterItem,
-                                            price = counterPrice.ifBlank { counterTotalAmount },
-                                            totalAmount = counterTotalAmount,
-                                            cash = counterCash,
-                                            bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
-                                            bankId = splits.firstOrNull()?.bankId,
-                                            bankPayments = splits
-                                        )
-                                    },
-                                    isLoading = createActionState is UiState.Loading
-                                )
+                                Spacer(modifier = Modifier.height(20.dp))
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Searchable Product Selector Sheet
+        if (showProductSelectorSheet) {
+            ProductSelectorBottomSheet(
+                productsState = productsState,
+                searchQuery = productSearchQuery,
+                onSearchQueryChange = { query ->
+                    productSearchQuery = query
+                    viewModel.loadProducts(query)
+                },
+                onProductSelected = { selectedProduct ->
+                    if (selectorTarget == SaleType.LINE_SALE) {
+                        val existing = lineItems.find { it.productId == selectedProduct.id }
+                        val updated = if (existing != null) {
+                            val currQ = existing.quantity.toIntOrNull() ?: 1
+                            lineItems.map {
+                                if (it.productId == selectedProduct.id) it.copy(quantity = (currQ + 1).toString()) else it
+                            }
+                        } else {
+                            lineItems + SaleItemEntry(
+                                productId = selectedProduct.id,
+                                productName = selectedProduct.name,
+                                catalogUnitPrice = selectedProduct.unitPrice,
+                                quantity = "1",
+                                unitPrice = selectedProduct.unitPrice
+                            )
+                        }
+                        lineItems = updated
+                        val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                        lineTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                    } else {
+                        val existing = counterItems.find { it.productId == selectedProduct.id }
+                        val updated = if (existing != null) {
+                            val currQ = existing.quantity.toIntOrNull() ?: 1
+                            counterItems.map {
+                                if (it.productId == selectedProduct.id) it.copy(quantity = (currQ + 1).toString()) else it
+                            }
+                        } else {
+                            counterItems + SaleItemEntry(
+                                productId = selectedProduct.id,
+                                productName = selectedProduct.name,
+                                catalogUnitPrice = selectedProduct.unitPrice,
+                                quantity = "1",
+                                unitPrice = selectedProduct.unitPrice
+                            )
+                        }
+                        counterItems = updated
+                        val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                        counterTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                        if (counterItem.isBlank() || counterItem.startsWith(selectedProduct.name)) {
+                            counterItem = if (updated.size == 1) updated.first().productName else "${updated.first().productName} (+${updated.size - 1} items)"
+                        }
+                        if (updated.size == 1) {
+                            counterPrice = updated.first().unitPrice
+                        }
+                    }
+                    showProductSelectorSheet = false
+                },
+                onDismiss = { showProductSelectorSheet = false }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SaleItemsSection(
+    items: List<SaleItemEntry>,
+    onAddItemClick: () -> Unit,
+    onQuantityChange: (SaleItemEntry, String) -> Unit,
+    onQuantityIncrement: (SaleItemEntry) -> Unit,
+    onQuantityDecrement: (SaleItemEntry) -> Unit,
+    onUnitPriceChange: (SaleItemEntry, String) -> Unit,
+    onRemoveItem: (SaleItemEntry) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ShoppingBag,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Items in this Sale",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Text(
+                            text = "Catalog products with auto pricing",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        )
+                    }
+                }
+
+                if (items.isNotEmpty()) {
+                    StatBadge(
+                        text = "${items.size} ${if (items.size == 1) "item" else "items"}",
+                        backgroundColor = MaterialTheme.colorScheme.primaryContainer,
+                        textColor = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            if (items.isEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "No catalog products added to this sale.",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        VyavsaOutlinedButton(
+                            text = "+ Add Item from Catalog",
+                            leadingIcon = Icons.Default.Add,
+                            onClick = onAddItemClick,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items.forEach { item ->
+                        SaleItemCard(
+                            productName = item.productName,
+                            catalogUnitPrice = item.catalogUnitPrice,
+                            quantity = item.quantity,
+                            unitPrice = item.unitPrice,
+                            lineTotal = item.lineTotal,
+                            onQuantityChange = { onQuantityChange(item, it) },
+                            onQuantityIncrement = { onQuantityIncrement(item) },
+                            onQuantityDecrement = { onQuantityDecrement(item) },
+                            onUnitPriceChange = { onUnitPriceChange(item, it) },
+                            onRemove = { onRemoveItem(item) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    VyavsaOutlinedButton(
+                        text = "+ Add Another Item",
+                        leadingIcon = Icons.Default.Add,
+                        onClick = onAddItemClick,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    val subtotal = items.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = "Items Subtotal (${items.size} ${if (items.size == 1) "item" else "items"}):",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                            Text(
+                                text = FormatUtils.formatCurrency(subtotal.toString()),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            )
                         }
                     }
                 }
@@ -572,6 +1007,7 @@ fun CreateSaleScreen(
         }
     }
 }
+
 
 @Composable
 private fun MultiBankPaymentSection(
@@ -1034,6 +1470,7 @@ private fun SaleCalculationBox(
     cashAmount: String,
     bankEntries: List<BankPaymentEntry> = emptyList(),
     isLineSale: Boolean,
+    itemsSubtotal: Double? = null,
     modifier: Modifier = Modifier
 ) {
     val total = totalAmount.toDoubleOrNull() ?: 0.0
@@ -1061,6 +1498,17 @@ private fun SaleCalculationBox(
                 .padding(14.dp)
                 .animateContentSize()
         ) {
+            if (itemsSubtotal != null && itemsSubtotal > 0.0) {
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Items Subtotal:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                    Text(FormatUtils.formatCurrency(itemsSubtotal.toString()), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold))
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()

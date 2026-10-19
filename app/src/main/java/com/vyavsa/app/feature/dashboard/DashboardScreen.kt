@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Refresh
@@ -90,6 +91,8 @@ fun DashboardScreen(
     onNavigateToCashDrawer: () -> Unit,
     onNavigateToStaff: () -> Unit,
     onNavigateToBankAccounts: () -> Unit = {},
+    onNavigateToProducts: () -> Unit = {},
+    onNavigateToProductAnalytics: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val metricsState by viewModel.metricsState.collectAsState()
@@ -200,7 +203,9 @@ fun DashboardScreen(
                         onNavigateToCreateExpense = onNavigateToCreateExpense,
                         onNavigateToCashDrawer = onNavigateToCashDrawer,
                         onNavigateToStaff = onNavigateToStaff,
-                        onNavigateToBankAccounts = onNavigateToBankAccounts
+                        onNavigateToBankAccounts = onNavigateToBankAccounts,
+                        onNavigateToProducts = onNavigateToProducts,
+                        onNavigateToProductAnalytics = onNavigateToProductAnalytics
                     )
                 }
                 else -> {}
@@ -217,7 +222,9 @@ private fun DashboardBody(
     onNavigateToCreateExpense: () -> Unit,
     onNavigateToCashDrawer: () -> Unit,
     onNavigateToStaff: () -> Unit,
-    onNavigateToBankAccounts: () -> Unit = {}
+    onNavigateToBankAccounts: () -> Unit = {},
+    onNavigateToProducts: () -> Unit = {},
+    onNavigateToProductAnalytics: () -> Unit = {}
 ) {
     val totalLiquidity = remember(metrics.cashBalance, metrics.bankBalance) {
         val cashVal = metrics.cashBalance.toDoubleOrNull() ?: 0.0
@@ -539,6 +546,31 @@ private fun DashboardBody(
                     backgroundColor = Blue50,
                     iconTint = Blue600,
                     onClick = onNavigateToBankAccounts,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                QuickActionButton(
+                    label = "Product Catalog",
+                    subtitle = "Items & Pricing",
+                    icon = Icons.Default.Inventory2,
+                    backgroundColor = MaterialTheme.colorScheme.primaryContainer,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    onClick = onNavigateToProducts,
+                    modifier = Modifier.weight(1f)
+                )
+
+                QuickActionButton(
+                    label = "Product Analytics",
+                    subtitle = "Sales & Top Items",
+                    icon = Icons.Default.TrendingUp,
+                    backgroundColor = Emerald50,
+                    iconTint = Emerald600,
+                    onClick = onNavigateToProductAnalytics,
                     modifier = Modifier.weight(1f)
                 )
             }

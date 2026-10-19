@@ -28,6 +28,31 @@ data class LineSalePayment(
 
 @Immutable
 @Serializable
+data class SaleItem(
+    val id: String = "",
+    @SerialName("tenant_id") val tenantId: String = "",
+    @SerialName("sale_type") val saleType: String = "",
+    @SerialName("sale_id") val saleId: String = "",
+    @SerialName("line_sale_id") val lineSaleId: String? = null,
+    @SerialName("counter_sale_id") val counterSaleId: String? = null,
+    @SerialName("product_id") val productId: String? = null,
+    @SerialName("product_name_snapshot") val productNameSnapshot: String = "",
+    val quantity: String = "1",
+    @SerialName("unit_price") val unitPrice: String = "0.00",
+    @SerialName("line_total") val lineTotal: String = "0.00",
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("updated_at") val updatedAt: String = ""
+)
+
+@Serializable
+data class SaleItemRequest(
+    @SerialName("product_id") val productId: String,
+    val quantity: String,
+    @SerialName("unit_price") val unitPrice: String = "0.00"
+)
+
+@Immutable
+@Serializable
 data class LineSale(
     val id: String = "",
     @SerialName("customer_id") val customerId: String = "",
@@ -42,7 +67,8 @@ data class LineSale(
     val balance: String = "0.00",
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
-    val payments: List<LineSalePayment> = emptyList()
+    val payments: List<LineSalePayment> = emptyList(),
+    val items: List<SaleItem> = emptyList()
 )
 
 @Immutable
@@ -60,12 +86,13 @@ data class CreateLineSaleRequest(
     val route: String? = null,
     val salesman: String? = null,
     val note: String? = null,
-    @SerialName("total_amount") val totalAmount: String,
+    @SerialName("total_amount") val totalAmount: String = "0.00",
     @SerialName("total_cash_in") val totalCashIn: String = "0.00",
     @SerialName("cash_amount") val cashAmount: String? = null,
     @SerialName("bank_amount") val bankAmount: String = "0.00",
     @SerialName("bank_id") val bankId: String? = null,
-    @SerialName("bank_payments") val bankPayments: List<BankPaymentSplit> = emptyList()
+    @SerialName("bank_payments") val bankPayments: List<BankPaymentSplit> = emptyList(),
+    val items: List<SaleItemRequest> = emptyList()
 )
 
 @Immutable
@@ -100,21 +127,23 @@ data class CounterSale(
     val account: String = "0.00",
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
-    val payments: List<CounterSalePayment> = emptyList()
+    val payments: List<CounterSalePayment> = emptyList(),
+    val items: List<SaleItem> = emptyList()
 )
 
 @Serializable
 data class CreateCounterSaleRequest(
-    val item: String,
-    val price: String,
-    @SerialName("total_amount") val totalAmount: String,
+    val item: String = "",
+    val price: String = "0.00",
+    @SerialName("total_amount") val totalAmount: String = "0.00",
     @SerialName("payment_method") val paymentMethod: String = "cash",
     val cash: String = "0.00",
     @SerialName("cash_amount") val cashAmount: String? = null,
     @SerialName("bank_amount") val bankAmount: String = "0.00",
     @SerialName("bank_id") val bankId: String? = null,
     val account: String? = null,
-    @SerialName("bank_payments") val bankPayments: List<BankPaymentSplit> = emptyList()
+    @SerialName("bank_payments") val bankPayments: List<BankPaymentSplit> = emptyList(),
+    val items: List<SaleItemRequest> = emptyList()
 )
 
 @Serializable
@@ -613,3 +642,75 @@ data class BankTransaction(
     @SerialName("sale_id") val saleId: String? = null,
     @SerialName("created_at") val createdAt: String = ""
 )
+
+// ==========================================
+// 7. Product Catalog & Inventory Models
+// ==========================================
+
+@Immutable
+@Serializable
+data class Product(
+    val id: String = "",
+    @SerialName("tenant_id") val tenantId: String = "",
+    val name: String = "",
+    @SerialName("unit_price") val unitPrice: String = "0.00",
+    val status: String = "active", // active, inactive, archived
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("updated_at") val updatedAt: String = ""
+)
+
+@Serializable
+data class CreateProductRequest(
+    val name: String,
+    @SerialName("unit_price") val unitPrice: String = "0.00"
+)
+
+@Serializable
+data class UpdateProductRequest(
+    val name: String? = null,
+    @SerialName("unit_price") val unitPrice: String? = null,
+    val status: String? = null
+)
+
+// ==========================================
+// 8. Product Sales Analytics Models
+// ==========================================
+
+@Immutable
+@Serializable
+data class ProductSalesSummary(
+    @SerialName("total_quantity_sold") val totalQuantitySold: String = "0.00",
+    @SerialName("total_revenue") val totalRevenue: String = "0.00",
+    @SerialName("distinct_products_count") val distinctProductsCount: Long = 0,
+    @SerialName("top_product_name") val topProductName: String? = null
+)
+
+@Immutable
+@Serializable
+data class TopSellingProduct(
+    val rank: Int = 1,
+    @SerialName("product_id") val productId: String? = null,
+    @SerialName("product_name") val productName: String = "",
+    @SerialName("quantity_sold") val quantitySold: String = "0.00",
+    val revenue: String = "0.00"
+)
+
+@Immutable
+@Serializable
+data class ProductDailySales(
+    @SerialName("sale_date") val saleDate: String = "",
+    @SerialName("daily_quantity") val dailyQuantity: String = "0.00",
+    @SerialName("daily_revenue") val dailyRevenue: String = "0.00"
+)
+
+@Immutable
+@Serializable
+data class ProductAnalyticsResponse(
+    val summary: ProductSalesSummary = ProductSalesSummary(),
+    @SerialName("top_by_quantity") val topByQuantity: List<TopSellingProduct> = emptyList(),
+    @SerialName("top_by_revenue") val topByRevenue: List<TopSellingProduct> = emptyList(),
+    @SerialName("daily_sales") val dailySales: List<ProductDailySales> = emptyList(),
+    @SerialName("start_date") val startDate: String = "",
+    @SerialName("end_date") val endDate: String = ""
+)
+

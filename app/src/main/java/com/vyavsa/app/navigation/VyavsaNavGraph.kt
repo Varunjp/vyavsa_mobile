@@ -33,6 +33,9 @@ import com.vyavsa.app.feature.dues.CustomerStatementScreen
 import com.vyavsa.app.feature.dues.DuesViewModel
 import com.vyavsa.app.feature.plans.PlansScreen
 import com.vyavsa.app.feature.plans.PlansViewModel
+import com.vyavsa.app.feature.products.ProductAnalyticsScreen
+import com.vyavsa.app.feature.products.ProductViewModel
+import com.vyavsa.app.feature.products.ProductsScreen
 import com.vyavsa.app.feature.transactions.CreateExpenseScreen
 import com.vyavsa.app.feature.transactions.CreateLineSaleScreen
 import com.vyavsa.app.feature.transactions.CreatePurchaseScreen
@@ -214,6 +217,12 @@ fun VyavsaNavGraph(
                 onNavigateToTenantUsers = {
                     navController.navigate(Screen.TenantUsers.route)
                 },
+                onNavigateToProducts = {
+                    navController.navigate(Screen.Products.route)
+                },
+                onNavigateToProductAnalytics = {
+                    navController.navigate(Screen.ProductAnalytics.route)
+                },
                 onLogoutSuccess = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.MainShell.route) { inclusive = true }
@@ -343,6 +352,25 @@ fun VyavsaNavGraph(
             val bankViewModel: BankViewModel = hiltViewModel()
             BankAccountsScreen(
                 viewModel = bankViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Products.route) {
+            val productViewModel: ProductViewModel = hiltViewModel()
+            ProductsScreen(
+                viewModel = productViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToAnalytics = {
+                    navController.navigate(Screen.ProductAnalytics.route)
+                }
+            )
+        }
+
+        composable(Screen.ProductAnalytics.route) {
+            val productViewModel: ProductViewModel = hiltViewModel()
+            ProductAnalyticsScreen(
+                viewModel = productViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

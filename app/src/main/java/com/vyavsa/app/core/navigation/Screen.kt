@@ -37,7 +37,10 @@ sealed class Screen(val route: String) {
     }
     object Plans : Screen("plans")
     object TenantUsers : Screen("tenant_users")
+    object Products : Screen("products")
+    object ProductAnalytics : Screen("product_analytics")
 }
+
 
 enum class BottomBarDestination(
     val title: String,

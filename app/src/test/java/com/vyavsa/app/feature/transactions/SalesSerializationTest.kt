@@ -6,6 +6,8 @@ import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.CreateCounterSaleRequest
 import com.vyavsa.app.core.model.CreateLineSaleRequest
 import com.vyavsa.app.core.model.LineSale
+import com.vyavsa.app.core.model.SaleItem
+import com.vyavsa.app.core.model.SaleItemRequest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -197,5 +199,109 @@ class SalesSerializationTest {
         assertEquals("counter-1", response.data?.id)
         assertEquals("Bread Packets", response.data?.item)
         assertEquals("200.00", response.data?.totalAmount)
+    }
+
+    @Test
+    fun testCreateLineSaleRequestSerializationWithItems() {
+        val req = CreateLineSaleRequest(
+            customerId = "cust-1",
+            totalAmount = "680.00",
+            totalCashIn = "680.00",
+            items = listOf(
+                SaleItemRequest(
+                    productId = "prod-1",
+                    quantity = "1.00",
+                    unitPrice = "450.00"
+                ),
+                SaleItemRequest(
+                    productId = "prod-2",
+                    quantity = "2.00",
+                    unitPrice = "115.00"
+                )
+            )
+        )
+
+        val serialized = json.encodeToString(req)
+        assertTrue(serialized.contains("\"items\":["))
+        assertTrue(serialized.contains("\"product_id\":\"prod-1\""))
+        assertTrue(serialized.contains("\"quantity\":\"1.00\""))
+        assertTrue(serialized.contains("\"unit_price\":\"450.00\""))
+        assertTrue(serialized.contains("\"product_id\":\"prod-2\""))
+        assertTrue(serialized.contains("\"unit_price\":\"115.00\""))
+    }
+
+    @Test
+    fun testCreateCounterSaleRequestSerializationWithItems() {
+        val req = CreateCounterSaleRequest(
+            totalAmount = "350.00",
+            paymentMethod = "cash",
+            cash = "350.00",
+            items = listOf(
+                SaleItemRequest(
+                    productId = "prod-3",
+                    quantity = "1.00",
+                    unitPrice = "350.00"
+                )
+            )
+        )
+
+        val serialized = json.encodeToString(req)
+        assertTrue(serialized.contains("\"items\":["))
+        assertTrue(serialized.contains("\"product_id\":\"prod-3\""))
+        assertTrue(serialized.contains("\"quantity\":\"1.00\""))
+        assertTrue(serialized.contains("\"unit_price\":\"350.00\""))
+    }
+
+    @Test
+    fun testLineSaleWithItemsDeserialization() {
+        val payload = """
+            {
+              "success": true,
+              "message": "line sale retrieved",
+              "data": {
+                "id": "sale-101",
+                "customer_id": "cust-1",
+                "customer_name": "Sharma Stores",
+                "total_amount": "560.00",
+                "total_cash_in": "560.00",
+                "balance": "0.00",
+                "date": "2026-10-18",
+                "items": [
+                  {
+                    "id": "item-1",
+                    "sale_id": "sale-101",
+                    "sale_type": "line_sale",
+                    "product_id": "prod-1",
+                    "product_name_snapshot": "Tata Tea 250g",
+                    "quantity": "2.00",
+                    "unit_price": "140.00",
+                    "line_total": "280.00"
+                  },
+                  {
+                    "id": "item-2",
+                    "sale_id": "sale-101",
+                    "sale_type": "line_sale",
+                    "product_id": "prod-2",
+                    "product_name_snapshot": "Sugar 5kg",
+                    "quantity": "1.00",
+                    "unit_price": "280.00",
+                    "line_total": "280.00"
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val response = json.decodeFromString<ApiResponse<LineSale>>(payload)
+        assertTrue(response.success)
+        val sale = response.data
+        assertNotNull(sale)
+        assertEquals("sale-101", sale?.id)
+        assertEquals(2, sale?.items?.size)
+        assertEquals("Tata Tea 250g", sale?.items?.get(0)?.productNameSnapshot)
+        assertEquals("2.00", sale?.items?.get(0)?.quantity)
+        assertEquals("140.00", sale?.items?.get(0)?.unitPrice)
+        assertEquals("280.00", sale?.items?.get(0)?.lineTotal)
+        assertEquals("Sugar 5kg", sale?.items?.get(1)?.productNameSnapshot)
     }
 }

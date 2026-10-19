@@ -20,12 +20,14 @@ import com.vyavsa.app.core.model.Purchase
 import com.vyavsa.app.core.model.PurchasePayment
 import com.vyavsa.app.core.model.RecordSalePaymentRequest
 import com.vyavsa.app.core.model.RecordSupplierPaymentRequest
+import com.vyavsa.app.core.model.SaleItemRequest
 import com.vyavsa.app.core.model.SupplierPaymentResponse
 import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.model.UpdatePurchaseRequest
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import com.vyavsa.app.feature.bank.FakeBankRepository
+import com.vyavsa.app.feature.products.FakeProductRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -101,6 +103,78 @@ class TransactionsViewModelTest {
         assertEquals("1000.00", lastReq?.cashAmount)
         assertEquals("500.00", lastReq?.bankAmount)
         assertEquals("bank-1", lastReq?.bankId)
+    }
+
+    @Test
+    fun testCreateLineSaleWithItemsComputesSubtotalAndPassesItems() = runTest {
+        val items = listOf(
+            SaleItemRequest("prod-1", "2.00", "150.00"),
+            SaleItemRequest("prod-2", "1.00", "200.00")
+        )
+        viewModel.createLineSale(
+            customerId = "cust-1",
+            totalAmount = "",
+            cashIn = "500.00",
+            bankAmount = "0.00",
+            bankId = null,
+            items = items
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue("Expected Success, got $actionState", actionState is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreateLineSaleRequest
+        assertNotNull(lastReq)
+        assertEquals("500.00", lastReq?.totalAmount)
+        assertEquals(2, lastReq?.items?.size)
+        assertEquals("prod-1", lastReq?.items?.get(0)?.productId)
+        assertEquals("prod-2", lastReq?.items?.get(1)?.productId)
+    }
+
+    @Test
+    fun testCreateCounterSaleWithItems() = runTest {
+        val items = listOf(
+            SaleItemRequest("prod-1", "1.00", "120.00")
+        )
+        viewModel.createCounterSale(
+            item = "Store items",
+            price = "120.00",
+            totalAmount = "120.00",
+            cash = "120.00",
+            bankAmount = "0.00",
+            bankId = null,
+            items = items
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue(actionState is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreateCounterSaleRequest
+        assertNotNull(lastReq)
+        assertEquals(1, lastReq?.items?.size)
+        assertEquals("prod-1", lastReq?.items?.get(0)?.productId)
+    }
+
+    @Test
+    fun testLoadProductsWithProductRepository() = runTest {
+        val productRepo = FakeProductRepository()
+        val customVm = TransactionsViewModel(
+            repository = fakeRepo,
+            bankRepository = fakeBankRepo,
+            refreshCoordinator = refreshCoordinator,
+            tokenManager = null,
+            productRepository = productRepo
+        )
+
+        customVm.loadProducts()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = customVm.productsState.value
+        assertTrue("Expected Success, got $state", state is UiState.Success)
+        val products = (state as UiState.Success).data
+        assertEquals(2, products.size)
     }
 
     @Test

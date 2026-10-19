@@ -27,7 +27,11 @@ import com.vyavsa.app.core.model.EmployeeSalary
 import com.vyavsa.app.core.model.EmployeeSalaryStatement
 import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.FinancialMetrics
+import com.vyavsa.app.core.model.CreateProductRequest
 import com.vyavsa.app.core.model.ForgotPasswordRequest
+import com.vyavsa.app.core.model.Product
+import com.vyavsa.app.core.model.ProductAnalyticsResponse
+
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.LineSalePayment
 import com.vyavsa.app.core.model.PaySalaryRequest
@@ -56,6 +60,8 @@ import com.vyavsa.app.core.model.UpdateAttendanceRequest
 import com.vyavsa.app.core.model.UpdateBankRequest
 import com.vyavsa.app.core.model.UpdateCustomerRequest
 import com.vyavsa.app.core.model.UpdateEmployeeRequest
+import com.vyavsa.app.core.model.UpdateProductRequest
+
 import com.vyavsa.app.core.model.UpdateTenantProfileRequest
 import com.vyavsa.app.core.model.UpdateTenantUserRequest
 import com.vyavsa.app.core.model.UserProfile
@@ -415,4 +421,39 @@ interface VyavsaApiService {
 
     @GET("api/v1/tenant/banks/{id}/transactions")
     suspend fun listBankTransactions(@Path("id") bankId: String): ApiResponse<List<BankTransaction>>
+
+    // ==========================================
+    // 10. Product Catalog & Inventory
+    // ==========================================
+
+    @GET("api/v1/tenant/products")
+    suspend fun listProducts(
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+        @Query("search") search: String? = null,
+        @Query("status") status: String? = null
+    ): ApiResponse<List<Product>>
+
+    @POST("api/v1/tenant/products")
+    suspend fun createProduct(@Body req: CreateProductRequest): ApiResponse<Product>
+
+    @GET("api/v1/tenant/products/{id}")
+    suspend fun getProductById(@Path("id") id: String): ApiResponse<Product>
+
+    @PUT("api/v1/tenant/products/{id}")
+    suspend fun updateProduct(
+        @Path("id") id: String,
+        @Body req: UpdateProductRequest
+    ): ApiResponse<Product>
+
+    @DELETE("api/v1/tenant/products/{id}")
+    suspend fun deleteProduct(@Path("id") id: String): ApiResponse<Map<String, Boolean>>
+
+    @GET("api/v1/tenant/products/analytics")
+    suspend fun getProductAnalytics(
+        @Query("start_date") startDate: String? = null,
+        @Query("end_date") endDate: String? = null,
+        @Query("limit") limit: Int = 10
+    ): ApiResponse<ProductAnalyticsResponse>
 }
+

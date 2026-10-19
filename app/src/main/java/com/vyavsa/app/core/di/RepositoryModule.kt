@@ -57,4 +57,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindTenantUsersRepository(impl: com.vyavsa.app.feature.users.TenantUsersRepositoryImpl): com.vyavsa.app.feature.users.TenantUsersRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindProductRepository(impl: com.vyavsa.app.feature.products.ProductRepositoryImpl): com.vyavsa.app.feature.products.ProductRepository
 }
