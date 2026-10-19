@@ -49,7 +49,8 @@ object NetworkModule {
         json: Json
     ): Retrofit {
         val contentType = "application/json".toMediaType()
-        val baseUrl = BuildConfig.BASE_URL.ifBlank { "http://10.0.2.2:8080/" }
+        val rawBaseUrl = BuildConfig.BASE_URL.ifBlank { "https://vyavsa.varunjp.in/" }
+        val baseUrl = if (rawBaseUrl.endsWith("/")) rawBaseUrl else "$rawBaseUrl/"
 
         return Retrofit.Builder()
             .baseUrl(baseUrl)
