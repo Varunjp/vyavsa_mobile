@@ -50,6 +50,23 @@ object FormatUtils {
         return formatted
     }
 
+    fun formatSalaryForDisplay(salary: String?): String {
+        if (salary.isNullOrBlank()) return "No fixed salary"
+        return formatCurrency(salary)
+    }
+
+    fun resolveMediaUrl(path: String?): String? {
+        if (path.isNullOrBlank()) return null
+        val trimmed = path.trim()
+        if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) {
+            return trimmed
+        }
+        val rawBase = com.vyavsa.app.BuildConfig.BASE_URL.ifBlank { "https://vyavsa.varunjp.in/" }
+        val base = rawBase.trimEnd('/')
+        val relative = if (trimmed.startsWith("/")) trimmed else "/$trimmed"
+        return "$base$relative"
+    }
+
     fun todayDateString(): String {
         return LocalDate.now().format(isoDateFormatter)
     }

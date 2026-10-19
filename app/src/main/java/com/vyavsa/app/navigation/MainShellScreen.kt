@@ -73,6 +73,8 @@ fun MainShellScreen(
     onNavigateToCustomerDetails: (customerId: String) -> Unit = {},
     onNavigateToPlans: () -> Unit = {},
     onNavigateToTenantUsers: () -> Unit = {},
+    onNavigateToProducts: () -> Unit = {},
+    onNavigateToProductAnalytics: () -> Unit = {},
     onLogoutSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -186,7 +188,9 @@ fun MainShellScreen(
                             onNavigateToCreateExpense = onNavigateToCreateExpense,
                             onNavigateToCashDrawer = onNavigateToCashDrawer,
                             onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF },
-                            onNavigateToBankAccounts = onNavigateToBankAccounts
+                            onNavigateToBankAccounts = onNavigateToBankAccounts,
+                            onNavigateToProducts = onNavigateToProducts,
+                            onNavigateToProductAnalytics = onNavigateToProductAnalytics
                         )
                     }
                     BottomBarDestination.TRANSACTIONS -> {
@@ -217,7 +221,9 @@ fun MainShellScreen(
                             onLogoutSuccess = onLogoutSuccess,
                             onNavigateToBankAccounts = onNavigateToBankAccounts,
                             onNavigateToPlans = onNavigateToPlans,
-                            onNavigateToTenantUsers = onNavigateToTenantUsers
+                            onNavigateToTenantUsers = onNavigateToTenantUsers,
+                            onNavigateToProducts = onNavigateToProducts,
+                            onNavigateToProductAnalytics = onNavigateToProductAnalytics
                         )
                     }
                 }

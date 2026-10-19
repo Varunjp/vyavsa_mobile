@@ -16,12 +16,15 @@ import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.PlanTransaction
+import com.vyavsa.app.core.model.Product
 import com.vyavsa.app.core.model.Purchase
+import com.vyavsa.app.core.model.SaleItemRequest
 import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.security.TokenManager
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import com.vyavsa.app.feature.bank.BankRepository
+import com.vyavsa.app.feature.products.ProductRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -49,7 +52,8 @@ class TransactionsViewModel @Inject constructor(
     private val repository: TransactionsRepository,
     private val bankRepository: BankRepository,
     private val refreshCoordinator: DataRefreshCoordinator,
-    val tokenManager: TokenManager? = null
+    val tokenManager: TokenManager? = null,
+    private val productRepository: ProductRepository? = null
 ) : ViewModel() {
 
     private val _selectedTab = MutableStateFlow(TransactionTab.SALES)
@@ -85,6 +89,9 @@ class TransactionsViewModel @Inject constructor(
     private val _employeesState = MutableStateFlow<UiState<List<Employee>>>(UiState.Idle)
     val employeesState: StateFlow<UiState<List<Employee>>> = _employeesState.asStateFlow()
 
+    private val _productsState = MutableStateFlow<UiState<List<Product>>>(UiState.Idle)
+    val productsState: StateFlow<UiState<List<Product>>> = _productsState.asStateFlow()
+
     private val _dateFilter = MutableStateFlow<String?>(null)
     val dateFilter: StateFlow<String?> = _dateFilter.asStateFlow()
 
@@ -101,7 +108,21 @@ class TransactionsViewModel @Inject constructor(
         loadCustomers()
         loadBanks()
         loadEmployees()
+        loadProducts()
         observeRefreshEvents()
+    }
+
+    fun loadProducts(search: String? = null) {
+        if (productRepository == null) return
+        viewModelScope.launch {
+            productRepository.listProducts(page = 1, pageSize = 100, search = search).collect { res ->
+                _productsState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Error -> UiState.Error(res.message, res.code)
+                }
+            }
+        }
     }
 
     private fun observeRefreshEvents() {
@@ -113,6 +134,10 @@ class TransactionsViewModel @Inject constructor(
                         loadCustomers()
                         loadBanks()
                         loadEmployees()
+                        loadProducts()
+                    }
+                    DataMutation.PRODUCTS -> {
+                        loadProducts()
                     }
                     DataMutation.BANK -> {
                         loadBanks()
@@ -124,6 +149,7 @@ class TransactionsViewModel @Inject constructor(
                         loadEmployees()
                         loadData()
                     }
+                    else -> {}
                 }
             }
         }
@@ -264,16 +290,27 @@ class TransactionsViewModel @Inject constructor(
         bankAmount: String = "0.00",
         bankId: String? = null,
         bankPayments: List<BankPaymentSplit> = emptyList(),
-        note: String? = null
+        note: String? = null,
+        items: List<SaleItemRequest> = emptyList()
     ) {
         if (_createActionState.value is UiState.Loading) return
 
-        if (customerId.isBlank() || totalAmount.isBlank()) {
+        val calculatedItemsSubtotal = if (items.isNotEmpty()) {
+            items.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+        } else null
+
+        val effectiveTotalAmount = if (calculatedItemsSubtotal != null && (totalAmount.isBlank() || (totalAmount.toDoubleOrNull() ?: 0.0) <= 0.0)) {
+            String.format(java.util.Locale.US, "%.2f", calculatedItemsSubtotal)
+        } else {
+            totalAmount.trim()
+        }
+
+        if (customerId.isBlank() || effectiveTotalAmount.isBlank()) {
             _createActionState.value = UiState.Error("Customer and total amount are required")
             return
         }
 
-        val total = totalAmount.trim().toDoubleOrNull()
+        val total = effectiveTotalAmount.toDoubleOrNull()
         if (total == null || total <= 0.0) {
             _createActionState.value = UiState.Error("Total invoice amount must be greater than zero")
             return
@@ -347,13 +384,14 @@ class TransactionsViewModel @Inject constructor(
                 customerId = customerId,
                 route = route?.trim()?.ifBlank { null },
                 salesman = salesman?.trim()?.ifBlank { null },
-                totalAmount = totalAmount.trim(),
+                totalAmount = effectiveTotalAmount,
                 totalCashIn = cashIn.trim().ifBlank { "0.00" },
                 cashAmount = cashIn.trim().ifBlank { "0.00" },
                 bankAmount = formattedBankAmount,
                 bankId = resolvedBankId,
                 bankPayments = effectiveBankSplits,
-                note = note?.trim()?.ifBlank { null }
+                note = note?.trim()?.ifBlank { null },
+                items = items
             )
             repository.createLineSale(req).collect { res ->
                 _createActionState.value = when (res) {
@@ -375,17 +413,28 @@ class TransactionsViewModel @Inject constructor(
         cash: String,
         bankAmount: String = "0.00",
         bankId: String? = null,
-        bankPayments: List<BankPaymentSplit> = emptyList()
+        bankPayments: List<BankPaymentSplit> = emptyList(),
+        items: List<SaleItemRequest> = emptyList()
     ) {
         if (_createActionState.value is UiState.Loading) return
 
+        val calculatedItemsSubtotal = if (items.isNotEmpty()) {
+            items.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
+        } else null
+
+        val effectiveTotalAmount = if (calculatedItemsSubtotal != null && (totalAmount.isBlank() || (totalAmount.toDoubleOrNull() ?: 0.0) <= 0.0)) {
+            String.format(java.util.Locale.US, "%.2f", calculatedItemsSubtotal)
+        } else {
+            totalAmount.trim()
+        }
+
         val trimmedItem = item.trim()
-        if (trimmedItem.isBlank() || totalAmount.isBlank()) {
+        if ((trimmedItem.isBlank() && items.isEmpty()) || effectiveTotalAmount.isBlank()) {
             _createActionState.value = UiState.Error("Item description and total amount are required")
             return
         }
 
-        val total = totalAmount.trim().toDoubleOrNull()
+        val total = effectiveTotalAmount.toDoubleOrNull()
         if (total == null || total <= 0.0) {
             _createActionState.value = UiState.Error("Total sale amount must be greater than zero")
             return
@@ -453,21 +502,22 @@ class TransactionsViewModel @Inject constructor(
         }
 
         val method = if (cashVal > 0.0 && effectiveBankTotal > 0.0) "split" else if (effectiveBankTotal > 0.0) "bank" else "cash"
-        val itemPrice = price?.trim()?.ifBlank { totalAmount.trim() } ?: totalAmount.trim()
+        val itemPrice = price?.trim()?.ifBlank { effectiveTotalAmount } ?: effectiveTotalAmount
         val formattedBankAmount = String.format(java.util.Locale.US, "%.2f", effectiveBankTotal)
 
         viewModelScope.launch {
             val req = CreateCounterSaleRequest(
                 item = trimmedItem,
                 price = itemPrice,
-                totalAmount = totalAmount.trim(),
+                totalAmount = effectiveTotalAmount,
                 paymentMethod = method,
                 cash = cash.trim().ifBlank { "0.00" },
                 cashAmount = cash.trim().ifBlank { "0.00" },
                 bankAmount = formattedBankAmount,
                 bankId = resolvedBankId,
                 account = formattedBankAmount,
-                bankPayments = effectiveBankSplits
+                bankPayments = effectiveBankSplits,
+                items = items
             )
             repository.createCounterSale(req).collect { res ->
                 _createActionState.value = when (res) {

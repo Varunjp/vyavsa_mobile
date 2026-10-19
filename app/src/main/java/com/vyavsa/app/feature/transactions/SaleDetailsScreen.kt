@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Route
@@ -69,6 +70,7 @@ import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.CounterSalePayment
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.LineSalePayment
+import com.vyavsa.app.core.model.SaleItem
 import com.vyavsa.app.core.model.TenantBank
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -258,6 +260,11 @@ private fun LineSaleDetailsContent(
             }
         }
 
+        // Sale Items Breakdown Card (if items were attached)
+        if (sale.items.isNotEmpty()) {
+            SaleItemsBreakdownCard(items = sale.items)
+        }
+
         // Financial Position Card
         Card(
             shape = RoundedCornerShape(24.dp),
@@ -404,6 +411,11 @@ private fun CounterSaleDetailsContent(
                     style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
             }
+        }
+
+        // Sale Items Breakdown Card (if items were attached)
+        if (sale.items.isNotEmpty()) {
+            SaleItemsBreakdownCard(items = sale.items)
         }
 
         // Counter Payments Breakdown
@@ -713,3 +725,122 @@ private fun RecordSalePaymentDialog(
         }
     )
 }
+
+@Composable
+private fun SaleItemsBreakdownCard(
+    items: List<SaleItem>,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Inventory2,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Sale Items Breakdown",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+
+                StatBadge(
+                    text = "${items.size} ${if (items.size == 1) "item" else "items"}",
+                    backgroundColor = MaterialTheme.colorScheme.primaryContainer,
+                    textColor = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            items.forEachIndexed { index, item ->
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = item.productNameSnapshot.ifBlank { "Item #${index + 1}" },
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "${item.quantity} × ${FormatUtils.formatCurrency(item.unitPrice)}",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
+                        }
+
+                        Text(
+                            text = FormatUtils.formatCurrency(item.lineTotal),
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
+                }
+                if (index < items.lastIndex) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            val subtotal = items.sumOf { it.lineTotal.toDoubleOrNull() ?: 0.0 }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Items Subtotal",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+                Text(
+                    text = FormatUtils.formatCurrency(subtotal.toString()),
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+            }
+        }
+    }
+}
+

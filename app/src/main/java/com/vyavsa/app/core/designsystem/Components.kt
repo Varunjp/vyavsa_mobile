@@ -37,12 +37,43 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.collection.LruCache
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
+import com.vyavsa.app.core.common.FormatUtils
+import com.vyavsa.app.core.common.UiState
+import com.vyavsa.app.core.model.Product
+import com.vyavsa.app.core.model.TopSellingProduct
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.URL
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -1053,3 +1084,943 @@ fun LoadingOverlay(
         }
     }
 }
+
+object LogoMemoryCache {
+    private val cache = LruCache<String, ImageBitmap>(32)
+
+    fun get(url: String): ImageBitmap? = cache.get(url)
+
+    fun put(url: String, bitmap: ImageBitmap) {
+        cache.put(url, bitmap)
+    }
+
+    fun remove(url: String) {
+        cache.remove(url)
+    }
+
+    fun clear() {
+        cache.evictAll()
+    }
+}
+
+@Composable
+fun CompanyLogoImage(
+    logoUrl: String?,
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp? = null,
+    previewBitmap: Bitmap? = null,
+    companyName: String? = null,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(18.dp),
+    contentDescription: String? = "Company Logo",
+    fallbackIcon: ImageVector = Icons.Default.Business
+) {
+    val finalModifier = if (size != null) modifier.size(size) else modifier
+
+    if (previewBitmap != null) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = finalModifier
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
+        ) {
+            Image(
+                bitmap = previewBitmap.asImageBitmap(),
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        return
+    }
+
+    val resolvedUrl = remember(logoUrl) { FormatUtils.resolveMediaUrl(logoUrl) }
+
+    if (!resolvedUrl.isNullOrBlank()) {
+        var bitmap by remember(resolvedUrl) { mutableStateOf(LogoMemoryCache.get(resolvedUrl)) }
+        var isLoading by remember(resolvedUrl) { mutableStateOf(bitmap == null) }
+        var isError by remember(resolvedUrl) { mutableStateOf(false) }
+
+        LaunchedEffect(resolvedUrl) {
+            if (bitmap == null) {
+                isLoading = true
+                isError = false
+                val loaded = withContext(Dispatchers.IO) {
+                    try {
+                        val connection = URL(resolvedUrl).openConnection()
+                        connection.connectTimeout = 8000
+                        connection.readTimeout = 12000
+                        connection.getInputStream().use { stream ->
+                            BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                        }
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                if (loaded != null) {
+                    LogoMemoryCache.put(resolvedUrl, loaded)
+                    bitmap = loaded
+                } else {
+                    isError = true
+                }
+                isLoading = false
+            }
+        }
+
+        if (bitmap != null) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = finalModifier
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
+            ) {
+                Image(
+                    bitmap = bitmap!!,
+                    contentDescription = contentDescription,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            return
+        }
+
+        if (isLoading) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = finalModifier
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            return
+        }
+    }
+
+    // Default branding fallback placeholder
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = finalModifier
+            .clip(shape)
+            .background(VyavsaGradients.PrimaryHeroBrush)
+    ) {
+        if (!companyName.isNullOrBlank()) {
+            val initial = companyName.trim().take(1).uppercase()
+            Text(
+                text = initial,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White
+                )
+            )
+        } else {
+            Icon(
+                imageVector = fallbackIcon,
+                contentDescription = contentDescription,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Mobile-optimized Quantity Control with 44dp touch targets and direct text editing.
+ */
+@Composable
+fun QuantityControl(
+    quantity: String,
+    onQuantityChange: (String) -> Unit,
+    onIncrement: () -> Unit,
+    onDecrement: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+            .padding(2.dp)
+    ) {
+        // Decrement Button (44dp target)
+        FilledTonalIconButton(
+            onClick = onDecrement,
+            enabled = enabled,
+            shape = RoundedCornerShape(10.dp),
+            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ),
+            modifier = Modifier.size(40.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Remove,
+                contentDescription = "Decrease Quantity",
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        // Direct Text Input for Quantity
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .width(48.dp)
+                .height(40.dp)
+                .padding(horizontal = 4.dp)
+        ) {
+            BasicTextField(
+                value = quantity,
+                onValueChange = { newVal ->
+                    val filtered = newVal.filter { it.isDigit() || it == '.' }
+                    onQuantityChange(filtered)
+                },
+                enabled = enabled,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                textStyle = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // Increment Button (44dp target)
+        FilledTonalIconButton(
+            onClick = onIncrement,
+            enabled = enabled,
+            shape = RoundedCornerShape(10.dp),
+            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            ),
+            modifier = Modifier.size(40.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "Increase Quantity",
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Mobile Sale Item Card displaying product details, editable quantity, editable unit price,
+ * line total, and safe remove action.
+ */
+@Composable
+fun SaleItemCard(
+    productName: String,
+    catalogUnitPrice: String,
+    quantity: String,
+    unitPrice: String,
+    lineTotal: String,
+    onQuantityChange: (String) -> Unit,
+    onQuantityIncrement: () -> Unit,
+    onQuantityDecrement: () -> Unit,
+    onUnitPriceChange: (String) -> Unit,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            // Header: Product Name + Catalog Price + Remove Action
+            Row(
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = productName.ifBlank { "Selected Product" },
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Catalog Default: ${FormatUtils.formatCurrency(catalogUnitPrice)}",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                }
+
+                IconButton(
+                    onClick = onRemove,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteOutline,
+                        contentDescription = "Remove $productName",
+                        tint = Crimson600,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Inputs Row: Quantity Control + Unit Price Input
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Quantity Block
+                Column(modifier = Modifier.weight(1.1f)) {
+                    Text(
+                        text = "Quantity",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    QuantityControl(
+                        quantity = quantity,
+                        onQuantityChange = onQuantityChange,
+                        onIncrement = onQuantityIncrement,
+                        onDecrement = onQuantityDecrement,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // Unit Price Block
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Unit Price (₹)",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = unitPrice,
+                        onValueChange = { newVal ->
+                            val filtered = newVal.filter { it.isDigit() || it == '.' }
+                            onUnitPriceChange(filtered)
+                        },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                        textStyle = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        prefix = {
+                            Text(
+                                text = "₹",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Footer: Line Total
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Line Total",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                    Text(
+                        text = FormatUtils.formatCurrency(lineTotal),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Product Item Card for the Product Catalog list screen.
+ */
+@Composable
+fun ProductItemCard(
+    product: Product,
+    isAdmin: Boolean,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // Icon squircle
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Inventory2,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            // Product Details
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = product.name,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = FormatUtils.formatCurrency(product.unitPrice),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Emerald600
+                        )
+                    )
+                    Text(
+                        text = " / unit",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                    if (product.status != "active") {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        StatBadge(
+                            text = product.status.uppercase(),
+                            backgroundColor = Amber50,
+                            textColor = Amber600
+                        )
+                    }
+                }
+            }
+
+            // Actions for Admin
+            if (isAdmin) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    FilledTonalIconButton(
+                        onClick = onEditClick,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit ${product.name}",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    FilledTonalIconButton(
+                        onClick = onDeleteClick,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = Crimson50,
+                            contentColor = Crimson600
+                        ),
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteOutline,
+                            contentDescription = "Delete ${product.name}",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Polished Searchable Product Selector Bottom Sheet for Line Sale and Counter Sale workflows.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProductSelectorBottomSheet(
+    productsState: UiState<List<Product>>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onProductSelected: (Product) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier
+                    .padding(vertical = 12.dp)
+                    .size(width = 40.dp, height = 4.dp)
+            ) {}
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+        ) {
+            // Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    Text(
+                        text = "Select Product",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                    Text(
+                        text = "Tap any product to add it to this sale",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Search Bar
+            VyavsaSearchBar(
+                query = searchQuery,
+                onQueryChange = onSearchQueryChange,
+                placeholder = "Search catalog products...",
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Body
+            when (productsState) {
+                is UiState.Loading -> {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                    ) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                is UiState.Error -> {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp)
+                    ) {
+                        ErrorBanner(message = productsState.message)
+                    }
+                }
+                is UiState.Empty -> {
+                    EmptyStateView(
+                        icon = Icons.Default.Inventory2,
+                        title = "No Products Found",
+                        description = if (searchQuery.isNotBlank()) "No products matched \"$searchQuery\"" else "Add products in the catalog to select them here.",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                    )
+                }
+                is UiState.Success -> {
+                    val products = productsState.data.filter { it.status == "active" || it.status.isBlank() }
+                    if (products.isEmpty()) {
+                        EmptyStateView(
+                            icon = Icons.Default.Inventory2,
+                            title = "No Active Products",
+                            description = "No active products are available in your catalog.",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                        )
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(340.dp)
+                        ) {
+                            items(products, key = { it.id }) { product ->
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .vyavsaClickable {
+                                            onProductSelected(product)
+                                        }
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    ) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ShoppingBag,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = product.name,
+                                                style = MaterialTheme.typography.titleMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                ),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = "Default Unit Price",
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            )
+                                        }
+
+                                        Text(
+                                            text = FormatUtils.formatCurrency(product.unitPrice),
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else -> Unit
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+/**
+ * Mobile Top Selling Product Ranked Item.
+ */
+@Composable
+fun TopSellingProductRow(
+    rank: Int,
+    productName: String,
+    quantitySold: String,
+    revenue: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
+        shadowElevation = 1.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            // Rank Badge
+            val rankBg = when (rank) {
+                1 -> Color(0xFFFEF3C7) // Amber/Gold
+                2 -> Color(0xFFE2E8F0) // Silver
+                3 -> Color(0xFFFFEDD5) // Bronze
+                else -> MaterialTheme.colorScheme.surfaceContainerHigh
+            }
+            val rankColor = when (rank) {
+                1 -> Color(0xFFB45309)
+                2 -> Color(0xFF475569)
+                3 -> Color(0xFFC2410C)
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            }
+
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(rankBg)
+            ) {
+                Text(
+                    text = "#$rank",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        color = rankColor
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            // Product Name and Quantity Sold
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = productName,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "$quantitySold units sold",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
+
+            // Sales Revenue
+            Text(
+                text = FormatUtils.formatCurrency(revenue),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Emerald600
+                )
+            )
+        }
+    }
+}
+
+/**
+ * Pure Compose Canvas Bar Chart for mobile product sales analytics.
+ * Highly responsive, zero external dependencies.
+ */
+@Composable
+fun ProductSalesBarChart(
+    items: List<TopSellingProduct>,
+    modifier: Modifier = Modifier,
+    maxBars: Int = 6
+) {
+    val displayItems = remember(items) { items.take(maxBars) }
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val secondaryColor = MaterialTheme.colorScheme.tertiary
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+
+    if (displayItems.isEmpty()) return
+
+    val maxVal = remember(displayItems) {
+        val maxRev = displayItems.maxOfOrNull { it.revenue.toDoubleOrNull() ?: 0.0 } ?: 0.0
+        if (maxRev > 0) maxRev else 1.0
+    }
+
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.TrendingUp,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Revenue by Top Product",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                }
+
+                Text(
+                    text = "Top ${displayItems.size}",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Canvas Bar Drawing
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(150.dp)
+            ) {
+                val barCount = displayItems.size
+                val totalWidth = size.width
+                val totalHeight = size.height
+                val barSpacing = 16.dp.toPx()
+                val availableBarWidth = (totalWidth - (barSpacing * (barCount + 1))) / barCount
+                val barWidth = availableBarWidth.coerceIn(16.dp.toPx(), 44.dp.toPx())
+                val cornerRadius = 6.dp.toPx()
+
+                // Baseline line
+                drawLine(
+                    color = onSurfaceVariant.copy(alpha = 0.2f),
+                    start = androidx.compose.ui.geometry.Offset(0f, totalHeight - 2f),
+                    end = androidx.compose.ui.geometry.Offset(totalWidth, totalHeight - 2f),
+                    strokeWidth = 2f
+                )
+
+                displayItems.forEachIndexed { index, product ->
+                    val rev = product.revenue.toDoubleOrNull() ?: 0.0
+                    val heightRatio = (rev / maxVal).coerceIn(0.05, 1.0).toFloat()
+                    val barHeight = (totalHeight - 8.dp.toPx()) * heightRatio
+                    val startX = barSpacing + index * (barWidth + barSpacing)
+                    val startY = totalHeight - barHeight
+
+                    drawRoundRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(primaryColor, secondaryColor)
+                        ),
+                        topLeft = androidx.compose.ui.geometry.Offset(startX, startY),
+                        size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Labels Row beneath bars
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                displayItems.forEach { product ->
+                    Text(
+                        text = product.productName.take(6),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 10.sp
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+

@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import com.vyavsa.app.core.model.UpdateAttendanceRequest
 import com.vyavsa.app.core.model.UpdateEmployeeRequest
 import com.vyavsa.app.core.model.EmployeeSalaryStatement
 import javax.inject.Inject
@@ -19,12 +20,35 @@ import javax.inject.Singleton
 
 interface StaffRepository {
     fun listEmployees(): Flow<Resource<List<Employee>>>
-    fun createEmployee(name: String, phone: String?, salary: String, otRate: String): Flow<Resource<Employee>>
-    fun updateEmployee(id: String, name: String?, phone: String?, salary: String?, otRate: String?, status: String?): Flow<Resource<Employee>>
+    fun createEmployee(name: String, phone: String?, salary: String?, otRate: String): Flow<Resource<Employee>>
+    fun updateEmployee(
+        id: String,
+        name: String?,
+        phone: String?,
+        salary: String?,
+        clearSalary: Boolean = false,
+        otRate: String?,
+        status: String?
+    ): Flow<Resource<Employee>>
     fun deleteEmployee(id: String): Flow<Resource<Unit>>
     fun getEmployeeSalaryStatement(id: String): Flow<Resource<EmployeeSalaryStatement>>
     fun listAttendance(date: String?): Flow<Resource<List<AttendanceRecord>>>
-    fun recordAttendance(employeeId: String, date: String, status: String, otAmount: String, advance: String): Flow<Resource<AttendanceRecord>>
+    fun recordAttendance(
+        employeeId: String,
+        date: String,
+        status: String,
+        dailySalary: String?,
+        otAmount: String,
+        advance: String
+    ): Flow<Resource<AttendanceRecord>>
+    fun updateAttendance(
+        id: String,
+        status: String?,
+        dailySalary: String?,
+        clearDailySalary: Boolean = false,
+        otAmount: String?,
+        advance: String?
+    ): Flow<Resource<AttendanceRecord>>
     fun listPendingSalaries(): Flow<Resource<List<EmployeeSalary>>>
     fun paySalary(employeeId: String, amount: String, paymentMethod: String, date: String?, note: String?): Flow<Resource<Unit>>
 }
@@ -48,13 +72,13 @@ class StaffRepositoryImpl @Inject constructor(
         }
     }.flowOn(Dispatchers.IO)
 
-    override fun createEmployee(name: String, phone: String?, salary: String, otRate: String): Flow<Resource<Employee>> = flow {
+    override fun createEmployee(name: String, phone: String?, salary: String?, otRate: String): Flow<Resource<Employee>> = flow {
         emit(Resource.Loading)
         try {
             val req = CreateEmployeeRequest(
                 name = name.trim(),
                 phone = phone?.trim()?.ifBlank { null },
-                salary = salary.trim(),
+                salary = salary?.trim()?.ifBlank { null },
                 otRate = otRate.trim().ifBlank { "0.00" }
             )
             val response = apiService.createEmployee(req)
@@ -86,6 +110,7 @@ class StaffRepositoryImpl @Inject constructor(
         employeeId: String,
         date: String,
         status: String,
+        dailySalary: String?,
         otAmount: String,
         advance: String
     ): Flow<Resource<AttendanceRecord>> = flow {
@@ -95,6 +120,7 @@ class StaffRepositoryImpl @Inject constructor(
                 employeeId = employeeId,
                 date = date,
                 status = status,
+                dailySalary = dailySalary?.trim()?.ifBlank { null },
                 otAmount = otAmount.ifBlank { "0.00" },
                 advance = advance.ifBlank { "0.00" }
             )
@@ -103,6 +129,34 @@ class StaffRepositoryImpl @Inject constructor(
                 emit(Resource.Success(response.data, response.message))
             } else {
                 emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to mark attendance"))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun updateAttendance(
+        id: String,
+        status: String?,
+        dailySalary: String?,
+        clearDailySalary: Boolean,
+        otAmount: String?,
+        advance: String?
+    ): Flow<Resource<AttendanceRecord>> = flow {
+        emit(Resource.Loading)
+        try {
+            val req = UpdateAttendanceRequest(
+                status = status?.ifBlank { null },
+                dailySalary = if (clearDailySalary) null else dailySalary?.trim()?.ifBlank { null },
+                clearDailySalary = clearDailySalary,
+                otAmount = otAmount?.ifBlank { null },
+                advance = advance?.ifBlank { null }
+            )
+            val response = apiService.updateAttendance(id, req)
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data, response.message))
+            } else {
+                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update attendance"))
             }
         } catch (e: Exception) {
             emit(Resource.Error(e.message ?: "Network error"))
@@ -154,6 +208,7 @@ class StaffRepositoryImpl @Inject constructor(
         name: String?,
         phone: String?,
         salary: String?,
+        clearSalary: Boolean,
         otRate: String?,
         status: String?
     ): Flow<Resource<Employee>> = flow {
@@ -162,7 +217,8 @@ class StaffRepositoryImpl @Inject constructor(
             val req = UpdateEmployeeRequest(
                 name = name?.trim()?.ifBlank { null },
                 phone = phone?.trim()?.ifBlank { null },
-                salary = salary?.trim()?.ifBlank { null },
+                salary = if (clearSalary) null else salary?.trim()?.ifBlank { null },
+                clearSalary = clearSalary,
                 otRate = otRate?.trim()?.ifBlank { null },
                 status = status?.ifBlank { null }
             )

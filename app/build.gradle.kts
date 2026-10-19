@@ -23,7 +23,7 @@ android {
         }
 
         buildConfigField("String", "DEV_BASE_URL", "\"http://10.0.2.2:8080/\"")
-        buildConfigField("String", "PROD_BASE_URL", "\"https://api.vyavsa.com/\"")
+        buildConfigField("String", "PROD_BASE_URL", "\"https://vyavsa.varunjp.in/\"")
     }
 
     buildTypes {
@@ -40,7 +40,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            buildConfigField("String", "BASE_URL", "\"https://api.vyavsa.com/\"")
+            val prodBaseUrl = (project.findProperty("vyavsa.prodBaseUrl") as? String)
+                ?: System.getenv("VYAVSA_PROD_BASE_URL")
+                ?: "https://vyavsa.varunjp.in/"
+            buildConfigField("String", "BASE_URL", "\"$prodBaseUrl\"")
         }
     }
 

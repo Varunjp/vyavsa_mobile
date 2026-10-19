@@ -136,6 +136,134 @@ class StaffViewModelTest {
         assertTrue("Expected Success for admin delete, got $actionState", actionState is UiState.Success)
         assertEquals(1, fakeRepository.employees.size)
     }
+
+    @Test
+    fun testCreateEmployeeWithOptionalSalary() = runTest {
+        viewModel.createEmployee(
+            name = "Kavita Devi",
+            phone = "9876543299",
+            salary = null,
+            otRate = "50.00"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success for employee creation with null salary, got $actionState", actionState is UiState.Success)
+        val created = fakeRepository.employees.find { it.name == "Kavita Devi" }
+        assertEquals(null, created?.salary)
+    }
+
+    @Test
+    fun testCreateEmployeeWithNegativeSalaryFails() = runTest {
+        viewModel.createEmployee(
+            name = "Invalid Emp",
+            phone = null,
+            salary = "-500.00",
+            otRate = "0.00"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Error for negative salary, got $actionState", actionState is UiState.Error)
+        assertEquals("Salary must be a non-negative amount", (actionState as UiState.Error).message)
+    }
+
+    @Test
+    fun testAdminCanUpdateEmployeeAndClearSalary() = runTest {
+        viewModel.adminOverrideForTesting = true
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.updateEmployee(
+            id = "emp-1",
+            name = "Ramesh Singh",
+            phone = "9876543210",
+            salary = null,
+            clearSalary = true,
+            otRate = "50.00",
+            status = "active"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success for clearing salary, got $actionState", actionState is UiState.Success)
+        val updated = fakeRepository.employees.find { it.id == "emp-1" }
+        assertEquals(null, updated?.salary)
+    }
+
+    @Test
+    fun testRecordAttendanceWithDailySalaryOverride() = runTest {
+        val employeeBefore = fakeRepository.employees.find { it.id == "emp-1" }
+        assertEquals("12000.00", employeeBefore?.salary)
+
+        viewModel.markAttendance(
+            employeeId = "emp-1",
+            status = "present",
+            dailySalary = "950.00",
+            otAmount = "150.00",
+            advance = "0.00",
+            date = "2026-10-19"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success for attendance marking, got $actionState", actionState is UiState.Success)
+
+        val recorded = fakeRepository.attendances.find { it.employeeId == "emp-1" && it.date == "2026-10-19" }
+        assertEquals("950.00", recorded?.dailySalary)
+        assertEquals("override", recorded?.salarySource)
+
+        // Employee's base salary must remain unaltered
+        val employeeAfter = fakeRepository.employees.find { it.id == "emp-1" }
+        assertEquals("12000.00", employeeAfter?.salary)
+    }
+
+    @Test
+    fun testRecordAttendanceWithNegativeDailySalaryFails() = runTest {
+        viewModel.markAttendance(
+            employeeId = "emp-1",
+            status = "present",
+            dailySalary = "-100.00"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Error for negative daily salary, got $actionState", actionState is UiState.Error)
+        assertEquals("Daily salary must be a non-negative amount", (actionState as UiState.Error).message)
+    }
+
+    @Test
+    fun testUpdateAttendanceDailySalaryAndClear() = runTest {
+        viewModel.updateAttendance(
+            attendanceId = "att-1",
+            status = "half_day",
+            dailySalary = "400.00",
+            clearDailySalary = false,
+            otAmount = "50.00",
+            advance = "0.00"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success for attendance update, got $actionState", actionState is UiState.Success)
+
+        val updated = fakeRepository.attendances.find { it.id == "att-1" }
+        assertEquals("half_day", updated?.status)
+        assertEquals("400.00", updated?.dailySalary)
+        assertEquals("override", updated?.salarySource)
+
+        // Clear daily salary
+        viewModel.updateAttendance(
+            attendanceId = "att-1",
+            status = "half_day",
+            dailySalary = null,
+            clearDailySalary = true
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val cleared = fakeRepository.attendances.find { it.id == "att-1" }
+        assertEquals(null, cleared?.dailySalary)
+        assertEquals("pending", cleared?.salarySource)
+    }
 }
 
 class FakeStaffRepository : StaffRepository {
@@ -168,6 +296,8 @@ class FakeStaffRepository : StaffRepository {
             employeeName = "Ramesh Singh",
             date = "2026-01-15",
             status = "present",
+            dailySalary = "700.00",
+            salarySource = "default",
             otAmount = "100.00",
             advance = "0.00"
         )
@@ -192,7 +322,7 @@ class FakeStaffRepository : StaffRepository {
         emit(Resource.Success(employees))
     }
 
-    override fun createEmployee(name: String, phone: String?, salary: String, otRate: String): Flow<Resource<Employee>> = flow {
+    override fun createEmployee(name: String, phone: String?, salary: String?, otRate: String): Flow<Resource<Employee>> = flow {
         emit(Resource.Loading)
         val newEmp = Employee(
             id = "emp-${employees.size + 1}",
@@ -212,6 +342,7 @@ class FakeStaffRepository : StaffRepository {
         name: String?,
         phone: String?,
         salary: String?,
+        clearSalary: Boolean,
         otRate: String?,
         status: String?
     ): Flow<Resource<Employee>> = flow {
@@ -222,7 +353,7 @@ class FakeStaffRepository : StaffRepository {
             val updated = old.copy(
                 name = name ?: old.name,
                 phone = phone ?: old.phone,
-                salary = salary ?: old.salary,
+                salary = if (clearSalary) null else (salary ?: old.salary),
                 otRate = otRate ?: old.otRate,
                 status = status ?: old.status
             )
@@ -265,6 +396,7 @@ class FakeStaffRepository : StaffRepository {
         employeeId: String,
         date: String,
         status: String,
+        dailySalary: String?,
         otAmount: String,
         advance: String
     ): Flow<Resource<AttendanceRecord>> = flow {
@@ -275,11 +407,39 @@ class FakeStaffRepository : StaffRepository {
             employeeName = "Ramesh Singh",
             date = date,
             status = status,
+            dailySalary = dailySalary,
+            salarySource = if (dailySalary != null) "override" else "default",
             otAmount = otAmount,
             advance = advance
         )
         attendances.add(record)
         emit(Resource.Success(record))
+    }
+
+    override fun updateAttendance(
+        id: String,
+        status: String?,
+        dailySalary: String?,
+        clearDailySalary: Boolean,
+        otAmount: String?,
+        advance: String?
+    ): Flow<Resource<AttendanceRecord>> = flow {
+        emit(Resource.Loading)
+        val idx = attendances.indexOfFirst { it.id == id }
+        if (idx >= 0) {
+            val old = attendances[idx]
+            val updated = old.copy(
+                status = status ?: old.status,
+                dailySalary = if (clearDailySalary) null else (dailySalary ?: old.dailySalary),
+                salarySource = if (clearDailySalary) "pending" else if (dailySalary != null) "override" else old.salarySource,
+                otAmount = otAmount ?: old.otAmount,
+                advance = advance ?: old.advance
+            )
+            attendances[idx] = updated
+            emit(Resource.Success(updated))
+        } else {
+            emit(Resource.Error("Attendance record not found"))
+        }
     }
 
     override fun listPendingSalaries(): Flow<Resource<List<EmployeeSalary>>> = flow {

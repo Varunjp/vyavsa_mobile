@@ -203,11 +203,22 @@ All tenant operations require:
     - `outstanding_payable`: Total outstanding payables.
     - `date`: YYYY-MM-DD
 
-### 3.2 Tenant Profile & Settings
-- **Route**: `GET /api/v1/tenant/profile`
-- **Route**: `PUT /api/v1/tenant/profile` (`tenant_admin` only)
+### 3.2 Tenant Profile, Logo & Settings
+- **Profile**: `GET /api/v1/tenant/profile`
+  - Response includes `logo_url`: `"/uploads/logos/tenant_...png"` or `null`.
+- **Update Profile**: `PUT /api/v1/tenant/profile` (`tenant_admin` only)
   - Request: `{"name": "...", "email": "...", "phone": "..."}`
-- **Route**: `GET /api/v1/tenant/subscription`
+- **Get Company Logo**: `GET /api/v1/tenant/logo`
+  - Response: `{"logo_url": "/uploads/logos/tenant_...png"}` (or `null`)
+- **Upload Company Logo**: `POST /api/v1/tenant/logo` (`tenant_admin` only)
+  - Content-Type: `multipart/form-data`
+  - Form field: `logo` (binary image data)
+  - Validation: Max 2MB (`2 << 20` bytes). MIME magic bytes verified: `image/jpeg`, `image/png`, `image/webp`, `image/gif`. Path traversal containment and sanitization enforced.
+  - Response: `{"logo_url": "/uploads/logos/tenant_...png"}`
+- **Delete Company Logo**: `DELETE /api/v1/tenant/logo` (`tenant_admin` only)
+  - Removes stored logo file and resets branding to default.
+  - Response: `{"logo_url": null}`
+- **Subscription**: `GET /api/v1/tenant/subscription`
   - Response: Subscription status, plan details, start/end dates, days remaining.
 
 ---
@@ -424,22 +435,49 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
 ### 8.1 Employees
 - **List**: `GET /api/v1/tenant/employees?page=1&page_size=20&search=`
 - **Create**: `POST /api/v1/tenant/employees` (`tenant_admin`)
+  - Request: `{"name": "...", "phone": "...", "salary": "700.00", "ot_rate": "50.00"}`
+  - `salary`: Optional (`*decimal.Decimal`). Omit or pass `null` for employees on variable daily wages. Does NOT default to 0.00.
 - **Update**: `PUT /api/v1/tenant/employees/:id` (`tenant_admin`)
+  - Request: `{"name": "...", "phone": "...", "salary": "...", "clear_salary": false, "ot_rate": "...", "status": "active"}`
+  - `clear_salary`: Set to `true` to remove employee's configured default salary and switch to daily wages.
 - **Delete**: `DELETE /api/v1/tenant/employees/:id` (`tenant_admin`)
 
 ### 8.2 Attendance & Advances
 - **List**: `GET /api/v1/tenant/attendance?date=YYYY-MM-DD`
-- **Record**: `POST /api/v1/tenant/attendance`
+  - Response records include `daily_salary` and `salary_source`:
+    - `"default"`: Prefilled from employee default base salary.
+    - `"override"`: Administrator explicitly modified daily wage for this date.
+    - `"manual"`: Employee has no default salary; daily wage entered manually.
+    - `"pending"`: Daily wage not yet specified / attendance marked without wage.
+    - `"unpaid"`: Zero earnings for absent or leave days.
+- **Record / Upsert**: `POST /api/v1/tenant/attendance`
   - Request:
     ```json
     {
       "employee_id": "uuid",
       "date": "2026-10-14",
       "status": "present",
+      "daily_salary": "900.00",
+      "ot": 0,
       "ot_amount": "150.00",
       "advance": "200.00"
     }
     ```
+  - `daily_salary`: Optional per-date wage override. Does not modify employee's default salary.
+- **Update Existing Attendance**: `PUT /api/v1/tenant/attendance/:id` (`tenant_admin` only)
+  - Dedicated endpoint to update existing attendance record.
+  - Request:
+    ```json
+    {
+      "status": "half_day",
+      "daily_salary": "350.00",
+      "clear_daily_salary": false,
+      "ot": 0,
+      "ot_amount": "0.00",
+      "advance": "50.00"
+    }
+    ```
+  - `clear_daily_salary`: Set to `true` to clear the daily wage and mark salary as pending/unpaid.
 
 ### 8.3 Salary Management (`tenant_admin` only)
 - **Pending Salaries**: `GET /api/v1/tenant/salaries/pending`
@@ -505,3 +543,116 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
 
 - **Daily Operations Report**: `GET /api/v1/tenant/reports/daily?date=YYYY-MM-DD`
 - **Daily Report PDF**: `GET /api/v1/tenant/reports/daily/pdf?date=YYYY-MM-DD`
+
+---
+
+## 13. Product & Inventory Catalog Management
+
+All product catalog operations require `Authorization: Bearer <access_token>` and tenant context.
+
+### 13.1 List Products
+- **Route**: `GET /api/v1/tenant/products?page=1&page_size=20&search=&status=` (also `/api/v1/products`)
+- **Auth**: Tenant Member (`tenant_admin` or `tenant_user`)
+- **Response**: Array of `ProductResponse` objects:
+  ```json
+  [
+    {
+      "id": "uuid",
+      "tenant_id": "uuid",
+      "name": "Standard Milk 500ml",
+      "unit_price": "28.00",
+      "status": "active",
+      "created_at": "2026-10-15T10:00:00Z",
+      "updated_at": "2026-10-15T10:00:00Z"
+    }
+  ]
+  ```
+
+### 13.2 Create Product
+- **Route**: `POST /api/v1/tenant/products` (also `/api/v1/products`)
+- **Auth**: `tenant_admin` only
+- **Request Body (`CreateProductRequest`)**:
+  ```json
+  {
+    "name": "Full Cream Milk 500ml",
+    "unit_price": "34.00"
+  }
+  ```
+- **Response**: `ProductResponse` object.
+
+### 13.3 Get Product by ID
+- **Route**: `GET /api/v1/tenant/products/:id` (also `/api/v1/products/:id`)
+- **Auth**: Tenant Member
+- **Response**: `ProductResponse` object.
+
+### 13.4 Update Product
+- **Route**: `PUT /api/v1/tenant/products/:id` (also `/api/v1/products/:id`)
+- **Auth**: `tenant_admin` only
+- **Request Body (`UpdateProductRequest`)**:
+  ```json
+  {
+    "name": "Full Cream Milk 500ml",
+    "unit_price": "35.00",
+    "status": "active"
+  }
+  ```
+- **Response**: `ProductResponse` object.
+
+### 13.5 Delete Product
+- **Route**: `DELETE /api/v1/tenant/products/:id` (also `/api/v1/products/:id`)
+- **Auth**: `tenant_admin` only
+- **Business Rules**:
+  - If referenced by historical sales items, automatically archived (`status = archived`) to preserve historical accounting integrity.
+  - If unreferenced, hard deleted.
+- **Response**: `{"deleted": true}`
+
+---
+
+## 14. Product Sales Analytics
+
+- **Route**: `GET /api/v1/tenant/products/analytics?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD&limit=10`
+  (also `/api/v1/tenant/analytics/products` and `/api/v1/products/analytics`)
+- **Auth**: Tenant Member (`tenant_admin` or `tenant_user`)
+- **Query Parameters**:
+  - `start_date`: Optional YYYY-MM-DD
+  - `end_date`: Optional YYYY-MM-DD
+  - `limit`: Optional integer (default 10, max 100)
+- **Response (`ProductAnalyticsResponse`)**:
+  ```json
+  {
+    "summary": {
+      "total_quantity_sold": "240.00",
+      "total_revenue": "8160.00",
+      "distinct_products_count": 8,
+      "top_product_name": "Full Cream Milk 500ml"
+    },
+    "top_by_quantity": [
+      {
+        "rank": 1,
+        "product_id": "uuid",
+        "product_name": "Full Cream Milk 500ml",
+        "quantity_sold": "120.00",
+        "revenue": "4080.00"
+      }
+    ],
+    "top_by_revenue": [
+      {
+        "rank": 1,
+        "product_id": "uuid",
+        "product_name": "Full Cream Milk 500ml",
+        "quantity_sold": "120.00",
+        "revenue": "4080.00"
+      }
+    ],
+    "daily_sales": [
+      {
+        "sale_date": "2026-10-18",
+        "daily_quantity": "80.00",
+        "daily_revenue": "2720.00"
+      }
+    ],
+    "start_date": "2026-10-12",
+    "end_date": "2026-10-19"
+  }
+  ```
+

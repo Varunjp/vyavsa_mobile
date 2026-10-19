@@ -14,6 +14,8 @@ enum class DataMutation {
     EXPENSES,
     DUES,
     STAFF,
+    PROFILE,
+    PRODUCTS,
     ALL
 }
 

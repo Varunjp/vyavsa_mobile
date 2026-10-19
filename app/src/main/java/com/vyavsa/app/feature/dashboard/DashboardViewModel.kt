@@ -65,5 +65,14 @@ class DashboardViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            repository.getProfile().collect { resource ->
+                _profileState.value = when (resource) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> UiState.Success(resource.data)
+                    is Resource.Error -> UiState.Error(resource.message, resource.code)
+                }
+            }
+        }
     }
 }

@@ -94,6 +94,9 @@ class TransactionsRepositoryImpl @Inject constructor(
                     refreshCoordinator.notifyMutation(DataMutation.CASH)
                 }
                 refreshCoordinator.notifyMutation(DataMutation.DUES)
+                if (request.items.isNotEmpty()) {
+                    refreshCoordinator.notifyMutation(DataMutation.PRODUCTS)
+                }
                 emit(Resource.Success(response.data, response.message))
             } else {
                 emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to create line sale", response.error?.code))
@@ -179,6 +182,9 @@ class TransactionsRepositoryImpl @Inject constructor(
                 val cashIn = request.cashAmount?.toDoubleOrNull() ?: request.cash.toDoubleOrNull() ?: 0.0
                 if (cashIn > 0.0) {
                     refreshCoordinator.notifyMutation(DataMutation.CASH)
+                }
+                if (request.items.isNotEmpty()) {
+                    refreshCoordinator.notifyMutation(DataMutation.PRODUCTS)
                 }
                 emit(Resource.Success(response.data, response.message))
             } else {
