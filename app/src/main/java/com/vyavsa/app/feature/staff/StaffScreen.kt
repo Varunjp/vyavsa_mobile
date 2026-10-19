@@ -69,6 +69,8 @@ import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.Amber50
 import com.vyavsa.app.core.designsystem.Amber600
 import com.vyavsa.app.core.designsystem.AvatarInitialCircle
+import com.vyavsa.app.core.designsystem.Blue50
+import com.vyavsa.app.core.designsystem.Blue600
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
@@ -98,6 +100,7 @@ fun StaffScreen(
 
     var showAddEmployeeDialog by remember { mutableStateOf(false) }
     var markingAttendanceEmployee by remember { mutableStateOf<Employee?>(null) }
+    var editingAttendancePair by remember { mutableStateOf<Pair<Employee, AttendanceRecord>?>(null) }
     var disbursingSalaryItem by remember { mutableStateOf<EmployeeSalary?>(null) }
     var employeeToEdit by remember { mutableStateOf<Employee?>(null) }
     var employeeToDelete by remember { mutableStateOf<Employee?>(null) }
@@ -189,7 +192,9 @@ fun StaffScreen(
                         AttendanceTabContent(
                             employeesState = employeesState,
                             attendanceState = attendanceState,
-                            onMarkAttendance = { markingAttendanceEmployee = it }
+                            isAdmin = isAdmin,
+                            onMarkAttendance = { markingAttendanceEmployee = it },
+                            onEditAttendance = { emp, record -> editingAttendancePair = emp to record }
                         )
                     }
                     StaffTab.SALARIES -> {
@@ -217,14 +222,36 @@ fun StaffScreen(
         MarkAttendanceDialog(
             employee = markingAttendanceEmployee!!,
             onDismiss = { markingAttendanceEmployee = null },
-            onConfirm = { status, otAmount, advance ->
+            onConfirm = { status, dailySalary, otAmount, advance ->
                 viewModel.markAttendance(
                     employeeId = markingAttendanceEmployee!!.id,
                     status = status,
+                    dailySalary = dailySalary,
                     otAmount = otAmount,
                     advance = advance
                 )
                 markingAttendanceEmployee = null
+            }
+        )
+    }
+
+    // Edit Attendance Dialog
+    if (editingAttendancePair != null) {
+        val (emp, record) = editingAttendancePair!!
+        EditAttendanceDialog(
+            employee = emp,
+            record = record,
+            onDismiss = { editingAttendancePair = null },
+            onConfirm = { status, dailySalary, clearDailySalary, otAmount, advance ->
+                viewModel.updateAttendance(
+                    attendanceId = record.id,
+                    status = status,
+                    dailySalary = dailySalary,
+                    clearDailySalary = clearDailySalary,
+                    otAmount = otAmount,
+                    advance = advance
+                )
+                editingAttendancePair = null
             }
         )
     }
@@ -262,12 +289,13 @@ fun StaffScreen(
         EditEmployeeDialog(
             employee = employeeToEdit!!,
             onDismiss = { employeeToEdit = null },
-            onConfirm = { name, phone, salary, otRate, status ->
+            onConfirm = { name, phone, salary, clearSalary, otRate, status ->
                 viewModel.updateEmployee(
                     id = employeeToEdit!!.id,
                     name = name,
                     phone = phone,
                     salary = salary,
+                    clearSalary = clearSalary,
                     otRate = otRate,
                     status = status
                 )
@@ -310,7 +338,9 @@ fun StaffScreen(
 private fun AttendanceTabContent(
     employeesState: UiState<List<Employee>>,
     attendanceState: UiState<List<AttendanceRecord>>,
-    onMarkAttendance: (Employee) -> Unit
+    isAdmin: Boolean = false,
+    onMarkAttendance: (Employee) -> Unit,
+    onEditAttendance: (Employee, AttendanceRecord) -> Unit = { _, _ -> }
 ) {
     val employees = (employeesState as? UiState.Success)?.data ?: emptyList()
     val attendance = (attendanceState as? UiState.Success)?.data ?: emptyList()
@@ -400,8 +430,13 @@ private fun AttendanceTabContent(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Spacer(modifier = Modifier.height(2.dp))
+                            val salaryText = if (!employee.salary.isNullOrBlank()) {
+                                "Default Wage: ${FormatUtils.formatCurrency(employee.salary)}/day"
+                            } else {
+                                "No fixed salary • Daily wage"
+                            }
                             Text(
-                                text = "Base Salary: ${FormatUtils.formatCurrency(employee.salary)}/mo",
+                                text = salaryText,
                                 style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                             )
                         }
@@ -410,20 +445,80 @@ private fun AttendanceTabContent(
                     Spacer(modifier = Modifier.width(8.dp))
 
                     if (record != null) {
-                        Column(horizontalAlignment = Alignment.End) {
-                            val (badgeBg, badgeText, textCol) = when (record.status.lowercase()) {
-                                "present" -> Triple(Emerald50, "Present", Emerald600)
-                                "absent" -> Triple(Crimson50, "Absent", Crimson600)
-                                "half_day" -> Triple(Amber50, "Half Day", Amber600)
-                                else -> Triple(MaterialTheme.colorScheme.surfaceVariant, record.status, MaterialTheme.colorScheme.primary)
-                            }
-                            StatBadge(text = badgeText, backgroundColor = badgeBg, textColor = textCol)
-                            if (record.advance.toDoubleOrNull() ?: 0.0 > 0.0) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    val (badgeBg, badgeText, textCol) = when (record.status.lowercase()) {
+                                        "present" -> Triple(Emerald50, "Present", Emerald600)
+                                        "absent" -> Triple(Crimson50, "Absent", Crimson600)
+                                        "half_day" -> Triple(Amber50, "Half Day", Amber600)
+                                        else -> Triple(MaterialTheme.colorScheme.surfaceVariant, record.status, MaterialTheme.colorScheme.primary)
+                                    }
+                                    StatBadge(text = badgeText, backgroundColor = badgeBg, textColor = textCol)
+
+                                    val sourceBadge = when (record.salarySource?.lowercase()) {
+                                        "override" -> Triple(Amber50, "Override", Amber600)
+                                        "manual" -> Triple(Emerald50, "Manual", Emerald600)
+                                        "default" -> Triple(Blue50, "Default", Blue600)
+                                        "pending" -> Triple(Amber50, "Pending", Amber600)
+                                        "unpaid" -> Triple(MaterialTheme.colorScheme.surfaceVariant, "Unpaid", MaterialTheme.colorScheme.onSurfaceVariant)
+                                        else -> null
+                                    }
+                                    if (sourceBadge != null) {
+                                        StatBadge(text = sourceBadge.second, backgroundColor = sourceBadge.first, textColor = sourceBadge.third)
+                                    }
+                                }
+
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Adv: ${FormatUtils.formatCurrency(record.advance)}",
-                                    style = MaterialTheme.typography.labelSmall.copy(color = Crimson600, fontWeight = FontWeight.SemiBold)
-                                )
+                                if (!record.dailySalary.isNullOrBlank()) {
+                                    Text(
+                                        text = "Wage: ${FormatUtils.formatCurrency(record.dailySalary)}",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    )
+                                } else {
+                                    Text(
+                                        text = "Wage Pending",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Amber600
+                                        )
+                                    )
+                                }
+
+                                if (record.advance.toDoubleOrNull() ?: 0.0 > 0.0) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Adv: ${FormatUtils.formatCurrency(record.advance)}",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = Crimson600, fontWeight = FontWeight.SemiBold)
+                                    )
+                                }
+                            }
+
+                            if (isAdmin) {
+                                FilledTonalIconButton(
+                                    onClick = { onEditAttendance(employee, record) },
+                                    shape = CircleShape,
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        contentColor = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Edit Attendance",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
                     } else {
@@ -648,11 +743,28 @@ private fun RosterTabContent(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = FormatUtils.formatCurrency(employee.salary),
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            if (employee.salary.isNullOrBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "Daily Wage",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    text = FormatUtils.formatCurrency(employee.salary),
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
                             StatBadge(text = employee.status.uppercase())
                         }
 
@@ -700,11 +812,36 @@ private fun RosterTabContent(
 fun MarkAttendanceDialog(
     employee: Employee,
     onDismiss: () -> Unit,
-    onConfirm: (status: String, otAmount: String, advance: String) -> Unit
+    onConfirm: (status: String, dailySalary: String?, otAmount: String, advance: String) -> Unit
 ) {
     var status by remember { mutableStateOf("present") }
+
+    val baseSalary = employee.salary?.toDoubleOrNull()
+    val initialCalculatedSalary = remember(employee.salary) {
+        if (baseSalary != null) {
+            String.format(java.util.Locale.US, "%.2f", baseSalary)
+        } else {
+            ""
+        }
+    }
+    var dailySalary by remember { mutableStateOf(initialCalculatedSalary) }
+    var isManualOverride by remember { mutableStateOf(false) }
     var otAmount by remember { mutableStateOf("") }
     var advance by remember { mutableStateOf("") }
+    var validationError by remember { mutableStateOf<String?>(null) }
+
+    fun updateStatus(newStatus: String) {
+        status = newStatus
+        if (!isManualOverride && baseSalary != null) {
+            val autoAmount = when (newStatus) {
+                "present" -> baseSalary
+                "half_day" -> Math.round((baseSalary / 2.0) * 100.0) / 100.0
+                "absent", "leave" -> 0.0
+                else -> baseSalary
+            }
+            dailySalary = String.format(java.util.Locale.US, "%.2f", autoAmount)
+        }
+    }
 
     val statusOptions = listOf(
         "present" to "Present",
@@ -721,6 +858,186 @@ fun MarkAttendanceDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Select Status", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                statusOptions.chunked(2).forEach { rowItems ->
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        rowItems.forEach { (key, label) ->
+                            val isSelected = status == key
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { updateStatus(key) },
+                                shape = CircleShape,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ),
+                                label = {
+                                    Text(
+                                        text = label,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Today's Wage / Daily Salary",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    if (baseSalary != null) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isManualOverride) Amber50 else Blue50
+                        ) {
+                            Text(
+                                text = if (isManualOverride) "Override" else "Default: ₹${FormatUtils.formatCurrency(employee.salary)}",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isManualOverride) Amber600 else Blue600
+                                ),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    } else {
+                        Surface(
+                            shape = CircleShape,
+                            color = Amber50
+                        ) {
+                            Text(
+                                text = "Daily Wage / Flexible",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Amber600
+                                ),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                VyavsaTextField(
+                    value = dailySalary,
+                    onValueChange = {
+                        dailySalary = it
+                        isManualOverride = true
+                        validationError = null
+                    },
+                    label = "Daily Wage (₹)",
+                    placeholder = if (baseSalary == null) "Leave blank if pending/unpaid" else "0.00",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+
+                Text(
+                    text = if (baseSalary != null) {
+                        "Applies to this date only without modifying employee's default salary."
+                    } else {
+                        "No fixed salary configured. Enter today's wage or leave blank if unpaid/pending."
+                    },
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                )
+
+                if (validationError != null) {
+                    Text(
+                        text = validationError!!,
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error)
+                    )
+                }
+
+                VyavsaTextField(
+                    value = otAmount,
+                    onValueChange = { otAmount = it },
+                    label = "Overtime Amount (₹)",
+                    placeholder = "0.00",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+
+                VyavsaTextField(
+                    value = advance,
+                    onValueChange = { advance = it },
+                    label = "Cash Advance Paid (₹)",
+                    placeholder = "0.00",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val trimmed = dailySalary.trim()
+                    if (trimmed.isNotEmpty()) {
+                        val parsed = trimmed.toDoubleOrNull()
+                        if (parsed == null || parsed < 0.0) {
+                            validationError = "Daily salary must be a valid non-negative amount"
+                            return@TextButton
+                        }
+                    }
+                    onConfirm(status, trimmed.ifBlank { null }, otAmount.trim(), advance.trim())
+                }
+            ) {
+                Text("Submit Attendance", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun EditAttendanceDialog(
+    employee: Employee,
+    record: AttendanceRecord,
+    onDismiss: () -> Unit,
+    onConfirm: (status: String, dailySalary: String?, clearDailySalary: Boolean, otAmount: String, advance: String) -> Unit
+) {
+    var status by remember { mutableStateOf(record.status) }
+    var dailySalary by remember {
+        mutableStateOf(
+            record.dailySalary?.let {
+                val d = it.toDoubleOrNull()
+                if (d != null) String.format(java.util.Locale.US, "%.2f", d) else it
+            } ?: ""
+        )
+    }
+    var otAmount by remember {
+        mutableStateOf(
+            if ((record.otAmount?.toDoubleOrNull() ?: 0.0) > 0) {
+                record.otAmount ?: ""
+            } else {
+                record.ot ?: ""
+            }
+        )
+    }
+    var advance by remember { mutableStateOf(record.advance ?: "") }
+    var validationError by remember { mutableStateOf<String?>(null) }
+
+    val statusOptions = listOf(
+        "present" to "Present",
+        "half_day" to "Half Day",
+        "absent" to "Absent",
+        "leave" to "Leave"
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Edit Attendance: ${employee.name}", fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Status", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
                 statusOptions.chunked(2).forEach { rowItems ->
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -750,6 +1067,65 @@ fun MarkAttendanceDialog(
                     }
                 }
 
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Daily Salary / Wage (₹)",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    if (!record.salarySource.isNullOrBlank()) {
+                        Surface(
+                            shape = CircleShape,
+                            color = when (record.salarySource.lowercase()) {
+                                "override" -> Amber50
+                                "manual" -> Emerald50
+                                "default" -> Blue50
+                                else -> MaterialTheme.colorScheme.surfaceVariant
+                            }
+                        ) {
+                            Text(
+                                text = "Source: ${record.salarySource.uppercase()}",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = when (record.salarySource.lowercase()) {
+                                        "override" -> Amber600
+                                        "manual" -> Emerald600
+                                        "default" -> Blue600
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                ),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                VyavsaTextField(
+                    value = dailySalary,
+                    onValueChange = {
+                        dailySalary = it
+                        validationError = null
+                    },
+                    label = "Daily Wage (₹)",
+                    placeholder = "Leave empty to clear daily salary",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+
+                Text(
+                    text = "Clear to reset daily wage or leave as unpaid/pending.",
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                )
+
+                if (validationError != null) {
+                    Text(
+                        text = validationError!!,
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error)
+                    )
+                }
+
                 VyavsaTextField(
                     value = otAmount,
                     onValueChange = { otAmount = it },
@@ -768,8 +1144,22 @@ fun MarkAttendanceDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(status, otAmount, advance) }) {
-                Text("Submit Attendance", fontWeight = FontWeight.Bold)
+            TextButton(
+                onClick = {
+                    val trimmed = dailySalary.trim()
+                    if (trimmed.isNotEmpty()) {
+                        val parsed = trimmed.toDoubleOrNull()
+                        if (parsed == null || parsed < 0.0) {
+                            validationError = "Daily salary must be a valid non-negative amount"
+                            return@TextButton
+                        }
+                    }
+                    val clearDailySalary = trimmed.isEmpty() && record.dailySalary != null
+                    val finalDailySalary = if (trimmed.isEmpty()) null else trimmed
+                    onConfirm(status, finalDailySalary, clearDailySalary, otAmount.trim(), advance.trim())
+                }
+            ) {
+                Text("Save Changes", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -781,12 +1171,13 @@ fun MarkAttendanceDialog(
 @Composable
 fun AddEmployeeDialog(
     onDismiss: () -> Unit,
-    onConfirm: (name: String, phone: String?, salary: String, otRate: String) -> Unit
+    onConfirm: (name: String, phone: String?, salary: String?, otRate: String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var salary by remember { mutableStateOf("") }
     var otRate by remember { mutableStateOf("") }
+    var salaryError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -797,14 +1188,48 @@ fun AddEmployeeDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 VyavsaTextField(value = name, onValueChange = { name = it }, label = "Full Name *")
                 VyavsaTextField(value = phone, onValueChange = { phone = it }, label = "Phone Number", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
-                VyavsaTextField(value = salary, onValueChange = { salary = it }, label = "Monthly Base Salary (₹) *", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                
+                Column {
+                    VyavsaTextField(
+                        value = salary,
+                        onValueChange = {
+                            salary = it
+                            salaryError = null
+                        },
+                        label = "Monthly Base Salary (₹) (Optional)",
+                        placeholder = "Enter default salary (optional)",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Daily wage can also be entered while marking attendance",
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
+                    if (salaryError != null) {
+                        Text(
+                            text = salaryError!!,
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error)
+                        )
+                    }
+                }
+
                 VyavsaTextField(value = otRate, onValueChange = { otRate = it }, label = "Overtime Rate (₹/hr)", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(name, phone, salary, otRate) },
-                enabled = name.isNotBlank() && salary.isNotBlank()
+                onClick = {
+                    val trimmedSalary = salary.trim()
+                    if (trimmedSalary.isNotEmpty()) {
+                        val parsed = trimmedSalary.toDoubleOrNull()
+                        if (parsed == null || parsed < 0.0) {
+                            salaryError = "Salary must be a non-negative amount"
+                            return@TextButton
+                        }
+                    }
+                    onConfirm(name.trim(), phone.trim().ifBlank { null }, trimmedSalary.ifBlank { null }, otRate.trim())
+                },
+                enabled = name.isNotBlank()
             ) {
                 Text("Add Staff", fontWeight = FontWeight.Bold)
             }
@@ -875,13 +1300,14 @@ fun DisburseSalaryDialog(
 fun EditEmployeeDialog(
     employee: Employee,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, phone: String?, salary: String, otRate: String, status: String) -> Unit
+    onConfirm: (name: String, phone: String?, salary: String?, clearSalary: Boolean, otRate: String, status: String) -> Unit
 ) {
     var name by remember { mutableStateOf(employee.name) }
     var phone by remember { mutableStateOf(employee.phone ?: "") }
-    var salary by remember { mutableStateOf(employee.salary) }
-    var otRate by remember { mutableStateOf(employee.otRate) }
+    var salary by remember { mutableStateOf(employee.salary ?: "") }
+    var otRate by remember { mutableStateOf(employee.otRate ?: "0.00") }
     var status by remember { mutableStateOf(employee.status) }
+    var salaryError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -892,7 +1318,31 @@ fun EditEmployeeDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 VyavsaTextField(value = name, onValueChange = { name = it }, label = "Full Name *")
                 VyavsaTextField(value = phone, onValueChange = { phone = it }, label = "Phone Number", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
-                VyavsaTextField(value = salary, onValueChange = { salary = it }, label = "Monthly Base Salary (₹) *", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                
+                Column {
+                    VyavsaTextField(
+                        value = salary,
+                        onValueChange = {
+                            salary = it
+                            salaryError = null
+                        },
+                        label = "Monthly Base Salary (₹) (Optional)",
+                        placeholder = "Leave empty for daily wage / variable",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Leave blank to remove default fixed salary",
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
+                    if (salaryError != null) {
+                        Text(
+                            text = salaryError!!,
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error)
+                        )
+                    }
+                }
+
                 VyavsaTextField(value = otRate, onValueChange = { otRate = it }, label = "Overtime Rate (₹/hr)", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
 
                 Row(
@@ -926,8 +1376,20 @@ fun EditEmployeeDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(name.trim(), phone.trim().ifBlank { null }, salary.trim(), otRate.trim(), status) },
-                enabled = name.isNotBlank() && salary.isNotBlank()
+                onClick = {
+                    val trimmedSalary = salary.trim()
+                    if (trimmedSalary.isNotEmpty()) {
+                        val parsed = trimmedSalary.toDoubleOrNull()
+                        if (parsed == null || parsed < 0.0) {
+                            salaryError = "Salary must be a non-negative amount"
+                            return@TextButton
+                        }
+                    }
+                    val clearSalary = trimmedSalary.isEmpty() && employee.salary != null
+                    val finalSalary = if (trimmedSalary.isEmpty()) null else trimmedSalary
+                    onConfirm(name.trim(), phone.trim().ifBlank { null }, finalSalary, clearSalary, otRate.trim(), status)
+                },
+                enabled = name.isNotBlank()
             ) {
                 Text("Save Changes", fontWeight = FontWeight.Bold)
             }

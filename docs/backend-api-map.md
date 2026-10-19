@@ -203,11 +203,22 @@ All tenant operations require:
     - `outstanding_payable`: Total outstanding payables.
     - `date`: YYYY-MM-DD
 
-### 3.2 Tenant Profile & Settings
-- **Route**: `GET /api/v1/tenant/profile`
-- **Route**: `PUT /api/v1/tenant/profile` (`tenant_admin` only)
+### 3.2 Tenant Profile, Logo & Settings
+- **Profile**: `GET /api/v1/tenant/profile`
+  - Response includes `logo_url`: `"/uploads/logos/tenant_...png"` or `null`.
+- **Update Profile**: `PUT /api/v1/tenant/profile` (`tenant_admin` only)
   - Request: `{"name": "...", "email": "...", "phone": "..."}`
-- **Route**: `GET /api/v1/tenant/subscription`
+- **Get Company Logo**: `GET /api/v1/tenant/logo`
+  - Response: `{"logo_url": "/uploads/logos/tenant_...png"}` (or `null`)
+- **Upload Company Logo**: `POST /api/v1/tenant/logo` (`tenant_admin` only)
+  - Content-Type: `multipart/form-data`
+  - Form field: `logo` (binary image data)
+  - Validation: Max 2MB (`2 << 20` bytes). MIME magic bytes verified: `image/jpeg`, `image/png`, `image/webp`, `image/gif`. Path traversal containment and sanitization enforced.
+  - Response: `{"logo_url": "/uploads/logos/tenant_...png"}`
+- **Delete Company Logo**: `DELETE /api/v1/tenant/logo` (`tenant_admin` only)
+  - Removes stored logo file and resets branding to default.
+  - Response: `{"logo_url": null}`
+- **Subscription**: `GET /api/v1/tenant/subscription`
   - Response: Subscription status, plan details, start/end dates, days remaining.
 
 ---
@@ -424,22 +435,49 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
 ### 8.1 Employees
 - **List**: `GET /api/v1/tenant/employees?page=1&page_size=20&search=`
 - **Create**: `POST /api/v1/tenant/employees` (`tenant_admin`)
+  - Request: `{"name": "...", "phone": "...", "salary": "700.00", "ot_rate": "50.00"}`
+  - `salary`: Optional (`*decimal.Decimal`). Omit or pass `null` for employees on variable daily wages. Does NOT default to 0.00.
 - **Update**: `PUT /api/v1/tenant/employees/:id` (`tenant_admin`)
+  - Request: `{"name": "...", "phone": "...", "salary": "...", "clear_salary": false, "ot_rate": "...", "status": "active"}`
+  - `clear_salary`: Set to `true` to remove employee's configured default salary and switch to daily wages.
 - **Delete**: `DELETE /api/v1/tenant/employees/:id` (`tenant_admin`)
 
 ### 8.2 Attendance & Advances
 - **List**: `GET /api/v1/tenant/attendance?date=YYYY-MM-DD`
-- **Record**: `POST /api/v1/tenant/attendance`
+  - Response records include `daily_salary` and `salary_source`:
+    - `"default"`: Prefilled from employee default base salary.
+    - `"override"`: Administrator explicitly modified daily wage for this date.
+    - `"manual"`: Employee has no default salary; daily wage entered manually.
+    - `"pending"`: Daily wage not yet specified / attendance marked without wage.
+    - `"unpaid"`: Zero earnings for absent or leave days.
+- **Record / Upsert**: `POST /api/v1/tenant/attendance`
   - Request:
     ```json
     {
       "employee_id": "uuid",
       "date": "2026-10-14",
       "status": "present",
+      "daily_salary": "900.00",
+      "ot": 0,
       "ot_amount": "150.00",
       "advance": "200.00"
     }
     ```
+  - `daily_salary`: Optional per-date wage override. Does not modify employee's default salary.
+- **Update Existing Attendance**: `PUT /api/v1/tenant/attendance/:id` (`tenant_admin` only)
+  - Dedicated endpoint to update existing attendance record.
+  - Request:
+    ```json
+    {
+      "status": "half_day",
+      "daily_salary": "350.00",
+      "clear_daily_salary": false,
+      "ot": 0,
+      "ot_amount": "0.00",
+      "advance": "50.00"
+    }
+    ```
+  - `clear_daily_salary`: Set to `true` to clear the daily wage and mark salary as pending/unpaid.
 
 ### 8.3 Salary Management (`tenant_admin` only)
 - **Pending Salaries**: `GET /api/v1/tenant/salaries/pending`

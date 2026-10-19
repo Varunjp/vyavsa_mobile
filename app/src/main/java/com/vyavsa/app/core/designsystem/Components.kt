@@ -37,10 +37,23 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.collection.LruCache
+import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import com.vyavsa.app.core.common.FormatUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.URL
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -1050,6 +1063,150 @@ fun LoadingOverlay(
                     }
                 }
             }
+        }
+    }
+}
+
+object LogoMemoryCache {
+    private val cache = LruCache<String, ImageBitmap>(32)
+
+    fun get(url: String): ImageBitmap? = cache.get(url)
+
+    fun put(url: String, bitmap: ImageBitmap) {
+        cache.put(url, bitmap)
+    }
+
+    fun remove(url: String) {
+        cache.remove(url)
+    }
+
+    fun clear() {
+        cache.evictAll()
+    }
+}
+
+@Composable
+fun CompanyLogoImage(
+    logoUrl: String?,
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp? = null,
+    previewBitmap: Bitmap? = null,
+    companyName: String? = null,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(18.dp),
+    contentDescription: String? = "Company Logo",
+    fallbackIcon: ImageVector = Icons.Default.Business
+) {
+    val finalModifier = if (size != null) modifier.size(size) else modifier
+
+    if (previewBitmap != null) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = finalModifier
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
+        ) {
+            Image(
+                bitmap = previewBitmap.asImageBitmap(),
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        return
+    }
+
+    val resolvedUrl = remember(logoUrl) { FormatUtils.resolveMediaUrl(logoUrl) }
+
+    if (!resolvedUrl.isNullOrBlank()) {
+        var bitmap by remember(resolvedUrl) { mutableStateOf(LogoMemoryCache.get(resolvedUrl)) }
+        var isLoading by remember(resolvedUrl) { mutableStateOf(bitmap == null) }
+        var isError by remember(resolvedUrl) { mutableStateOf(false) }
+
+        LaunchedEffect(resolvedUrl) {
+            if (bitmap == null) {
+                isLoading = true
+                isError = false
+                val loaded = withContext(Dispatchers.IO) {
+                    try {
+                        val connection = URL(resolvedUrl).openConnection()
+                        connection.connectTimeout = 8000
+                        connection.readTimeout = 12000
+                        connection.getInputStream().use { stream ->
+                            BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                        }
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                if (loaded != null) {
+                    LogoMemoryCache.put(resolvedUrl, loaded)
+                    bitmap = loaded
+                } else {
+                    isError = true
+                }
+                isLoading = false
+            }
+        }
+
+        if (bitmap != null) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = finalModifier
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), shape)
+            ) {
+                Image(
+                    bitmap = bitmap!!,
+                    contentDescription = contentDescription,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            return
+        }
+
+        if (isLoading) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = finalModifier
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            return
+        }
+    }
+
+    // Default branding fallback placeholder
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = finalModifier
+            .clip(shape)
+            .background(VyavsaGradients.PrimaryHeroBrush)
+    ) {
+        if (!companyName.isNullOrBlank()) {
+            val initial = companyName.trim().take(1).uppercase()
+            Text(
+                text = initial,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White
+                )
+            )
+        } else {
+            Icon(
+                imageVector = fallbackIcon,
+                contentDescription = contentDescription,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }

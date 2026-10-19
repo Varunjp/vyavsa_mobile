@@ -53,10 +53,25 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import com.vyavsa.app.BuildConfig
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.Blue50
 import com.vyavsa.app.core.designsystem.Blue600
+import com.vyavsa.app.core.designsystem.CompanyLogoImage
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
@@ -79,14 +94,70 @@ fun ProfileScreen(
     modifier: Modifier = Modifier
 ) {
     val profileState by viewModel.profileState.collectAsState()
+    val logoState by viewModel.logoState.collectAsState()
+    val logoActionState by viewModel.logoActionState.collectAsState()
     val subscriptionState by viewModel.subscriptionState.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
     val sessionState by viewModel.tokenManager.sessionState.collectAsState()
     val userProfile = remember(sessionState) { viewModel.tokenManager.getUserProfile() }
     val isAdmin = remember(sessionState) { viewModel.tokenManager.isTenantAdmin() }
+    val context = LocalContext.current
 
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showLogoutConfirmDialog by remember { mutableStateOf(false) }
+    var showDeleteLogoConfirmDialog by remember { mutableStateOf(false) }
+
+    var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var pendingFileBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingFileName by remember { mutableStateOf<String?>(null) }
+    var pendingMimeType by remember { mutableStateOf<String?>(null) }
+    var localLogoError by remember { mutableStateOf<String?>(null) }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val contentResolver = context.contentResolver
+                val mimeType = contentResolver.getType(uri) ?: "image/jpeg"
+                val allowedMimes = listOf("image/jpeg", "image/png", "image/webp", "image/gif")
+                if (mimeType.lowercase() !in allowedMimes) {
+                    localLogoError = "Unsupported format: only JPEG, PNG, WEBP, or GIF allowed"
+                    return@rememberLauncherForActivityResult
+                }
+
+                val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (bytes == null || bytes.isEmpty()) {
+                    localLogoError = "Selected image file is empty"
+                    return@rememberLauncherForActivityResult
+                }
+                if (bytes.size > 2 * 1024 * 1024) {
+                    localLogoError = "Logo file exceeds 2MB limit (${bytes.size / 1024} KB)"
+                    return@rememberLauncherForActivityResult
+                }
+
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                if (bitmap == null) {
+                    localLogoError = "Failed to decode selected image"
+                    return@rememberLauncherForActivityResult
+                }
+
+                previewBitmap = bitmap
+                pendingFileBytes = bytes
+                val ext = when (mimeType.lowercase()) {
+                    "image/png" -> "png"
+                    "image/webp" -> "webp"
+                    "image/gif" -> "gif"
+                    else -> "jpg"
+                }
+                pendingFileName = "logo_${System.currentTimeMillis()}.$ext"
+                pendingMimeType = mimeType
+                localLogoError = null
+            } catch (e: Exception) {
+                localLogoError = "Failed to load selected image: ${e.message}"
+            }
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -112,6 +183,20 @@ fun ProfileScreen(
                     message = (updateState as UiState.Error).message
                 )
             }
+            if (logoActionState is UiState.Error) {
+                ErrorBanner(
+                    message = (logoActionState as UiState.Error).message
+                )
+            }
+            if (localLogoError != null) {
+                ErrorBanner(
+                    message = localLogoError!!
+                )
+            }
+
+            val tenantProfile = (profileState as? UiState.Success)?.data
+            val tenantName = tenantProfile?.name ?: "Business Organization"
+            val currentLogo = (logoState as? UiState.Success)?.data ?: tenantProfile?.logoUrl
 
             // Organization Hero Card
             Card(
@@ -132,23 +217,14 @@ fun ProfileScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .size(54.dp)
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .background(VyavsaGradients.PrimaryHeroBrush)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Business,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
+                            CompanyLogoImage(
+                                logoUrl = currentLogo,
+                                companyName = tenantName,
+                                size = 54.dp,
+                                shape = RoundedCornerShape(18.dp)
+                            )
                             Spacer(modifier = Modifier.width(14.dp))
                             Column {
-                                val tenantName = (profileState as? UiState.Success)?.data?.name ?: "Business Organization"
                                 Text(
                                     text = tenantName,
                                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold)
@@ -218,6 +294,132 @@ fun ProfileScreen(
                                             text = profile.phone,
                                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                                         )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Company Branding & Logo Card
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            CompanyLogoImage(
+                                logoUrl = currentLogo,
+                                companyName = tenantName,
+                                size = 48.dp,
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text(
+                                    text = "Company Logo & Branding",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = if (!currentLogo.isNullOrBlank()) "Custom company logo active" else "Default branding active",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                )
+                            }
+                        }
+
+                        if (!currentLogo.isNullOrBlank()) {
+                            StatBadge(
+                                text = "ACTIVE",
+                                backgroundColor = Emerald50,
+                                textColor = Emerald600
+                            )
+                        } else {
+                            StatBadge(
+                                text = "DEFAULT",
+                                backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                textColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Your business logo is displayed across customer invoices, sales receipts, staff reports, and the navigation bar. Supported formats: JPEG, PNG, WEBP, or GIF (max 2MB).",
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
+
+                    if (isAdmin) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        if (logoActionState is UiState.Loading) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Text(
+                                    text = "Updating company logo...",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium)
+                                )
+                            }
+                        } else {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                FilledTonalButton(
+                                    onClick = {
+                                        localLogoError = null
+                                        imagePickerLauncher.launch("image/*")
+                                    },
+                                    shape = CircleShape,
+                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AddPhotoAlternate,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (currentLogo.isNullOrBlank()) "Upload Logo" else "Change Logo",
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                if (!currentLogo.isNullOrBlank()) {
+                                    OutlinedButton(
+                                        onClick = { showDeleteLogoConfirmDialog = true },
+                                        shape = CircleShape,
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = Crimson600
+                                        ),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Crimson600.copy(alpha = 0.5f))
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Remove", fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -515,6 +717,112 @@ fun ProfileScreen(
             onConfirm = { name, email, phone ->
                 viewModel.updateProfile(name, email, phone)
                 showEditProfileDialog = false
+            }
+        )
+    }
+    if (showDeleteLogoConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteLogoConfirmDialog = false },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Remove Company Logo?", fontWeight = FontWeight.ExtraBold) },
+            text = {
+                Text(
+                    text = "Are you sure you want to remove your company logo? Default Vyavsa branding will be restored across all reports, documents, and dashboards.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteLogo()
+                        showDeleteLogoConfirmDialog = false
+                    }
+                ) {
+                    Text("Remove Logo", fontWeight = FontWeight.Bold, color = Crimson600)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteLogoConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (previewBitmap != null) {
+        AlertDialog(
+            onDismissRequest = {
+                previewBitmap = null
+                pendingFileBytes = null
+                pendingFileName = null
+                pendingMimeType = null
+            },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Preview Company Logo", fontWeight = FontWeight.ExtraBold) },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    ) {
+                        Image(
+                            bitmap = previewBitmap!!.asImageBitmap(),
+                            contentDescription = "Logo preview",
+                            modifier = Modifier.size(100.dp)
+                        )
+                    }
+
+                    Text(
+                        text = "File size: ${(pendingFileBytes?.size ?: 0) / 1024} KB",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
+                    )
+
+                    Text(
+                        text = "This logo will be saved and displayed as your organization's official branding.",
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val bytes = pendingFileBytes
+                        val fileName = pendingFileName ?: "logo.jpg"
+                        val mime = pendingMimeType ?: "image/jpeg"
+                        if (bytes != null) {
+                            viewModel.uploadLogo(fileName, mime, bytes)
+                        }
+                        previewBitmap = null
+                        pendingFileBytes = null
+                        pendingFileName = null
+                        pendingMimeType = null
+                    }
+                ) {
+                    Text("Save & Upload", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        previewBitmap = null
+                        pendingFileBytes = null
+                        pendingFileName = null
+                        pendingMimeType = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
             }
         )
     }

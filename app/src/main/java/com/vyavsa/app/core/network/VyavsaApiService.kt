@@ -46,11 +46,13 @@ import com.vyavsa.app.core.model.ResetPasswordRequest
 import com.vyavsa.app.core.model.SubscriptionPlan
 import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.model.TenantLoginRequest
+import com.vyavsa.app.core.model.TenantLogoResponse
 import com.vyavsa.app.core.model.TenantProfile
 import com.vyavsa.app.core.model.TenantRegisterRequest
 import com.vyavsa.app.core.model.TenantSubscription
 import com.vyavsa.app.core.model.TenantUser
 import com.vyavsa.app.core.model.TokenResponse
+import com.vyavsa.app.core.model.UpdateAttendanceRequest
 import com.vyavsa.app.core.model.UpdateBankRequest
 import com.vyavsa.app.core.model.UpdateCustomerRequest
 import com.vyavsa.app.core.model.UpdateEmployeeRequest
@@ -59,11 +61,14 @@ import com.vyavsa.app.core.model.UpdateTenantUserRequest
 import com.vyavsa.app.core.model.UserProfile
 import com.vyavsa.app.core.model.VerifyResetOtpRequest
 import com.vyavsa.app.core.model.VerifyResetOtpResponse
+import okhttp3.MultipartBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -112,6 +117,16 @@ interface VyavsaApiService {
 
     @PUT("api/v1/tenant/profile")
     suspend fun updateProfile(@Body req: UpdateTenantProfileRequest): ApiResponse<TenantProfile>
+
+    @GET("api/v1/tenant/logo")
+    suspend fun getCompanyLogo(): ApiResponse<TenantLogoResponse>
+
+    @Multipart
+    @POST("api/v1/tenant/logo")
+    suspend fun uploadCompanyLogo(@Part logo: MultipartBody.Part): ApiResponse<TenantLogoResponse>
+
+    @DELETE("api/v1/tenant/logo")
+    suspend fun deleteCompanyLogo(): ApiResponse<TenantLogoResponse>
 
     @GET("api/v1/tenant/subscription")
     suspend fun getSubscription(): ApiResponse<TenantSubscription>
@@ -305,6 +320,12 @@ interface VyavsaApiService {
 
     @POST("api/v1/tenant/attendance")
     suspend fun recordAttendance(@Body req: RecordAttendanceRequest): ApiResponse<AttendanceRecord>
+
+    @PUT("api/v1/tenant/attendance/{id}")
+    suspend fun updateAttendance(
+        @Path("id") id: String,
+        @Body req: UpdateAttendanceRequest
+    ): ApiResponse<AttendanceRecord>
 
     @GET("api/v1/tenant/salaries/pending")
     suspend fun listPendingSalaries(): ApiResponse<List<EmployeeSalary>>

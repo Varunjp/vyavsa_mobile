@@ -118,12 +118,29 @@ class StaffViewModel @Inject constructor(
         }
     }
 
-    fun markAttendance(employeeId: String, status: String, otAmount: String, advance: String) {
+    fun markAttendance(
+        employeeId: String,
+        status: String,
+        dailySalary: String? = null,
+        otAmount: String = "",
+        advance: String = "",
+        date: String = FormatUtils.todayDateString()
+    ) {
+        val trimmedSalary = dailySalary?.trim()
+        if (!trimmedSalary.isNullOrBlank()) {
+            val parsed = trimmedSalary.toDoubleOrNull()
+            if (parsed == null || parsed < 0.0) {
+                _actionState.value = UiState.Error("Daily salary must be a non-negative amount")
+                return
+            }
+        }
+
         viewModelScope.launch {
             repository.recordAttendance(
                 employeeId = employeeId,
-                date = FormatUtils.todayDateString(),
+                date = date,
                 status = status,
+                dailySalary = trimmedSalary?.ifBlank { null },
                 otAmount = otAmount,
                 advance = advance
             ).collect { res ->
@@ -132,6 +149,9 @@ class StaffViewModel @Inject constructor(
                     is Resource.Success -> {
                         refreshCoordinator.notifyMutation(DataMutation.STAFF)
                         loadAttendance()
+                        if (isAdmin) {
+                            loadSalaries()
+                        }
                         UiState.Success(Unit)
                     }
                     is Resource.Error -> UiState.Error(res.message)
@@ -140,14 +160,65 @@ class StaffViewModel @Inject constructor(
         }
     }
 
-    fun createEmployee(name: String, phone: String?, salary: String, otRate: String) {
-        if (name.isBlank() || salary.isBlank()) {
-            _actionState.value = UiState.Error("Employee name and base salary are required")
-            return
+    fun updateAttendance(
+        attendanceId: String,
+        status: String?,
+        dailySalary: String?,
+        clearDailySalary: Boolean = false,
+        otAmount: String? = null,
+        advance: String? = null
+    ) {
+        val trimmedSalary = dailySalary?.trim()
+        if (!clearDailySalary && !trimmedSalary.isNullOrBlank()) {
+            val parsed = trimmedSalary.toDoubleOrNull()
+            if (parsed == null || parsed < 0.0) {
+                _actionState.value = UiState.Error("Daily salary must be a non-negative amount")
+                return
+            }
         }
 
         viewModelScope.launch {
-            repository.createEmployee(name, phone, salary, otRate).collect { res ->
+            repository.updateAttendance(
+                id = attendanceId,
+                status = status,
+                dailySalary = if (clearDailySalary) null else trimmedSalary?.ifBlank { null },
+                clearDailySalary = clearDailySalary,
+                otAmount = otAmount,
+                advance = advance
+            ).collect { res ->
+                _actionState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> {
+                        refreshCoordinator.notifyMutation(DataMutation.STAFF)
+                        loadAttendance()
+                        if (isAdmin) {
+                            loadSalaries()
+                        }
+                        UiState.Success(Unit)
+                    }
+                    is Resource.Error -> UiState.Error(res.message)
+                }
+            }
+        }
+    }
+
+    fun createEmployee(name: String, phone: String?, salary: String?, otRate: String) {
+        if (name.isBlank()) {
+            _actionState.value = UiState.Error("Employee name is required")
+            return
+        }
+
+        val trimmedSalary = salary?.trim()
+        if (!trimmedSalary.isNullOrBlank()) {
+            val parsed = trimmedSalary.toDoubleOrNull()
+            if (parsed == null || parsed < 0.0) {
+                _actionState.value = UiState.Error("Salary must be a non-negative amount")
+                return
+            }
+        }
+
+        viewModelScope.launch {
+            repository.createEmployee(name, phone, trimmedSalary?.ifBlank { null }, otRate).collect { res ->
                 _actionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
@@ -193,14 +264,39 @@ class StaffViewModel @Inject constructor(
         }
     }
 
-    fun updateEmployee(id: String, name: String?, phone: String?, salary: String?, otRate: String?, status: String?) {
+    fun updateEmployee(
+        id: String,
+        name: String?,
+        phone: String?,
+        salary: String?,
+        clearSalary: Boolean = false,
+        otRate: String?,
+        status: String?
+    ) {
         if (!isAdmin) {
             _actionState.value = UiState.Error("Access Denied: Administrator role required")
             return
         }
 
+        val trimmedSalary = salary?.trim()
+        if (!clearSalary && !trimmedSalary.isNullOrBlank()) {
+            val parsed = trimmedSalary.toDoubleOrNull()
+            if (parsed == null || parsed < 0.0) {
+                _actionState.value = UiState.Error("Salary must be a non-negative amount")
+                return
+            }
+        }
+
         viewModelScope.launch {
-            repository.updateEmployee(id, name, phone, salary, otRate, status).collect { res ->
+            repository.updateEmployee(
+                id = id,
+                name = name,
+                phone = phone,
+                salary = if (clearSalary) null else trimmedSalary?.ifBlank { null },
+                clearSalary = clearSalary,
+                otRate = otRate,
+                status = status
+            ).collect { res ->
                 _actionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {

@@ -124,6 +124,7 @@ class TransactionsViewModel @Inject constructor(
                         loadEmployees()
                         loadData()
                     }
+                    else -> {}
                 }
             }
         }

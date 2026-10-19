@@ -130,11 +130,20 @@ data class PlanTransaction(
 
 @Immutable
 @Serializable
+data class TenantLogoResponse(
+    @SerialName("tenant_id") val tenantId: String? = null,
+    @SerialName("logo_url") val logoUrl: String? = null,
+    @SerialName("has_custom_logo") val hasCustomLogo: Boolean = false
+)
+
+@Immutable
+@Serializable
 data class TenantProfile(
     val id: String = "",
     val name: String = "",
     val email: String = "",
     val phone: String? = null,
+    @SerialName("logo_url") val logoUrl: String? = null,
     val status: String = "active",
     @SerialName("created_at") val createdAt: String = ""
 )
@@ -143,5 +152,6 @@ data class TenantProfile(
 data class UpdateTenantProfileRequest(
     val name: String,
     val email: String,
-    val phone: String? = null
+    val phone: String? = null,
+    @SerialName("logo_url") val logoUrl: String? = null
 )

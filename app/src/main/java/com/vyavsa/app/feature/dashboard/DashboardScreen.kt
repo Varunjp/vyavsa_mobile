@@ -68,6 +68,7 @@ import com.vyavsa.app.core.designsystem.Amber600
 import com.vyavsa.app.core.designsystem.AvatarInitialCircle
 import com.vyavsa.app.core.designsystem.Blue50
 import com.vyavsa.app.core.designsystem.Blue600
+import com.vyavsa.app.core.designsystem.CompanyLogoImage
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
@@ -93,6 +94,7 @@ fun DashboardScreen(
 ) {
     val metricsState by viewModel.metricsState.collectAsState()
     val subscriptionState by viewModel.subscriptionState.collectAsState()
+    val profileState by viewModel.profileState.collectAsState()
     val sessionState by viewModel.tokenManager.sessionState.collectAsState()
     val partnerName = remember(sessionState) {
         viewModel.tokenManager.getUserProfile()?.name?.ifBlank { "Partner" } ?: "Partner"
@@ -121,10 +123,12 @@ fun DashboardScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    AvatarInitialCircle(
-                        name = partnerName,
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    val companyProfile = (profileState as? UiState.Success)?.data
+                    CompanyLogoImage(
+                        logoUrl = companyProfile?.logoUrl,
+                        companyName = companyProfile?.name ?: partnerName,
+                        size = 46.dp,
+                        shape = RoundedCornerShape(14.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {

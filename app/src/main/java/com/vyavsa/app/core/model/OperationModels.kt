@@ -391,7 +391,7 @@ data class Employee(
     val id: String = "",
     val name: String = "",
     val phone: String? = null,
-    val salary: String = "0.00",
+    val salary: String? = null,
     @SerialName("ot_rate") val otRate: String = "0.00",
     val status: String = "active",
     @SerialName("created_at") val createdAt: String = "",
@@ -402,7 +402,7 @@ data class Employee(
 data class CreateEmployeeRequest(
     val name: String,
     val phone: String? = null,
-    val salary: String,
+    val salary: String? = null,
     @SerialName("ot_rate") val otRate: String = "0.00",
     val status: String = "active"
 )
@@ -412,6 +412,7 @@ data class UpdateEmployeeRequest(
     val name: String? = null,
     val phone: String? = null,
     val salary: String? = null,
+    @SerialName("clear_salary") val clearSalary: Boolean = false,
     @SerialName("ot_rate") val otRate: String? = null,
     val status: String? = null
 )
@@ -420,22 +421,39 @@ data class UpdateEmployeeRequest(
 @Serializable
 data class AttendanceRecord(
     val id: String = "",
+    @SerialName("tenant_id") val tenantId: String = "",
     @SerialName("employee_id") val employeeId: String = "",
     @SerialName("employee_name") val employeeName: String = "",
     val date: String = "",
     val status: String = "present", // present, absent, half_day, leave
-    @SerialName("daily_salary") val dailySalary: String = "0.00",
+    @SerialName("daily_salary") val dailySalary: String? = null,
+    @SerialName("salary_source") val salarySource: String? = null,
+    val ot: String = "0.00",
     @SerialName("ot_amount") val otAmount: String = "0.00",
-    val advance: String = "0.00"
+    val advance: String = "0.00",
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("updated_at") val updatedAt: String = ""
 )
 
 @Serializable
 data class RecordAttendanceRequest(
     @SerialName("employee_id") val employeeId: String,
-    val date: String,
+    val date: String? = null,
     val status: String,
+    @SerialName("daily_salary") val dailySalary: String? = null,
+    val ot: String = "0.00",
     @SerialName("ot_amount") val otAmount: String = "0.00",
     val advance: String = "0.00"
+)
+
+@Serializable
+data class UpdateAttendanceRequest(
+    val status: String? = null,
+    @SerialName("daily_salary") val dailySalary: String? = null,
+    @SerialName("clear_daily_salary") val clearDailySalary: Boolean = false,
+    val ot: String? = null,
+    @SerialName("ot_amount") val otAmount: String? = null,
+    val advance: String? = null
 )
 
 @Immutable
@@ -479,7 +497,7 @@ data class EmployeeSalaryPayment(
 data class EmployeeSalaryStatement(
     @SerialName("employee_id") val employeeId: String = "",
     @SerialName("employee_name") val employeeName: String = "",
-    @SerialName("base_salary") val baseSalary: String = "0.00",
+    @SerialName("base_salary") val baseSalary: String? = null,
     @SerialName("total_overtime") val totalOvertime: String = "0.00",
     @SerialName("gross_salary") val grossSalary: String = "0.00",
     @SerialName("total_advances") val totalAdvances: String = "0.00",
@@ -496,7 +514,7 @@ data class EmployeeSalary(
     val id: String = "",
     @SerialName("employee_id") val employeeId: String = "",
     @SerialName("employee_name") val employeeName: String = "",
-    @SerialName("salary_rate") val salaryRate: String = "0.00",
+    @SerialName("salary_rate") val salaryRate: String? = null,
     @SerialName("gross_salary") val grossSalary: String = "0.00",
     @SerialName("total_overtime") val totalOvertime: String = "0.00",
     @SerialName("total_advances") val totalAdvances: String = "0.00",
