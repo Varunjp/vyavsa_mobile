@@ -228,4 +228,72 @@ class ApiResponseSerializationTest {
         assertEquals("/uploads/logos/store.png", profile.logoUrl)
         assertEquals("Vyavsa Store", profile.name)
     }
+
+    @Test
+    fun testTenantProfileWithAddressSerialization() {
+        val payload = """
+            {
+              "id": "t-100",
+              "name": "Vyavsa Enterprises",
+              "email": "contact@vyavsa.com",
+              "phone": "+91 9876543210",
+              "address_line1": "Shop 12, Market Complex",
+              "address_line2": "MG Road",
+              "city": "Bengaluru",
+              "state": "Karnataka",
+              "postal_code": "560001",
+              "country": "India",
+              "formatted_address": "Shop 12, Market Complex, MG Road, Bengaluru, Karnataka, 560001, India"
+            }
+        """.trimIndent()
+
+        val profile = json.decodeFromString<com.vyavsa.app.core.model.TenantProfile>(payload)
+        assertEquals("Shop 12, Market Complex", profile.addressLine1)
+        assertEquals("MG Road", profile.addressLine2)
+        assertEquals("Bengaluru", profile.city)
+        assertEquals("Karnataka", profile.state)
+        assertEquals("560001", profile.postalCode)
+        assertEquals("India", profile.country)
+        assertEquals("Shop 12, Market Complex, MG Road, Bengaluru, Karnataka, 560001, India", profile.formattedAddress)
+        assertEquals("Shop 12, Market Complex, MG Road, Bengaluru, Karnataka, 560001, India", profile.getEffectiveAddress())
+    }
+
+    @Test
+    fun testTenantProfileLegacyWithoutAddressGracefulFallback() {
+        val payload = """
+            {
+              "id": "t-legacy",
+              "name": "Old Business Store",
+              "email": "old@business.com"
+            }
+        """.trimIndent()
+
+        val profile = json.decodeFromString<com.vyavsa.app.core.model.TenantProfile>(payload)
+        assertEquals("Old Business Store", profile.name)
+        org.junit.Assert.assertNull(profile.addressLine1)
+        org.junit.Assert.assertNull(profile.getEffectiveAddress())
+    }
+
+    @Test
+    fun testUpdateTenantProfileRequestWithAddressSerialization() {
+        val req = com.vyavsa.app.core.model.UpdateTenantProfileRequest(
+            name = "Vyavsa Tech",
+            email = "tech@vyavsa.com",
+            phone = "9876543210",
+            addressLine1 = "Plot 45",
+            addressLine2 = "Tech Park",
+            city = "Pune",
+            state = "Maharashtra",
+            postalCode = "411057",
+            country = "India"
+        )
+
+        val encoded = json.encodeToString(com.vyavsa.app.core.model.UpdateTenantProfileRequest.serializer(), req)
+        assertTrue(encoded.contains("\"address_line1\":\"Plot 45\""))
+        assertTrue(encoded.contains("\"address_line2\":\"Tech Park\""))
+        assertTrue(encoded.contains("\"city\":\"Pune\""))
+        assertTrue(encoded.contains("\"state\":\"Maharashtra\""))
+        assertTrue(encoded.contains("\"postal_code\":\"411057\""))
+        assertTrue(encoded.contains("\"country\":\"India\""))
+    }
 }

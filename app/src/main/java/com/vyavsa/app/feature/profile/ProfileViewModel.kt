@@ -29,7 +29,7 @@ class ProfileViewModel @Inject constructor(
     private val apiService: VyavsaApiService,
     private val authRepository: AuthRepository,
     private val refreshCoordinator: DataRefreshCoordinator,
-    val tokenManager: TokenManager
+    val tokenManager: TokenManager? = null
 ) : ViewModel() {
 
     private val _profileState = MutableStateFlow<UiState<TenantProfile>>(UiState.Loading)
@@ -49,6 +49,13 @@ class ProfileViewModel @Inject constructor(
 
     private val _updateState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val updateState: StateFlow<UiState<Unit>> = _updateState.asStateFlow()
+
+    val sessionState: StateFlow<com.vyavsa.app.core.security.SessionState> =
+        tokenManager?.sessionState ?: MutableStateFlow(com.vyavsa.app.core.security.SessionState.Unauthenticated)
+
+    fun getUserProfile(): com.vyavsa.app.core.model.UserProfile? = tokenManager?.getUserProfile()
+
+    fun isTenantAdmin(): Boolean = tokenManager?.isTenantAdmin() ?: true
 
     init {
         loadProfileData()
@@ -93,19 +100,66 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun updateProfile(name: String, email: String, phone: String?) {
+    fun updateProfile(
+        name: String,
+        email: String,
+        phone: String? = null,
+        addressLine1: String? = null,
+        addressLine2: String? = null,
+        city: String? = null,
+        state: String? = null,
+        postalCode: String? = null,
+        country: String? = null
+    ) {
         if (name.isBlank() || email.isBlank()) {
             _updateState.value = UiState.Error("Name and email are required")
+            return
+        }
+
+        if ((addressLine1?.length ?: 0) > 255) {
+            _updateState.value = UiState.Error("Address line 1 cannot exceed 255 characters")
+            return
+        }
+        if ((addressLine2?.length ?: 0) > 255) {
+            _updateState.value = UiState.Error("Address line 2 cannot exceed 255 characters")
+            return
+        }
+        if ((city?.length ?: 0) > 100) {
+            _updateState.value = UiState.Error("City cannot exceed 100 characters")
+            return
+        }
+        if ((state?.length ?: 0) > 100) {
+            _updateState.value = UiState.Error("State cannot exceed 100 characters")
+            return
+        }
+        if ((postalCode?.length ?: 0) > 20) {
+            _updateState.value = UiState.Error("Postal code cannot exceed 20 characters")
+            return
+        }
+        if ((country?.length ?: 0) > 100) {
+            _updateState.value = UiState.Error("Country cannot exceed 100 characters")
             return
         }
 
         viewModelScope.launch {
             _updateState.value = UiState.Loading
             try {
-                val res = apiService.updateProfile(UpdateTenantProfileRequest(name, email, phone))
+                val req = UpdateTenantProfileRequest(
+                    name = name.trim(),
+                    email = email.trim(),
+                    phone = phone?.trim()?.ifBlank { null },
+                    addressLine1 = addressLine1?.trim()?.ifBlank { null },
+                    addressLine2 = addressLine2?.trim()?.ifBlank { null },
+                    city = city?.trim()?.ifBlank { null },
+                    state = state?.trim()?.ifBlank { null },
+                    postalCode = postalCode?.trim()?.ifBlank { null },
+                    country = country?.trim()?.ifBlank { null }
+                )
+                val res = apiService.updateProfile(req)
                 if (res.success && res.data != null) {
                     _profileState.value = UiState.Success(res.data)
                     _updateState.value = UiState.Success(Unit)
+                    refreshCoordinator.notifyMutation(DataMutation.PROFILE)
                 } else {
                     _updateState.value = UiState.Error(res.error?.message ?: "Update failed")
                 }

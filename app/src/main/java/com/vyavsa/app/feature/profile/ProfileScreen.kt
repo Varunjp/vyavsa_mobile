@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Phone
@@ -44,10 +45,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -102,9 +106,9 @@ fun ProfileScreen(
     val logoActionState by viewModel.logoActionState.collectAsState()
     val subscriptionState by viewModel.subscriptionState.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
-    val sessionState by viewModel.tokenManager.sessionState.collectAsState()
-    val userProfile = remember(sessionState) { viewModel.tokenManager.getUserProfile() }
-    val isAdmin = remember(sessionState) { viewModel.tokenManager.isTenantAdmin() }
+    val sessionState by viewModel.sessionState.collectAsState()
+    val userProfile = remember(sessionState) { viewModel.getUserProfile() }
+    val isAdmin = remember(sessionState) { viewModel.isTenantAdmin() }
     val context = LocalContext.current
 
     var showEditProfileDialog by remember { mutableStateOf(false) }
@@ -196,6 +200,29 @@ fun ProfileScreen(
                 ErrorBanner(
                     message = localLogoError!!
                 )
+            }
+
+            if (updateState is UiState.Error) {
+                ErrorBanner(
+                    message = (updateState as UiState.Error).message
+                )
+            } else if (updateState is UiState.Success) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Emerald50,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Emerald600.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(14.dp)
+                    ) {
+                        Text(
+                            text = "✓ Business profile & company address updated successfully.",
+                            style = MaterialTheme.typography.bodySmall.copy(color = Emerald600, fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
             }
 
             val tenantProfile = (profileState as? UiState.Success)?.data
@@ -299,6 +326,165 @@ fun ProfileScreen(
                                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                                         )
                                     }
+                                }
+                                val effectiveAddr = profile.getEffectiveAddress()
+                                if (!effectiveAddr.isNullOrBlank()) {
+                                    Row(verticalAlignment = Alignment.Top) {
+                                        Icon(
+                                            imageVector = Icons.Default.LocationOn,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp).padding(top = 2.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = effectiveAddr,
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Company Address Card
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Emerald50)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = Emerald600,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text(
+                                    text = "Company Address",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Official business location on bills & invoices",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                )
+                            }
+                        }
+
+                        if (isAdmin && profileState is UiState.Success) {
+                            FilledTonalIconButton(
+                                onClick = { showEditProfileDialog = true },
+                                shape = CircleShape,
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Address",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    val profile = (profileState as? UiState.Success)?.data
+                    val addressStr = profile?.getEffectiveAddress() ?: ""
+
+                    if (addressStr.isNotBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (!profile?.addressLine1.isNullOrBlank()) {
+                                    Text(
+                                        text = profile!!.addressLine1!!,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                }
+                                if (!profile?.addressLine2.isNullOrBlank()) {
+                                    Text(
+                                        text = profile!!.addressLine2!!,
+                                        style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    )
+                                }
+                                val cityStateZip = listOfNotNull(
+                                    profile?.city?.ifBlank { null },
+                                    profile?.state?.ifBlank { null },
+                                    profile?.postalCode?.ifBlank { null }
+                                ).joinToString(", ")
+                                if (cityStateZip.isNotBlank()) {
+                                    Text(
+                                        text = cityStateZip,
+                                        style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    )
+                                }
+                                if (!profile?.country.isNullOrBlank()) {
+                                    Text(
+                                        text = profile!!.country!!,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "No business address configured yet.",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                )
+                                if (isAdmin) {
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    VyavsaButton(
+                                        text = "Add Company Address",
+                                        onClick = { showEditProfileDialog = true },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
                                 }
                             }
                         }
@@ -839,12 +1025,38 @@ fun ProfileScreen(
             initialName = currentProfile?.name ?: "",
             initialEmail = currentProfile?.email ?: "",
             initialPhone = currentProfile?.phone ?: "",
-            onDismiss = { showEditProfileDialog = false },
-            onConfirm = { name, email, phone ->
-                viewModel.updateProfile(name, email, phone)
+            initialAddressLine1 = currentProfile?.addressLine1 ?: "",
+            initialAddressLine2 = currentProfile?.addressLine2 ?: "",
+            initialCity = currentProfile?.city ?: "",
+            initialState = currentProfile?.state ?: "",
+            initialPostalCode = currentProfile?.postalCode ?: "",
+            initialCountry = currentProfile?.country ?: "",
+            isSaving = updateState is UiState.Loading,
+            errorMessage = (updateState as? UiState.Error)?.message,
+            onDismiss = {
                 showEditProfileDialog = false
+                viewModel.resetUpdateState()
+            },
+            onConfirm = { name, email, phone, addr1, addr2, city, state, zip, country ->
+                viewModel.updateProfile(
+                    name = name,
+                    email = email,
+                    phone = phone,
+                    addressLine1 = addr1,
+                    addressLine2 = addr2,
+                    city = city,
+                    state = state,
+                    postalCode = zip,
+                    country = country
+                )
             }
         )
+    }
+
+    LaunchedEffect(updateState) {
+        if (updateState is UiState.Success) {
+            showEditProfileDialog = false
+        }
     }
     if (showDeleteLogoConfirmDialog) {
         AlertDialog(
@@ -959,35 +1171,163 @@ fun EditProfileDialog(
     initialName: String,
     initialEmail: String,
     initialPhone: String,
+    initialAddressLine1: String = "",
+    initialAddressLine2: String = "",
+    initialCity: String = "",
+    initialState: String = "",
+    initialPostalCode: String = "",
+    initialCountry: String = "",
+    isSaving: Boolean = false,
+    errorMessage: String? = null,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, email: String, phone: String?) -> Unit
+    onConfirm: (
+        name: String,
+        email: String,
+        phone: String?,
+        addressLine1: String?,
+        addressLine2: String?,
+        city: String?,
+        state: String?,
+        postalCode: String?,
+        country: String?
+    ) -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
     var email by remember { mutableStateOf(initialEmail) }
     var phone by remember { mutableStateOf(initialPhone) }
+    var addressLine1 by remember { mutableStateOf(initialAddressLine1) }
+    var addressLine2 by remember { mutableStateOf(initialAddressLine2) }
+    var city by remember { mutableStateOf(initialCity) }
+    var state by remember { mutableStateOf(initialState) }
+    var postalCode by remember { mutableStateOf(initialPostalCode) }
+    var country by remember { mutableStateOf(initialCountry) }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSaving) onDismiss() },
         shape = RoundedCornerShape(28.dp),
         containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text("Update Organization Details", fontWeight = FontWeight.ExtraBold) },
+        title = { Text("Update Organization & Address", fontWeight = FontWeight.ExtraBold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                if (!errorMessage.isNullOrBlank()) {
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodySmall.copy(color = Crimson600, fontWeight = FontWeight.Bold)
+                    )
+                }
+
+                Text(
+                    text = "Business Details",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                )
                 VyavsaTextField(value = name, onValueChange = { name = it }, label = "Business Name *")
-                VyavsaTextField(value = email, onValueChange = { email = it }, label = "Email Address *")
-                VyavsaTextField(value = phone, onValueChange = { phone = it }, label = "Phone Number")
+                VyavsaTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = "Email Address *",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                )
+                VyavsaTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = "Phone Number",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Company Address",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                )
+                VyavsaTextField(
+                    value = addressLine1,
+                    onValueChange = { addressLine1 = it },
+                    label = "Address Line 1",
+                    placeholder = "Street address, Shop / Suite #"
+                )
+                VyavsaTextField(
+                    value = addressLine2,
+                    onValueChange = { addressLine2 = it },
+                    label = "Address Line 2",
+                    placeholder = "Area, Landmark, Building name"
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    VyavsaTextField(
+                        value = city,
+                        onValueChange = { city = it },
+                        label = "City",
+                        placeholder = "e.g. Mumbai",
+                        modifier = Modifier.weight(1f)
+                    )
+                    VyavsaTextField(
+                        value = state,
+                        onValueChange = { state = it },
+                        label = "State",
+                        placeholder = "e.g. Maharashtra",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    VyavsaTextField(
+                        value = postalCode,
+                        onValueChange = { postalCode = it },
+                        label = "Postal Code",
+                        placeholder = "e.g. 400001",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f)
+                    )
+                    VyavsaTextField(
+                        value = country,
+                        onValueChange = { country = it },
+                        label = "Country",
+                        placeholder = "e.g. India",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(name, email, phone) },
-                enabled = name.isNotBlank() && email.isNotBlank()
+                onClick = {
+                    onConfirm(
+                        name,
+                        email,
+                        phone,
+                        addressLine1,
+                        addressLine2,
+                        city,
+                        state,
+                        postalCode,
+                        country
+                    )
+                },
+                enabled = !isSaving && name.isNotBlank() && email.isNotBlank()
             ) {
-                Text("Save Changes", fontWeight = FontWeight.Bold)
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Save Changes", fontWeight = FontWeight.Bold)
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isSaving
+            ) {
+                Text("Cancel")
+            }
         }
     )
 }

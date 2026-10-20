@@ -8,6 +8,8 @@ import com.vyavsa.app.core.model.CreateLineSaleRequest
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.SaleItem
 import com.vyavsa.app.core.model.SaleItemRequest
+import com.vyavsa.app.core.model.UpdateCounterSaleRequest
+import com.vyavsa.app.core.model.UpdateLineSaleRequest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -303,5 +305,166 @@ class SalesSerializationTest {
         assertEquals("140.00", sale?.items?.get(0)?.unitPrice)
         assertEquals("280.00", sale?.items?.get(0)?.lineTotal)
         assertEquals("Sugar 5kg", sale?.items?.get(1)?.productNameSnapshot)
+    }
+
+    @Test
+    fun testCreateLineSaleRequestWithDiscountSerialization() {
+        val req = CreateLineSaleRequest(
+            customerId = "cust-1",
+            subtotal = "1000.00",
+            discount = "100.00",
+            discountAmount = "100.00",
+            totalAmount = "900.00",
+            totalCashIn = "900.00",
+            cashAmount = "900.00"
+        )
+
+        val serialized = json.encodeToString(req)
+        assertTrue(serialized.contains("\"subtotal\":\"1000.00\""))
+        assertTrue(serialized.contains("\"discount\":\"100.00\""))
+        assertTrue(serialized.contains("\"discount_amount\":\"100.00\""))
+        assertTrue(serialized.contains("\"total_amount\":\"900.00\""))
+    }
+
+    @Test
+    fun testCreateCounterSaleRequestWithDiscountSerialization() {
+        val req = CreateCounterSaleRequest(
+            item = "Notebook",
+            subtotal = "250.00",
+            discount = "25.00",
+            discountAmount = "25.00",
+            totalAmount = "225.00",
+            paymentMethod = "cash",
+            cash = "225.00"
+        )
+
+        val serialized = json.encodeToString(req)
+        assertTrue(serialized.contains("\"subtotal\":\"250.00\""))
+        assertTrue(serialized.contains("\"discount\":\"25.00\""))
+        assertTrue(serialized.contains("\"discount_amount\":\"25.00\""))
+        assertTrue(serialized.contains("\"total_amount\":\"225.00\""))
+    }
+
+    @Test
+    fun testLineSaleWithDiscountDeserialization() {
+        val payload = """
+            {
+              "success": true,
+              "message": "line sale retrieved",
+              "data": {
+                "id": "sale-200",
+                "customer_id": "cust-2",
+                "customer_name": "Agrawal Mart",
+                "subtotal": "1200.00",
+                "discount": "150.00",
+                "total_amount": "1050.00",
+                "total_cash_in": "1050.00",
+                "balance": "0.00",
+                "date": "2026-10-19"
+              }
+            }
+        """.trimIndent()
+
+        val response = json.decodeFromString<ApiResponse<LineSale>>(payload)
+        assertTrue(response.success)
+        val sale = response.data
+        assertNotNull(sale)
+        assertEquals("sale-200", sale?.id)
+        assertEquals("1200.00", sale?.subtotal)
+        assertEquals("150.00", sale?.discount)
+        assertEquals("1050.00", sale?.totalAmount)
+    }
+
+    @Test
+    fun testCounterSaleWithDiscountDeserialization() {
+        val payload = """
+            {
+              "success": true,
+              "message": "counter sale retrieved",
+              "data": {
+                "id": "counter-200",
+                "item": "Snacks Box",
+                "subtotal": "500.00",
+                "discount": "50.00",
+                "price": "500.00",
+                "total_amount": "450.00",
+                "payment_method": "cash",
+                "cash": "450.00"
+              }
+            }
+        """.trimIndent()
+
+        val response = json.decodeFromString<ApiResponse<CounterSale>>(payload)
+        assertTrue(response.success)
+        val sale = response.data
+        assertNotNull(sale)
+        assertEquals("counter-200", sale?.id)
+        assertEquals("500.00", sale?.subtotal)
+        assertEquals("500.00", sale?.price)
+        assertEquals("50.00", sale?.discount)
+        assertEquals("450.00", sale?.totalAmount)
+    }
+
+    @Test
+    fun testLegacySaleWithoutDiscountDeserializationDefaultsGracefully() {
+        val payload = """
+            {
+              "success": true,
+              "message": "legacy sale retrieved",
+              "data": {
+                "id": "sale-legacy-1",
+                "customer_id": "cust-old",
+                "customer_name": "Old Customer",
+                "total_amount": "800.00",
+                "total_cash_in": "800.00",
+                "balance": "0.00"
+              }
+            }
+        """.trimIndent()
+
+        val response = json.decodeFromString<ApiResponse<LineSale>>(payload)
+        assertTrue(response.success)
+        val sale = response.data
+        assertNotNull(sale)
+        assertEquals("sale-legacy-1", sale?.id)
+        assertEquals("0.00", sale?.discount)
+        assertEquals("0.00", sale?.subtotal)
+        assertEquals("800.00", sale?.totalAmount)
+    }
+
+    @Test
+    fun testUpdateLineSaleRequestSerialization() {
+        val req = UpdateLineSaleRequest(
+            subtotal = "1500.00",
+            discount = "200.00",
+            discountAmount = "200.00",
+            totalAmount = "1300.00",
+            note = "Updated invoice discount"
+        )
+
+        val serialized = json.encodeToString(req)
+        assertTrue(serialized.contains("\"subtotal\":\"1500.00\""))
+        assertTrue(serialized.contains("\"discount\":\"200.00\""))
+        assertTrue(serialized.contains("\"discount_amount\":\"200.00\""))
+        assertTrue(serialized.contains("\"total_amount\":\"1300.00\""))
+        assertTrue(serialized.contains("\"note\":\"Updated invoice discount\""))
+    }
+
+    @Test
+    fun testUpdateCounterSaleRequestSerialization() {
+        val req = UpdateCounterSaleRequest(
+            item = "Edited Item",
+            subtotal = "300.00",
+            discount = "30.00",
+            discountAmount = "30.00",
+            totalAmount = "270.00"
+        )
+
+        val serialized = json.encodeToString(req)
+        assertTrue(serialized.contains("\"item\":\"Edited Item\""))
+        assertTrue(serialized.contains("\"subtotal\":\"300.00\""))
+        assertTrue(serialized.contains("\"discount\":\"30.00\""))
+        assertTrue(serialized.contains("\"discount_amount\":\"30.00\""))
+        assertTrue(serialized.contains("\"total_amount\":\"270.00\""))
     }
 }

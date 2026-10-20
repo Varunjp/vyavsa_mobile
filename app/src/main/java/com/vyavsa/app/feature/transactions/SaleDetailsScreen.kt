@@ -17,15 +17,24 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.content.Intent
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
+import com.vyavsa.app.core.printer.ThermalPrintDialog
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -33,7 +42,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -50,6 +61,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -57,6 +70,7 @@ import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.Blue50
 import com.vyavsa.app.core.designsystem.Blue600
+import com.vyavsa.app.core.designsystem.CompanyLogoImage
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
@@ -64,6 +78,7 @@ import com.vyavsa.app.core.designsystem.Emerald600
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaButton
+import com.vyavsa.app.core.designsystem.VyavsaOutlinedButton
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.CounterSale
@@ -72,6 +87,7 @@ import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.LineSalePayment
 import com.vyavsa.app.core.model.SaleItem
 import com.vyavsa.app.core.model.TenantBank
+import com.vyavsa.app.core.model.TenantProfile
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,8 +98,19 @@ fun SaleDetailsScreen(
 ) {
     val detailState by viewModel.detailState.collectAsState()
     val banks by viewModel.banksState.collectAsState()
+    val companyProfile by viewModel.companyProfile.collectAsState()
+
+    val printJobState by viewModel.printJobState.collectAsState()
+    val pairedPrinters by viewModel.pairedPrinters.collectAsState()
+    val usbPrinters by viewModel.usbPrinters.collectAsState()
+    val selectedConnectionType by viewModel.selectedConnectionType.collectAsState()
+    val networkPrinterIp by viewModel.networkPrinterIp.collectAsState()
+    val selectedPrinter by viewModel.selectedPrinter.collectAsState()
+    val paperWidth by viewModel.paperWidth.collectAsState()
 
     var showPaymentDialog by remember { mutableStateOf(false) }
+    var showReceiptDialog by remember { mutableStateOf(false) }
+    var showPrintDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -128,13 +155,17 @@ fun SaleDetailsScreen(
                         is SaleDetailData.Line -> {
                             LineSaleDetailsContent(
                                 sale = data.sale,
-                                onRecordPaymentClick = { showPaymentDialog = true }
+                                onRecordPaymentClick = { showPaymentDialog = true },
+                                onShowReceiptClick = { showReceiptDialog = true },
+                                onPrintClick = { showPrintDialog = true }
                             )
                         }
                         is SaleDetailData.Counter -> {
                             CounterSaleDetailsContent(
                                 sale = data.sale,
-                                onRecordPaymentClick = { showPaymentDialog = true }
+                                onRecordPaymentClick = { showPaymentDialog = true },
+                                onShowReceiptClick = { showReceiptDialog = true },
+                                onPrintClick = { showPrintDialog = true }
                             )
                         }
                     }
@@ -166,12 +197,52 @@ fun SaleDetailsScreen(
             }
         )
     }
+
+    if (showReceiptDialog) {
+        when (val state = detailState) {
+            is UiState.Success -> {
+                InvoiceReceiptDialog(
+                    saleData = state.data,
+                    companyProfile = companyProfile,
+                    onPrintClick = { showPrintDialog = true },
+                    onDismiss = { showReceiptDialog = false }
+                )
+            }
+            else -> {}
+        }
+    }
+
+    if (showPrintDialog) {
+        ThermalPrintDialog(
+            printJobState = printJobState,
+            pairedPrinters = pairedPrinters,
+            usbPrinters = usbPrinters,
+            selectedConnectionType = selectedConnectionType,
+            networkPrinterIp = networkPrinterIp,
+            selectedPrinter = selectedPrinter,
+            paperWidth = paperWidth,
+            hasCompanyLogo = !companyProfile?.logoUrl.isNullOrBlank(),
+            receiptPreviewText = viewModel.getReceiptPreviewText(),
+            onSelectConnectionType = { viewModel.setConnectionType(it) },
+            onSetNetworkPrinterIp = { viewModel.setNetworkPrinterIp(it) },
+            onSelectPrinter = { viewModel.selectPrinter(it) },
+            onSelectPaperWidth = { viewModel.setPaperWidth(it) },
+            onRefreshPrinters = { viewModel.refreshPrinters() },
+            onPrintClick = { viewModel.printInvoice() },
+            onDismiss = {
+                showPrintDialog = false
+                viewModel.resetPrintJobState()
+            }
+        )
+    }
 }
 
 @Composable
 private fun LineSaleDetailsContent(
     sale: LineSale,
-    onRecordPaymentClick: () -> Unit
+    onRecordPaymentClick: () -> Unit,
+    onShowReceiptClick: () -> Unit,
+    onPrintClick: () -> Unit
 ) {
     val scrollState = rememberScrollState()
     val balanceDue = sale.balance.toDoubleOrNull() ?: 0.0
@@ -293,7 +364,20 @@ private fun LineSaleDetailsContent(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                FinancialRow(label = "Total Invoice Amount", value = FormatUtils.formatCurrency(sale.totalAmount), isBold = true)
+                val disc = sale.discount.toDoubleOrNull() ?: 0.0
+                val sub = sale.subtotal.toDoubleOrNull() ?: (sale.totalAmount.toDoubleOrNull() ?: 0.0)
+                val effectiveSub = if (sub > 0.0) sub else (sale.totalAmount.toDoubleOrNull() ?: 0.0) + disc
+
+                FinancialRow(label = "Sale Subtotal", value = FormatUtils.formatCurrency(effectiveSub.toString()))
+                if (disc > 0.0) {
+                    FinancialRow(
+                        label = "Discount",
+                        value = "-${FormatUtils.formatCurrency(disc.toString())}",
+                        color = Emerald600,
+                        isBold = true
+                    )
+                }
+                FinancialRow(label = "Final Payable Amount", value = FormatUtils.formatCurrency(sale.totalAmount), isBold = true)
                 FinancialRow(label = "Cash In Drawer", value = FormatUtils.formatCurrency(sale.totalCashIn))
                 FinancialRow(label = "Bank / Online Received", value = FormatUtils.formatCurrency(sale.bankAmount))
                 FinancialRow(label = "Total Collected", value = FormatUtils.formatCurrency(sale.collectedAmount), color = Emerald600)
@@ -310,8 +394,27 @@ private fun LineSaleDetailsContent(
                     style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
 
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    VyavsaOutlinedButton(
+                        text = "View Bill",
+                        leadingIcon = Icons.Default.ReceiptLong,
+                        onClick = onShowReceiptClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                    VyavsaButton(
+                        text = "Print Invoice",
+                        leadingIcon = Icons.Default.Print,
+                        onClick = onPrintClick,
+                        modifier = Modifier.weight(1.2f)
+                    )
+                }
+
                 if (!isFullyPaid) {
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     VyavsaButton(
                         text = "Record Customer Payment",
                         leadingIcon = Icons.Default.Payment,
@@ -330,7 +433,9 @@ private fun LineSaleDetailsContent(
 @Composable
 private fun CounterSaleDetailsContent(
     sale: CounterSale,
-    onRecordPaymentClick: () -> Unit
+    onRecordPaymentClick: () -> Unit,
+    onShowReceiptClick: () -> Unit,
+    onPrintClick: () -> Unit
 ) {
     val scrollState = rememberScrollState()
 
@@ -400,8 +505,20 @@ private fun CounterSaleDetailsContent(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                FinancialRow(label = "Price", value = FormatUtils.formatCurrency(sale.price))
-                FinancialRow(label = "Total Bill Amount", value = FormatUtils.formatCurrency(sale.totalAmount), isBold = true)
+                val disc = sale.discount.toDoubleOrNull() ?: 0.0
+                val sub = sale.subtotal.toDoubleOrNull() ?: (sale.price.toDoubleOrNull() ?: (sale.totalAmount.toDoubleOrNull() ?: 0.0))
+                val effectiveSub = if (sub > 0.0) sub else (sale.totalAmount.toDoubleOrNull() ?: 0.0) + disc
+
+                FinancialRow(label = "Sale Subtotal", value = FormatUtils.formatCurrency(effectiveSub.toString()))
+                if (disc > 0.0) {
+                    FinancialRow(
+                        label = "Discount",
+                        value = "-${FormatUtils.formatCurrency(disc.toString())}",
+                        color = Emerald600,
+                        isBold = true
+                    )
+                }
+                FinancialRow(label = "Final Total Amount", value = FormatUtils.formatCurrency(sale.totalAmount), isBold = true)
                 FinancialRow(label = "Cash Portion", value = FormatUtils.formatCurrency(sale.cash))
                 FinancialRow(label = "Bank / Online Portion", value = FormatUtils.formatCurrency(sale.bankAmount.ifBlank { sale.account }))
 
@@ -410,6 +527,25 @@ private fun CounterSaleDetailsContent(
                     text = "Billed: ${FormatUtils.formatDateTimeForDisplay(sale.createdAt)}",
                     style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    VyavsaOutlinedButton(
+                        text = "View Bill",
+                        leadingIcon = Icons.Default.ReceiptLong,
+                        onClick = onShowReceiptClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                    VyavsaButton(
+                        text = "Print Invoice",
+                        leadingIcon = Icons.Default.Print,
+                        onClick = onPrintClick,
+                        modifier = Modifier.weight(1.2f)
+                    )
+                }
             }
         }
 
@@ -843,4 +979,387 @@ private fun SaleItemsBreakdownCard(
         }
     }
 }
+
+private data class ReceiptDisplayData(
+    val title: String,
+    val saleId: String,
+    val date: String,
+    val customerInfo: String,
+    val items: List<SaleItem>,
+    val singleItemName: String?,
+    val subtotal: Double,
+    val discount: Double,
+    val total: Double,
+    val paid: Double,
+    val due: Double,
+    val paymentMethodSummary: String
+)
+
+@Composable
+private fun InvoiceReceiptDialog(
+    saleData: SaleDetailData,
+    companyProfile: TenantProfile?,
+    onPrintClick: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val scrollState = rememberScrollState()
+
+    val receiptData = when (saleData) {
+        is SaleDetailData.Line -> {
+            val sale = saleData.sale
+            val disc = sale.discount.toDoubleOrNull() ?: 0.0
+            val sub = sale.subtotal.toDoubleOrNull() ?: 0.0
+            val effectiveSub = if (sub > 0.0) sub else (sale.totalAmount.toDoubleOrNull() ?: 0.0) + disc
+            val tot = sale.totalAmount.toDoubleOrNull() ?: 0.0
+            val bal = sale.balance.toDoubleOrNull() ?: 0.0
+            val paidAmt = (tot - bal).coerceAtLeast(0.0)
+            val customer = buildString {
+                append(sale.customerName.ifBlank { "Line Customer" })
+                if (!sale.route.isNullOrBlank()) append(" (Route: ${sale.route})")
+            }
+            ReceiptDisplayData(
+                title = "Tax Invoice / Bill",
+                saleId = sale.id,
+                date = FormatUtils.formatDateTimeForDisplay(sale.createdAt),
+                customerInfo = customer,
+                items = sale.items,
+                singleItemName = null,
+                subtotal = effectiveSub,
+                discount = disc,
+                total = tot,
+                paid = paidAmt,
+                due = bal,
+                paymentMethodSummary = "Cash: ${FormatUtils.formatCurrency(sale.cash)} | Bank: ${FormatUtils.formatCurrency(sale.bankAmount)}"
+            )
+        }
+        is SaleDetailData.Counter -> {
+            val sale = saleData.sale
+            val disc = sale.discount.toDoubleOrNull() ?: 0.0
+            val sub = sale.subtotal.toDoubleOrNull() ?: (sale.price.toDoubleOrNull() ?: (sale.totalAmount.toDoubleOrNull() ?: 0.0))
+            val effectiveSub = if (sub > 0.0) sub else (sale.totalAmount.toDoubleOrNull() ?: 0.0) + disc
+            val tot = sale.totalAmount.toDoubleOrNull() ?: 0.0
+            ReceiptDisplayData(
+                title = "Counter Sale Receipt",
+                saleId = sale.id,
+                date = FormatUtils.formatDateTimeForDisplay(sale.createdAt),
+                customerInfo = "Counter Customer (Walk-in)",
+                items = sale.items,
+                singleItemName = sale.item.ifBlank { "Counter Item" },
+                subtotal = effectiveSub,
+                discount = disc,
+                total = tot,
+                paid = tot,
+                due = 0.0,
+                paymentMethodSummary = "Method: ${sale.paymentMethod.uppercase()} | Cash: ${FormatUtils.formatCurrency(sale.cash)} | Bank: ${FormatUtils.formatCurrency(sale.bankAmount.ifBlank { sale.account })}"
+            )
+        }
+    }
+
+    fun shareReceipt() {
+        val text = buildString {
+            appendLine("==================================")
+            appendLine(companyProfile?.name?.ifBlank { "VYAVSA BUSINESS" } ?: "VYAVSA BUSINESS")
+            val address = companyProfile?.getEffectiveAddress()
+            if (!address.isNullOrBlank()) {
+                appendLine(address)
+            }
+            val phone = companyProfile?.phone
+            if (!phone.isNullOrBlank()) {
+                appendLine("Phone: $phone")
+            }
+            val email = companyProfile?.email
+            if (!email.isNullOrBlank()) {
+                appendLine("Email: $email")
+            }
+            appendLine("==================================")
+            appendLine(receiptData.title.uppercase())
+            appendLine("Bill ID: ${receiptData.saleId}")
+            appendLine("Date: ${receiptData.date}")
+            appendLine("Customer: ${receiptData.customerInfo}")
+            appendLine("----------------------------------")
+            if (receiptData.items.isNotEmpty()) {
+                appendLine("ITEMS:")
+                receiptData.items.forEach { item ->
+                    appendLine(" - ${item.productNameSnapshot}: ${item.quantity} x ${FormatUtils.formatCurrency(item.unitPrice)} = ${FormatUtils.formatCurrency(item.lineTotal)}")
+                }
+                appendLine("----------------------------------")
+            } else if (!receiptData.singleItemName.isNullOrBlank()) {
+                appendLine("Item: ${receiptData.singleItemName}")
+                appendLine("----------------------------------")
+            }
+            appendLine("Subtotal: ${FormatUtils.formatCurrency(receiptData.subtotal.toString())}")
+            if (receiptData.discount > 0.0) {
+                appendLine("Discount: -${FormatUtils.formatCurrency(receiptData.discount.toString())}")
+            }
+            appendLine("Total Payable: ${FormatUtils.formatCurrency(receiptData.total.toString())}")
+            appendLine("Amount Paid: ${FormatUtils.formatCurrency(receiptData.paid.toString())}")
+            if (receiptData.due > 0.0) {
+                appendLine("Balance Due: ${FormatUtils.formatCurrency(receiptData.due.toString())}")
+            } else {
+                appendLine("Payment Status: PAID IN FULL")
+            }
+            appendLine("Payment: ${receiptData.paymentMethodSummary}")
+            appendLine("==================================")
+            appendLine("Generated via Vyavsa Bill Book")
+        }
+
+        val sendIntent = Intent().apply {
+            action = Intent.ACTION_SEND
+            putExtra(Intent.EXTRA_TEXT, text)
+            type = "text/plain"
+        }
+        context.startActivity(Intent.createChooser(sendIntent, "Share Bill Receipt via"))
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .padding(vertical = 20.dp)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(24.dp))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState)
+                    .padding(20.dp)
+            ) {
+                // Company Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        CompanyLogoImage(
+                            logoUrl = companyProfile?.logoUrl,
+                            companyName = companyProfile?.name ?: "Vyavsa Business",
+                            size = 48.dp
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = companyProfile?.name?.ifBlank { "Vyavsa Business" } ?: "Vyavsa Business",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                            val phone = companyProfile?.phone
+                            if (!phone.isNullOrBlank()) {
+                                Text(
+                                    text = "Ph: $phone",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                )
+                            }
+                        }
+                    }
+
+                    IconButton(onClick = onDismiss) {
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                // Company Address Header
+                val effectiveAddress = companyProfile?.getEffectiveAddress()
+                if (!effectiveAddress.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = effectiveAddress,
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                                maxLines = 2,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Title & Status
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = receiptData.title,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                    if (receiptData.due <= 0.0) {
+                        StatBadge(text = "PAID IN FULL", backgroundColor = Emerald50, textColor = Emerald600)
+                    } else {
+                        StatBadge(text = "DUE: ${FormatUtils.formatCurrency(receiptData.due.toString())}", backgroundColor = Crimson50, textColor = Crimson600)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Invoice #: ${receiptData.saleId.take(16)}...",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+                Text(
+                    text = "Date: ${receiptData.date}",
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                )
+                Text(
+                    text = "Customer: ${receiptData.customerInfo}",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Items list or single item
+                if (receiptData.items.isNotEmpty()) {
+                    Text(
+                        text = "Items Billed",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    receiptData.items.forEach { item ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = item.productNameSnapshot,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "${item.quantity} × ${FormatUtils.formatCurrency(item.unitPrice)}",
+                                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                )
+                            }
+                            Text(
+                                text = FormatUtils.formatCurrency(item.lineTotal),
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    }
+                } else if (!receiptData.singleItemName.isNullOrBlank()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = receiptData.singleItemName,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                        )
+                        Text(
+                            text = FormatUtils.formatCurrency(receiptData.subtotal.toString()),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Financial Totals
+                FinancialRow(label = "Subtotal", value = FormatUtils.formatCurrency(receiptData.subtotal.toString()))
+
+                if (receiptData.discount > 0.0) {
+                    FinancialRow(
+                        label = "Discount",
+                        value = "-${FormatUtils.formatCurrency(receiptData.discount.toString())}",
+                        color = Emerald600,
+                        isBold = true
+                    )
+                }
+
+                FinancialRow(
+                    label = "Total Payable Amount",
+                    value = FormatUtils.formatCurrency(receiptData.total.toString()),
+                    isBold = true
+                )
+
+                FinancialRow(
+                    label = "Amount Paid",
+                    value = FormatUtils.formatCurrency(receiptData.paid.toString())
+                )
+
+                if (receiptData.due > 0.0) {
+                    FinancialRow(
+                        label = "Balance Due",
+                        value = FormatUtils.formatCurrency(receiptData.due.toString()),
+                        color = Crimson600,
+                        isBold = true
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = receiptData.paymentMethodSummary,
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Actions
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    VyavsaOutlinedButton(
+                        text = "Close",
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    )
+                    VyavsaOutlinedButton(
+                        text = "Share",
+                        leadingIcon = Icons.Default.Share,
+                        onClick = { shareReceipt() },
+                        modifier = Modifier.weight(1.1f)
+                    )
+                    VyavsaButton(
+                        text = "Print",
+                        leadingIcon = Icons.Default.Print,
+                        onClick = {
+                            onDismiss()
+                            onPrintClick()
+                        },
+                        modifier = Modifier.weight(1.1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
 

@@ -474,6 +474,15 @@ private fun LineSaleCard(
                         color = Emerald600
                     )
                 )
+                val disc = sale.discount.toDoubleOrNull() ?: 0.0
+                if (disc > 0.0) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    StatBadge(
+                        text = "Disc: -${FormatUtils.formatCurrency(sale.discount)}",
+                        backgroundColor = Emerald50,
+                        textColor = Emerald600
+                    )
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 val bal = sale.balance.toDoubleOrNull() ?: 0.0
                 if (bal > 0.0) {
@@ -555,6 +564,15 @@ private fun CounterSaleCard(
                         color = Emerald600
                     )
                 )
+                val disc = sale.discount.toDoubleOrNull() ?: 0.0
+                if (disc > 0.0) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    StatBadge(
+                        text = "Disc: -${FormatUtils.formatCurrency(sale.discount)}",
+                        backgroundColor = Emerald50,
+                        textColor = Emerald600
+                    )
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 StatBadge(
                     text = sale.paymentMethod.uppercase(),

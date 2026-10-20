@@ -3,6 +3,7 @@ package com.vyavsa.app.feature.transactions
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vyavsa.app.core.common.Resource
+import com.vyavsa.app.core.common.SaleCalculationUtils
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.BankPaymentSplit
 import com.vyavsa.app.core.model.CashTransaction
@@ -128,13 +129,25 @@ class TransactionsViewModel @Inject constructor(
     private fun observeRefreshEvents() {
         viewModelScope.launch {
             refreshCoordinator.refreshEvents.collect { mutation ->
+                val query = _searchQuery.value.ifBlank { null }
+                val date = _dateFilter.value?.ifBlank { null }
                 when (mutation) {
-                    DataMutation.SALES, DataMutation.EXPENSES, DataMutation.PURCHASES, DataMutation.CASH, DataMutation.ALL -> {
-                        loadData()
+                    DataMutation.SALES -> {
+                        loadLineSalesData(date, query)
+                        loadCounterSalesData(date, query)
+                        loadCashTransactionsData()
                         loadCustomers()
-                        loadBanks()
-                        loadEmployees()
-                        loadProducts()
+                    }
+                    DataMutation.PURCHASES -> {
+                        loadPurchasesData(date, query)
+                        loadCashTransactionsData()
+                    }
+                    DataMutation.EXPENSES -> {
+                        loadExpensesData(date, query)
+                        loadCashTransactionsData()
+                    }
+                    DataMutation.CASH -> {
+                        loadCashTransactionsData()
                     }
                     DataMutation.PRODUCTS -> {
                         loadProducts()
@@ -144,10 +157,17 @@ class TransactionsViewModel @Inject constructor(
                     }
                     DataMutation.DUES -> {
                         loadCustomers()
+                        loadLineSalesData(date, query)
                     }
                     DataMutation.STAFF -> {
                         loadEmployees()
+                    }
+                    DataMutation.ALL -> {
                         loadData()
+                        loadCustomers()
+                        loadBanks()
+                        loadEmployees()
+                        loadProducts()
                     }
                     else -> {}
                 }
@@ -156,7 +176,11 @@ class TransactionsViewModel @Inject constructor(
     }
 
     fun selectTab(tab: TransactionTab) {
+        val prev = _selectedTab.value
         _selectedTab.value = tab
+        if (prev != tab && (_searchQuery.value.isNotBlank() || _dateFilter.value != null)) {
+            loadFilterableData(activeTabOnly = true)
+        }
     }
 
     fun onSearchChange(query: String) {
@@ -164,22 +188,21 @@ class TransactionsViewModel @Inject constructor(
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             delay(220L)
-            loadFilterableData()
+            loadFilterableData(activeTabOnly = true)
         }
     }
 
     fun setDateFilter(date: String?) {
         _dateFilter.value = date
         searchJob?.cancel()
-        loadFilterableData()
+        loadFilterableData(activeTabOnly = true)
     }
 
-    private fun loadFilterableData() {
-        val query = _searchQuery.value.ifBlank { null }
-        val date = _dateFilter.value?.ifBlank { null }
-
+    fun loadLineSalesData(date: String? = null, query: String? = null) {
+        val q = query ?: _searchQuery.value.ifBlank { null }
+        val d = date ?: _dateFilter.value?.ifBlank { null }
         viewModelScope.launch {
-            repository.listLineSales(date = date, search = query).collect { res ->
+            repository.listLineSales(date = d, search = q).collect { res ->
                 _lineSalesState.value = when (res) {
                     is Resource.Loading -> if (_lineSalesState.value is UiState.Success) _lineSalesState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
@@ -187,9 +210,13 @@ class TransactionsViewModel @Inject constructor(
                 }
             }
         }
+    }
 
+    fun loadCounterSalesData(date: String? = null, query: String? = null) {
+        val q = query ?: _searchQuery.value.ifBlank { null }
+        val d = date ?: _dateFilter.value?.ifBlank { null }
         viewModelScope.launch {
-            repository.listCounterSales(date = date, search = query).collect { res ->
+            repository.listCounterSales(date = d, search = q).collect { res ->
                 _counterSalesState.value = when (res) {
                     is Resource.Loading -> if (_counterSalesState.value is UiState.Success) _counterSalesState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
@@ -197,9 +224,13 @@ class TransactionsViewModel @Inject constructor(
                 }
             }
         }
+    }
 
+    fun loadPurchasesData(date: String? = null, query: String? = null) {
+        val q = query ?: _searchQuery.value.ifBlank { null }
+        val d = date ?: _dateFilter.value?.ifBlank { null }
         viewModelScope.launch {
-            repository.listPurchases(date = date, search = query).collect { res ->
+            repository.listPurchases(date = d, search = q).collect { res ->
                 _purchasesState.value = when (res) {
                     is Resource.Loading -> if (_purchasesState.value is UiState.Success) _purchasesState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
@@ -207,9 +238,13 @@ class TransactionsViewModel @Inject constructor(
                 }
             }
         }
+    }
 
+    fun loadExpensesData(date: String? = null, query: String? = null) {
+        val q = query ?: _searchQuery.value.ifBlank { null }
+        val d = date ?: _dateFilter.value?.ifBlank { null }
         viewModelScope.launch {
-            repository.listExpenses(date = date, search = query).collect { res ->
+            repository.listExpenses(date = d, search = q).collect { res ->
                 _expensesState.value = when (res) {
                     is Resource.Loading -> if (_expensesState.value is UiState.Success) _expensesState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
@@ -219,9 +254,7 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 
-    fun loadData() {
-        loadFilterableData()
-
+    fun loadCashTransactionsData() {
         viewModelScope.launch {
             repository.listCashTransactions().collect { res ->
                 _cashTransactionsState.value = when (res) {
@@ -231,7 +264,9 @@ class TransactionsViewModel @Inject constructor(
                 }
             }
         }
+    }
 
+    fun loadBillingTransactionsData() {
         if (isAdmin) {
             viewModelScope.launch {
                 repository.listSubscriptionTransactions().collect { res ->
@@ -243,6 +278,44 @@ class TransactionsViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun loadFilterableData(activeTabOnly: Boolean = false) {
+        val query = _searchQuery.value.ifBlank { null }
+        val date = _dateFilter.value?.ifBlank { null }
+
+        if (!activeTabOnly) {
+            loadLineSalesData(date, query)
+            loadCounterSalesData(date, query)
+            loadPurchasesData(date, query)
+            loadExpensesData(date, query)
+            return
+        }
+
+        when (_selectedTab.value) {
+            TransactionTab.SALES -> {
+                loadLineSalesData(date, query)
+                loadCounterSalesData(date, query)
+            }
+            TransactionTab.PURCHASES -> {
+                loadPurchasesData(date, query)
+            }
+            TransactionTab.EXPENSES -> {
+                loadExpensesData(date, query)
+            }
+            TransactionTab.CASH_BOOK -> {
+                loadCashTransactionsData()
+            }
+            TransactionTab.BILLING -> {
+                loadBillingTransactionsData()
+            }
+        }
+    }
+
+    fun loadData() {
+        loadFilterableData(activeTabOnly = false)
+        loadCashTransactionsData()
+        loadBillingTransactionsData()
     }
 
     fun loadCustomers() {
@@ -291,30 +364,46 @@ class TransactionsViewModel @Inject constructor(
         bankId: String? = null,
         bankPayments: List<BankPaymentSplit> = emptyList(),
         note: String? = null,
-        items: List<SaleItemRequest> = emptyList()
+        items: List<SaleItemRequest> = emptyList(),
+        subtotal: String? = null,
+        discount: String? = null
     ) {
         if (_createActionState.value is UiState.Loading) return
+
+        if (customerId.isBlank()) {
+            _createActionState.value = UiState.Error("Customer and total amount are required")
+            return
+        }
 
         val calculatedItemsSubtotal = if (items.isNotEmpty()) {
             items.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
         } else null
 
-        val effectiveTotalAmount = if (calculatedItemsSubtotal != null && (totalAmount.isBlank() || (totalAmount.toDoubleOrNull() ?: 0.0) <= 0.0)) {
-            String.format(java.util.Locale.US, "%.2f", calculatedItemsSubtotal)
-        } else {
-            totalAmount.trim()
+        val rawSubtotal = when {
+            calculatedItemsSubtotal != null -> String.format(java.util.Locale.US, "%.2f", calculatedItemsSubtotal)
+            !subtotal.isNullOrBlank() -> subtotal.trim()
+            else -> totalAmount.trim()
         }
 
-        if (customerId.isBlank() || effectiveTotalAmount.isBlank()) {
+        if (rawSubtotal.isBlank()) {
             _createActionState.value = UiState.Error("Customer and total amount are required")
             return
         }
 
-        val total = effectiveTotalAmount.toDoubleOrNull()
-        if (total == null || total <= 0.0) {
+        val calcResult = SaleCalculationUtils.calculateResult(rawSubtotal, discount)
+        if (!calcResult.isValid) {
+            _createActionState.value = UiState.Error(calcResult.errorMessage ?: "Invalid discount or subtotal")
+            return
+        }
+
+        val subtotalVal = calcResult.subtotal.toDouble()
+        if (subtotalVal <= 0.0) {
             _createActionState.value = UiState.Error("Total invoice amount must be greater than zero")
             return
         }
+
+        val effectiveTotalAmount = calcResult.finalAmountString
+        val total = calcResult.finalAmount.toDouble()
 
         val cash = cashIn.trim().ifBlank { "0.00" }.toDoubleOrNull() ?: 0.0
         if (cash < 0.0) {
@@ -384,6 +473,9 @@ class TransactionsViewModel @Inject constructor(
                 customerId = customerId,
                 route = route?.trim()?.ifBlank { null },
                 salesman = salesman?.trim()?.ifBlank { null },
+                subtotal = calcResult.subtotalString,
+                discount = calcResult.discountString,
+                discountAmount = calcResult.discountString,
                 totalAmount = effectiveTotalAmount,
                 totalCashIn = cashIn.trim().ifBlank { "0.00" },
                 cashAmount = cashIn.trim().ifBlank { "0.00" },
@@ -414,7 +506,9 @@ class TransactionsViewModel @Inject constructor(
         bankAmount: String = "0.00",
         bankId: String? = null,
         bankPayments: List<BankPaymentSplit> = emptyList(),
-        items: List<SaleItemRequest> = emptyList()
+        items: List<SaleItemRequest> = emptyList(),
+        subtotal: String? = null,
+        discount: String? = null
     ) {
         if (_createActionState.value is UiState.Loading) return
 
@@ -422,23 +516,32 @@ class TransactionsViewModel @Inject constructor(
             items.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
         } else null
 
-        val effectiveTotalAmount = if (calculatedItemsSubtotal != null && (totalAmount.isBlank() || (totalAmount.toDoubleOrNull() ?: 0.0) <= 0.0)) {
-            String.format(java.util.Locale.US, "%.2f", calculatedItemsSubtotal)
-        } else {
-            totalAmount.trim()
+        val rawSubtotal = when {
+            calculatedItemsSubtotal != null -> String.format(java.util.Locale.US, "%.2f", calculatedItemsSubtotal)
+            !subtotal.isNullOrBlank() -> subtotal.trim()
+            else -> totalAmount.trim()
         }
 
         val trimmedItem = item.trim()
-        if ((trimmedItem.isBlank() && items.isEmpty()) || effectiveTotalAmount.isBlank()) {
+        if ((trimmedItem.isBlank() && items.isEmpty()) || rawSubtotal.isBlank()) {
             _createActionState.value = UiState.Error("Item description and total amount are required")
             return
         }
 
-        val total = effectiveTotalAmount.toDoubleOrNull()
-        if (total == null || total <= 0.0) {
+        val calcResult = SaleCalculationUtils.calculateResult(rawSubtotal, discount)
+        if (!calcResult.isValid) {
+            _createActionState.value = UiState.Error(calcResult.errorMessage ?: "Invalid discount or subtotal")
+            return
+        }
+
+        val subtotalVal = calcResult.subtotal.toDouble()
+        if (subtotalVal <= 0.0) {
             _createActionState.value = UiState.Error("Total sale amount must be greater than zero")
             return
         }
+
+        val effectiveTotalAmount = calcResult.finalAmountString
+        val total = calcResult.finalAmount.toDouble()
 
         val cashVal = cash.trim().ifBlank { "0.00" }.toDoubleOrNull() ?: 0.0
         if (cashVal < 0.0) {
@@ -502,13 +605,16 @@ class TransactionsViewModel @Inject constructor(
         }
 
         val method = if (cashVal > 0.0 && effectiveBankTotal > 0.0) "split" else if (effectiveBankTotal > 0.0) "bank" else "cash"
-        val itemPrice = price?.trim()?.ifBlank { effectiveTotalAmount } ?: effectiveTotalAmount
+        val itemPrice = price?.trim()?.ifBlank { calcResult.subtotalString } ?: calcResult.subtotalString
         val formattedBankAmount = String.format(java.util.Locale.US, "%.2f", effectiveBankTotal)
 
         viewModelScope.launch {
             val req = CreateCounterSaleRequest(
-                item = trimmedItem,
+                item = trimmedItem.ifBlank { if (items.isNotEmpty()) items.first().productId else "Sale Item" },
                 price = itemPrice,
+                subtotal = calcResult.subtotalString,
+                discount = calcResult.discountString,
+                discountAmount = calcResult.discountString,
                 totalAmount = effectiveTotalAmount,
                 paymentMethod = method,
                 cash = cash.trim().ifBlank { "0.00" },

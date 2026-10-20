@@ -61,4 +61,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindProductRepository(impl: com.vyavsa.app.feature.products.ProductRepositoryImpl): com.vyavsa.app.feature.products.ProductRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindThermalPrinterManager(impl: com.vyavsa.app.core.printer.BluetoothPrinterManager): com.vyavsa.app.core.printer.ThermalPrinterManager
 }
