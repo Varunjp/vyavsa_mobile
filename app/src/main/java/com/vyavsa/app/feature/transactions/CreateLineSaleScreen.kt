@@ -31,6 +31,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -207,6 +212,7 @@ fun CreateSaleScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.ime),
         topBar = {
             VyavsaTopAppBar(
                 title = if (selectedSaleType == SaleType.LINE_SALE) "Record Line Sale" else "Record Counter Sale",
@@ -224,7 +230,6 @@ fun CreateSaleScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .imePadding()
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
@@ -376,9 +381,8 @@ fun CreateSaleScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .imePadding()
                 .background(MaterialTheme.colorScheme.background)
+                .padding(paddingValues)
         ) {
             Column(
                 modifier = Modifier
@@ -709,7 +713,8 @@ fun CreateSaleScreen(
                                     onValueChange = { note = it },
                                     label = "Note / Dispatch Reference",
                                     placeholder = "Optional delivery remarks",
-                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
                                 )
 
                                 Spacer(modifier = Modifier.height(20.dp))

@@ -129,13 +129,25 @@ class TransactionsViewModel @Inject constructor(
     private fun observeRefreshEvents() {
         viewModelScope.launch {
             refreshCoordinator.refreshEvents.collect { mutation ->
+                val query = _searchQuery.value.ifBlank { null }
+                val date = _dateFilter.value?.ifBlank { null }
                 when (mutation) {
-                    DataMutation.SALES, DataMutation.EXPENSES, DataMutation.PURCHASES, DataMutation.CASH, DataMutation.ALL -> {
-                        loadData()
+                    DataMutation.SALES -> {
+                        loadLineSalesData(date, query)
+                        loadCounterSalesData(date, query)
+                        loadCashTransactionsData()
                         loadCustomers()
-                        loadBanks()
-                        loadEmployees()
-                        loadProducts()
+                    }
+                    DataMutation.PURCHASES -> {
+                        loadPurchasesData(date, query)
+                        loadCashTransactionsData()
+                    }
+                    DataMutation.EXPENSES -> {
+                        loadExpensesData(date, query)
+                        loadCashTransactionsData()
+                    }
+                    DataMutation.CASH -> {
+                        loadCashTransactionsData()
                     }
                     DataMutation.PRODUCTS -> {
                         loadProducts()
@@ -145,10 +157,17 @@ class TransactionsViewModel @Inject constructor(
                     }
                     DataMutation.DUES -> {
                         loadCustomers()
+                        loadLineSalesData(date, query)
                     }
                     DataMutation.STAFF -> {
                         loadEmployees()
+                    }
+                    DataMutation.ALL -> {
                         loadData()
+                        loadCustomers()
+                        loadBanks()
+                        loadEmployees()
+                        loadProducts()
                     }
                     else -> {}
                 }
@@ -157,7 +176,11 @@ class TransactionsViewModel @Inject constructor(
     }
 
     fun selectTab(tab: TransactionTab) {
+        val prev = _selectedTab.value
         _selectedTab.value = tab
+        if (prev != tab && (_searchQuery.value.isNotBlank() || _dateFilter.value != null)) {
+            loadFilterableData(activeTabOnly = true)
+        }
     }
 
     fun onSearchChange(query: String) {
@@ -165,22 +188,21 @@ class TransactionsViewModel @Inject constructor(
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             delay(220L)
-            loadFilterableData()
+            loadFilterableData(activeTabOnly = true)
         }
     }
 
     fun setDateFilter(date: String?) {
         _dateFilter.value = date
         searchJob?.cancel()
-        loadFilterableData()
+        loadFilterableData(activeTabOnly = true)
     }
 
-    private fun loadFilterableData() {
-        val query = _searchQuery.value.ifBlank { null }
-        val date = _dateFilter.value?.ifBlank { null }
-
+    fun loadLineSalesData(date: String? = null, query: String? = null) {
+        val q = query ?: _searchQuery.value.ifBlank { null }
+        val d = date ?: _dateFilter.value?.ifBlank { null }
         viewModelScope.launch {
-            repository.listLineSales(date = date, search = query).collect { res ->
+            repository.listLineSales(date = d, search = q).collect { res ->
                 _lineSalesState.value = when (res) {
                     is Resource.Loading -> if (_lineSalesState.value is UiState.Success) _lineSalesState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
@@ -188,9 +210,13 @@ class TransactionsViewModel @Inject constructor(
                 }
             }
         }
+    }
 
+    fun loadCounterSalesData(date: String? = null, query: String? = null) {
+        val q = query ?: _searchQuery.value.ifBlank { null }
+        val d = date ?: _dateFilter.value?.ifBlank { null }
         viewModelScope.launch {
-            repository.listCounterSales(date = date, search = query).collect { res ->
+            repository.listCounterSales(date = d, search = q).collect { res ->
                 _counterSalesState.value = when (res) {
                     is Resource.Loading -> if (_counterSalesState.value is UiState.Success) _counterSalesState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
@@ -198,9 +224,13 @@ class TransactionsViewModel @Inject constructor(
                 }
             }
         }
+    }
 
+    fun loadPurchasesData(date: String? = null, query: String? = null) {
+        val q = query ?: _searchQuery.value.ifBlank { null }
+        val d = date ?: _dateFilter.value?.ifBlank { null }
         viewModelScope.launch {
-            repository.listPurchases(date = date, search = query).collect { res ->
+            repository.listPurchases(date = d, search = q).collect { res ->
                 _purchasesState.value = when (res) {
                     is Resource.Loading -> if (_purchasesState.value is UiState.Success) _purchasesState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
@@ -208,9 +238,13 @@ class TransactionsViewModel @Inject constructor(
                 }
             }
         }
+    }
 
+    fun loadExpensesData(date: String? = null, query: String? = null) {
+        val q = query ?: _searchQuery.value.ifBlank { null }
+        val d = date ?: _dateFilter.value?.ifBlank { null }
         viewModelScope.launch {
-            repository.listExpenses(date = date, search = query).collect { res ->
+            repository.listExpenses(date = d, search = q).collect { res ->
                 _expensesState.value = when (res) {
                     is Resource.Loading -> if (_expensesState.value is UiState.Success) _expensesState.value else UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
@@ -220,9 +254,7 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 
-    fun loadData() {
-        loadFilterableData()
-
+    fun loadCashTransactionsData() {
         viewModelScope.launch {
             repository.listCashTransactions().collect { res ->
                 _cashTransactionsState.value = when (res) {
@@ -232,7 +264,9 @@ class TransactionsViewModel @Inject constructor(
                 }
             }
         }
+    }
 
+    fun loadBillingTransactionsData() {
         if (isAdmin) {
             viewModelScope.launch {
                 repository.listSubscriptionTransactions().collect { res ->
@@ -244,6 +278,44 @@ class TransactionsViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun loadFilterableData(activeTabOnly: Boolean = false) {
+        val query = _searchQuery.value.ifBlank { null }
+        val date = _dateFilter.value?.ifBlank { null }
+
+        if (!activeTabOnly) {
+            loadLineSalesData(date, query)
+            loadCounterSalesData(date, query)
+            loadPurchasesData(date, query)
+            loadExpensesData(date, query)
+            return
+        }
+
+        when (_selectedTab.value) {
+            TransactionTab.SALES -> {
+                loadLineSalesData(date, query)
+                loadCounterSalesData(date, query)
+            }
+            TransactionTab.PURCHASES -> {
+                loadPurchasesData(date, query)
+            }
+            TransactionTab.EXPENSES -> {
+                loadExpensesData(date, query)
+            }
+            TransactionTab.CASH_BOOK -> {
+                loadCashTransactionsData()
+            }
+            TransactionTab.BILLING -> {
+                loadBillingTransactionsData()
+            }
+        }
+    }
+
+    fun loadData() {
+        loadFilterableData(activeTabOnly = false)
+        loadCashTransactionsData()
+        loadBillingTransactionsData()
     }
 
     fun loadCustomers() {

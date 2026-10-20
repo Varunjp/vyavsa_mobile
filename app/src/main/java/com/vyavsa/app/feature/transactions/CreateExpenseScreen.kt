@@ -144,9 +144,9 @@ fun CreateExpenseScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
                 .padding(paddingValues)
                 .imePadding()
-                .background(MaterialTheme.colorScheme.background)
         ) {
             Column(
                 modifier = Modifier

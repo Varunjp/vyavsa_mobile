@@ -40,13 +40,24 @@ class DashboardViewModel @Inject constructor(
 
     private fun observeRefreshEvents() {
         viewModelScope.launch {
-            refreshCoordinator.refreshEvents.collect {
-                loadDashboard()
+            refreshCoordinator.refreshEvents.collect { mutation ->
+                when (mutation) {
+                    DataMutation.SALES, DataMutation.EXPENSES, DataMutation.PURCHASES, DataMutation.CASH, DataMutation.DUES -> {
+                        loadMetrics()
+                    }
+                    DataMutation.PROFILE -> {
+                        loadProfile()
+                    }
+                    DataMutation.ALL -> {
+                        loadDashboard()
+                    }
+                    else -> Unit
+                }
             }
         }
     }
 
-    fun loadDashboard() {
+    fun loadMetrics() {
         viewModelScope.launch {
             repository.getDashboardMetrics().collect { resource ->
                 _metricsState.value = when (resource) {
@@ -56,6 +67,9 @@ class DashboardViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun loadSubscription() {
         viewModelScope.launch {
             repository.getSubscription().collect { resource ->
                 _subscriptionState.value = when (resource) {
@@ -65,6 +79,9 @@ class DashboardViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun loadProfile() {
         viewModelScope.launch {
             repository.getProfile().collect { resource ->
                 _profileState.value = when (resource) {
@@ -74,5 +91,11 @@ class DashboardViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun loadDashboard() {
+        loadMetrics()
+        loadSubscription()
+        loadProfile()
     }
 }

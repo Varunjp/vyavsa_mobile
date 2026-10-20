@@ -29,10 +29,12 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
+import com.vyavsa.app.core.printer.ThermalPrintDialog
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -98,8 +100,17 @@ fun SaleDetailsScreen(
     val banks by viewModel.banksState.collectAsState()
     val companyProfile by viewModel.companyProfile.collectAsState()
 
+    val printJobState by viewModel.printJobState.collectAsState()
+    val pairedPrinters by viewModel.pairedPrinters.collectAsState()
+    val usbPrinters by viewModel.usbPrinters.collectAsState()
+    val selectedConnectionType by viewModel.selectedConnectionType.collectAsState()
+    val networkPrinterIp by viewModel.networkPrinterIp.collectAsState()
+    val selectedPrinter by viewModel.selectedPrinter.collectAsState()
+    val paperWidth by viewModel.paperWidth.collectAsState()
+
     var showPaymentDialog by remember { mutableStateOf(false) }
     var showReceiptDialog by remember { mutableStateOf(false) }
+    var showPrintDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -145,14 +156,16 @@ fun SaleDetailsScreen(
                             LineSaleDetailsContent(
                                 sale = data.sale,
                                 onRecordPaymentClick = { showPaymentDialog = true },
-                                onShowReceiptClick = { showReceiptDialog = true }
+                                onShowReceiptClick = { showReceiptDialog = true },
+                                onPrintClick = { showPrintDialog = true }
                             )
                         }
                         is SaleDetailData.Counter -> {
                             CounterSaleDetailsContent(
                                 sale = data.sale,
                                 onRecordPaymentClick = { showPaymentDialog = true },
-                                onShowReceiptClick = { showReceiptDialog = true }
+                                onShowReceiptClick = { showReceiptDialog = true },
+                                onPrintClick = { showPrintDialog = true }
                             )
                         }
                     }
@@ -191,11 +204,36 @@ fun SaleDetailsScreen(
                 InvoiceReceiptDialog(
                     saleData = state.data,
                     companyProfile = companyProfile,
+                    onPrintClick = { showPrintDialog = true },
                     onDismiss = { showReceiptDialog = false }
                 )
             }
             else -> {}
         }
+    }
+
+    if (showPrintDialog) {
+        ThermalPrintDialog(
+            printJobState = printJobState,
+            pairedPrinters = pairedPrinters,
+            usbPrinters = usbPrinters,
+            selectedConnectionType = selectedConnectionType,
+            networkPrinterIp = networkPrinterIp,
+            selectedPrinter = selectedPrinter,
+            paperWidth = paperWidth,
+            hasCompanyLogo = !companyProfile?.logoUrl.isNullOrBlank(),
+            receiptPreviewText = viewModel.getReceiptPreviewText(),
+            onSelectConnectionType = { viewModel.setConnectionType(it) },
+            onSetNetworkPrinterIp = { viewModel.setNetworkPrinterIp(it) },
+            onSelectPrinter = { viewModel.selectPrinter(it) },
+            onSelectPaperWidth = { viewModel.setPaperWidth(it) },
+            onRefreshPrinters = { viewModel.refreshPrinters() },
+            onPrintClick = { viewModel.printInvoice() },
+            onDismiss = {
+                showPrintDialog = false
+                viewModel.resetPrintJobState()
+            }
+        )
     }
 }
 
@@ -203,7 +241,8 @@ fun SaleDetailsScreen(
 private fun LineSaleDetailsContent(
     sale: LineSale,
     onRecordPaymentClick: () -> Unit,
-    onShowReceiptClick: () -> Unit
+    onShowReceiptClick: () -> Unit,
+    onPrintClick: () -> Unit
 ) {
     val scrollState = rememberScrollState()
     val balanceDue = sale.balance.toDoubleOrNull() ?: 0.0
@@ -356,12 +395,23 @@ private fun LineSaleDetailsContent(
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))
-                VyavsaOutlinedButton(
-                    text = "View Bill / Invoice Receipt",
-                    leadingIcon = Icons.Default.ReceiptLong,
-                    onClick = onShowReceiptClick,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    VyavsaOutlinedButton(
+                        text = "View Bill",
+                        leadingIcon = Icons.Default.ReceiptLong,
+                        onClick = onShowReceiptClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                    VyavsaButton(
+                        text = "Print Invoice",
+                        leadingIcon = Icons.Default.Print,
+                        onClick = onPrintClick,
+                        modifier = Modifier.weight(1.2f)
+                    )
+                }
 
                 if (!isFullyPaid) {
                     Spacer(modifier = Modifier.height(12.dp))
@@ -384,7 +434,8 @@ private fun LineSaleDetailsContent(
 private fun CounterSaleDetailsContent(
     sale: CounterSale,
     onRecordPaymentClick: () -> Unit,
-    onShowReceiptClick: () -> Unit
+    onShowReceiptClick: () -> Unit,
+    onPrintClick: () -> Unit
 ) {
     val scrollState = rememberScrollState()
 
@@ -478,12 +529,23 @@ private fun CounterSaleDetailsContent(
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))
-                VyavsaOutlinedButton(
-                    text = "View Bill / Invoice Receipt",
-                    leadingIcon = Icons.Default.ReceiptLong,
-                    onClick = onShowReceiptClick,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    VyavsaOutlinedButton(
+                        text = "View Bill",
+                        leadingIcon = Icons.Default.ReceiptLong,
+                        onClick = onShowReceiptClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                    VyavsaButton(
+                        text = "Print Invoice",
+                        leadingIcon = Icons.Default.Print,
+                        onClick = onPrintClick,
+                        modifier = Modifier.weight(1.2f)
+                    )
+                }
             }
         }
 
@@ -937,6 +999,7 @@ private data class ReceiptDisplayData(
 private fun InvoiceReceiptDialog(
     saleData: SaleDetailData,
     companyProfile: TenantProfile?,
+    onPrintClick: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1271,18 +1334,27 @@ private fun InvoiceReceiptDialog(
                 // Actions
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     VyavsaOutlinedButton(
                         text = "Close",
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f)
                     )
-                    VyavsaButton(
-                        text = "Share Receipt",
+                    VyavsaOutlinedButton(
+                        text = "Share",
                         leadingIcon = Icons.Default.Share,
                         onClick = { shareReceipt() },
-                        modifier = Modifier.weight(1.5f)
+                        modifier = Modifier.weight(1.1f)
+                    )
+                    VyavsaButton(
+                        text = "Print",
+                        leadingIcon = Icons.Default.Print,
+                        onClick = {
+                            onDismiss()
+                            onPrintClick()
+                        },
+                        modifier = Modifier.weight(1.1f)
                     )
                 }
             }
