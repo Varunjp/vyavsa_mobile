@@ -14,6 +14,8 @@ import javax.inject.Singleton
 
 interface DashboardRepository {
     fun getDashboardMetrics(): Flow<Resource<FinancialMetrics>>
+    fun getSalesDashboard(date: String? = null): Flow<Resource<com.vyavsa.app.core.model.SalesDashboardResponse>>
+    fun getOfficeDashboard(date: String? = null): Flow<Resource<com.vyavsa.app.core.model.OfficeDashboardResponse>>
     fun getProfile(): Flow<Resource<TenantProfile>>
     fun getSubscription(): Flow<Resource<TenantSubscription>>
 }
@@ -34,6 +36,34 @@ class DashboardRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             emit(Resource.Error(e.message ?: "Network error loading dashboard"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun getSalesDashboard(date: String?): Flow<Resource<com.vyavsa.app.core.model.SalesDashboardResponse>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.getSalesDashboard(date)
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data))
+            } else {
+                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load sales dashboard", response.error?.code))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error loading sales dashboard"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun getOfficeDashboard(date: String?): Flow<Resource<com.vyavsa.app.core.model.OfficeDashboardResponse>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.getOfficeDashboard(date)
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data))
+            } else {
+                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load office dashboard", response.error?.code))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error loading office dashboard"))
         }
     }.flowOn(Dispatchers.IO)
 

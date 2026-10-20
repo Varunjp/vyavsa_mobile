@@ -5,6 +5,8 @@ import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.FinancialMetrics
 import com.vyavsa.app.core.model.LineSale
+import com.vyavsa.app.core.model.OfficeDashboardResponse
+import com.vyavsa.app.core.model.SalesDashboardResponse
 import com.vyavsa.app.core.model.TenantProfile
 import com.vyavsa.app.core.model.TenantSubscription
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
@@ -22,6 +24,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -70,6 +73,8 @@ class FakeDashboardRepository(
     var profile: TenantProfile? = null
 ) : com.vyavsa.app.feature.dashboard.DashboardRepository {
     override fun getDashboardMetrics(): Flow<Resource<FinancialMetrics>> = flow {}
+    override fun getSalesDashboard(date: String?): Flow<Resource<SalesDashboardResponse>> = flow {}
+    override fun getOfficeDashboard(date: String?): Flow<Resource<OfficeDashboardResponse>> = flow {}
     override fun getProfile(): Flow<Resource<TenantProfile>> = flow {
         val p = profile
         if (p != null) {
@@ -365,6 +370,7 @@ class SaleDetailsViewModelPrinterTest {
         assertEquals("/uploads/logos/store_logo.png", printData?.logoUrl)
 
         val preview = viewModel.getReceiptPreviewText()
-        assertTrue(preview.contains("[ COMPANY LOGO ]"))
+        assertFalse(preview.contains("[ COMPANY LOGO ]"))
+        assertTrue(preview.contains("RAMESH GENERAL STORE"))
     }
 }

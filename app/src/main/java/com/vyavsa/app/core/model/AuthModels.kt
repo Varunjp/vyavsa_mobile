@@ -32,6 +32,26 @@ data class TokenResponse(
 )
 
 @Immutable
+enum class UserRole {
+    ADMIN,
+    SALES,
+    OFFICE,
+    USER;
+
+    companion object {
+        fun fromString(role: String?): UserRole {
+            return when (role?.lowercase()?.trim()) {
+                "sales" -> SALES
+                "office" -> OFFICE
+                "admin", "tenant_admin", "platform_admin" -> ADMIN
+                "user", "tenant_user" -> USER
+                else -> ADMIN
+            }
+        }
+    }
+}
+
+@Immutable
 @Serializable
 data class UserProfile(
     val id: String = "",
@@ -40,7 +60,10 @@ data class UserProfile(
     val role: String = "",
     @SerialName("user_type") val userType: String = "",
     @SerialName("tenant_id") val tenantId: String? = null
-)
+) {
+    val userRole: UserRole
+        get() = UserRole.fromString(role)
+}
 
 @Serializable
 data class RefreshTokenRequest(

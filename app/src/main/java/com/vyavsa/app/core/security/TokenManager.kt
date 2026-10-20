@@ -23,19 +23,25 @@ sealed interface SessionState {
 }
 
 @Singleton
-class TokenManager @Inject constructor(
-    @ApplicationContext private val context: Context
+open class TokenManager(
+    private val context: Context? = null,
+    private val customPrefs: SharedPreferences? = null
 ) {
+    @Inject
+    constructor(@ApplicationContext context: Context) : this(context, null)
+
     private val json = Json { ignoreUnknownKeys = true }
 
-    private val prefs: SharedPreferences by lazy {
+    private val prefs: SharedPreferences? by lazy {
+        if (customPrefs != null) return@lazy customPrefs
+        val ctx = context ?: return@lazy null
         try {
-            val masterKey = MasterKey.Builder(context)
+            val masterKey = MasterKey.Builder(ctx)
                 .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
                 .build()
 
             EncryptedSharedPreferences.create(
-                context,
+                ctx,
                 "vyavsa_secure_prefs",
                 masterKey,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
@@ -43,7 +49,7 @@ class TokenManager @Inject constructor(
             )
         } catch (e: Exception) {
             // Fallback to standard private mode preferences if hardware keystore error occurs
-            context.getSharedPreferences("vyavsa_fallback_prefs", Context.MODE_PRIVATE)
+            ctx.getSharedPreferences("vyavsa_fallback_prefs", Context.MODE_PRIVATE)
         }
     }
 
@@ -64,10 +70,11 @@ class TokenManager @Inject constructor(
         restoreSession()
     }
 
-    fun restoreSession() {
-        val accessToken = prefs.getString(KEY_ACCESS_TOKEN, null)
-        val refreshToken = prefs.getString(KEY_REFRESH_TOKEN, null)
-        val userJson = prefs.getString(KEY_USER_PROFILE, null)
+    open fun restoreSession() {
+        val p = prefs ?: return
+        val accessToken = p.getString(KEY_ACCESS_TOKEN, null)
+        val refreshToken = p.getString(KEY_REFRESH_TOKEN, null)
+        val userJson = p.getString(KEY_USER_PROFILE, null)
         cachedAccessToken = accessToken
         cachedRefreshToken = refreshToken
 
@@ -86,38 +93,38 @@ class TokenManager @Inject constructor(
         }
     }
 
-    fun saveSession(tokenResponse: TokenResponse) {
+    open fun saveSession(tokenResponse: TokenResponse) {
         cachedAccessToken = tokenResponse.accessToken
         cachedRefreshToken = tokenResponse.refreshToken
         cachedUserProfile = tokenResponse.user
-        prefs.edit()
-            .putString(KEY_ACCESS_TOKEN, tokenResponse.accessToken)
-            .putString(KEY_REFRESH_TOKEN, tokenResponse.refreshToken)
-            .putString(KEY_USER_PROFILE, json.encodeToString(tokenResponse.user))
-            .apply()
+        prefs?.edit()
+            ?.putString(KEY_ACCESS_TOKEN, tokenResponse.accessToken)
+            ?.putString(KEY_REFRESH_TOKEN, tokenResponse.refreshToken)
+            ?.putString(KEY_USER_PROFILE, json.encodeToString(tokenResponse.user))
+            ?.apply()
         _sessionState.value = SessionState.Authenticated(tokenResponse.user)
     }
 
-    fun updateTokens(accessToken: String, refreshToken: String) {
+    open fun updateTokens(accessToken: String, refreshToken: String) {
         cachedAccessToken = accessToken
         cachedRefreshToken = refreshToken
-        prefs.edit()
-            .putString(KEY_ACCESS_TOKEN, accessToken)
-            .putString(KEY_REFRESH_TOKEN, refreshToken)
-            .apply()
+        prefs?.edit()
+            ?.putString(KEY_ACCESS_TOKEN, accessToken)
+            ?.putString(KEY_REFRESH_TOKEN, refreshToken)
+            ?.apply()
     }
 
-    fun getAccessToken(): String? = cachedAccessToken ?: prefs.getString(KEY_ACCESS_TOKEN, null)?.also {
+    open fun getAccessToken(): String? = cachedAccessToken ?: prefs?.getString(KEY_ACCESS_TOKEN, null)?.also {
         cachedAccessToken = it
     }
 
-    fun getRefreshToken(): String? = cachedRefreshToken ?: prefs.getString(KEY_REFRESH_TOKEN, null)?.also {
+    open fun getRefreshToken(): String? = cachedRefreshToken ?: prefs?.getString(KEY_REFRESH_TOKEN, null)?.also {
         cachedRefreshToken = it
     }
 
-    fun getUserProfile(): UserProfile? {
+    open fun getUserProfile(): UserProfile? {
         cachedUserProfile?.let { return it }
-        val userJson = prefs.getString(KEY_USER_PROFILE, null) ?: return null
+        val userJson = prefs?.getString(KEY_USER_PROFILE, null) ?: return null
         return try {
             json.decodeFromString<UserProfile>(userJson).also {
                 cachedUserProfile = it
@@ -127,16 +134,42 @@ class TokenManager @Inject constructor(
         }
     }
 
-    fun isTenantAdmin(): Boolean {
-        val role = getUserProfile()?.role
-        return role == "tenant_admin" || role == "admin"
+    open fun getUserRole(): com.vyavsa.app.core.model.UserRole {
+        return getUserProfile()?.userRole ?: com.vyavsa.app.core.model.UserRole.ADMIN
     }
 
-    fun clearSession() {
+    open fun isTenantAdmin(): Boolean {
+        val role = getUserRole()
+        val rawRole = getUserProfile()?.role
+        return role == com.vyavsa.app.core.model.UserRole.ADMIN || rawRole == "tenant_admin" || rawRole == "admin"
+    }
+
+    open fun isSales(): Boolean = getUserRole() == com.vyavsa.app.core.model.UserRole.SALES
+
+    open fun isOffice(): Boolean = getUserRole() == com.vyavsa.app.core.model.UserRole.OFFICE
+
+    open fun isAdminOrUser(): Boolean {
+        val role = getUserRole()
+        return role == com.vyavsa.app.core.model.UserRole.ADMIN || role == com.vyavsa.app.core.model.UserRole.USER
+    }
+
+    open fun canAccessLineSales(): Boolean = !isOffice()
+
+    open fun canAccessCounterSales(): Boolean = !isSales()
+
+    open fun canAccessPurchases(): Boolean = !isSales()
+
+    open fun canAccessExpenses(): Boolean = !isSales()
+
+    open fun canAccessStaff(): Boolean = !isSales()
+
+    open fun canAccessTenantManagement(): Boolean = isTenantAdmin()
+
+    open fun clearSession() {
         cachedAccessToken = null
         cachedRefreshToken = null
         cachedUserProfile = null
-        prefs.edit().clear().apply()
+        prefs?.edit()?.clear()?.apply()
         _sessionState.value = SessionState.Unauthenticated
     }
 

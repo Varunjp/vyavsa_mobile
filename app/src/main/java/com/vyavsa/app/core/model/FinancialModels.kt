@@ -152,6 +152,8 @@ data class TenantProfile(
     val country: String? = null,
     @SerialName("formatted_address") val formattedAddress: String? = null,
     val address: String? = null,
+    @SerialName("invoice_footer_heading") val invoiceFooterHeading: String? = null,
+    @SerialName("invoice_footer_paragraph") val invoiceFooterParagraph: String? = null,
     val status: String = "active",
     @SerialName("created_at") val createdAt: String = ""
 ) {
@@ -179,6 +181,14 @@ data class TenantProfile(
 
         return if (parts.isNotEmpty()) parts.joinToString(", ") else null
     }
+
+    fun getEffectiveFooterHeading(): String {
+        return invoiceFooterHeading?.trim()?.ifBlank { null } ?: "Thank You for Your Business!"
+    }
+
+    fun getEffectiveFooterParagraph(): String {
+        return invoiceFooterParagraph?.trim()?.ifBlank { null } ?: "Thank you for choosing us. We appreciate your trust and look forward to serving you again."
+    }
 }
 
 @Serializable
@@ -192,5 +202,35 @@ data class UpdateTenantProfileRequest(
     val city: String? = null,
     val state: String? = null,
     @SerialName("postal_code") val postalCode: String? = null,
-    val country: String? = null
+    val country: String? = null,
+    @SerialName("invoice_footer_heading") val invoiceFooterHeading: String? = null,
+    @SerialName("invoice_footer_paragraph") val invoiceFooterParagraph: String? = null
+)
+
+@Immutable
+@Serializable
+data class SalesDashboardResponse(
+    @SerialName("business_date") val businessDate: String = "",
+    val currency: String = "INR",
+    @SerialName("total_cash_collected") val totalCashCollected: String = "0.00",
+    @SerialName("total_bank_received") val totalBankReceived: String = "0.00",
+    @SerialName("total_sales_count") val totalSalesCount: Long = 0,
+    @SerialName("total_sales_amount") val totalSalesAmount: String = "0.00",
+    @SerialName("outstanding_dues") val outstandingDues: String = "0.00"
+)
+
+@Immutable
+@Serializable
+data class OfficeDashboardResponse(
+    @SerialName("business_date") val businessDate: String = "",
+    val currency: String = "INR",
+    @SerialName("total_cash_collected") val totalCashCollected: String = "0.00",
+    @SerialName("total_bank_received") val totalBankReceived: String = "0.00",
+    @SerialName("total_attendance") val totalAttendance: Int = 0,
+    @SerialName("present_count") val presentCount: Int = 0,
+    @SerialName("absent_count") val absentCount: Int = 0,
+    @SerialName("half_day_count") val halfDayCount: Int = 0,
+    @SerialName("total_active_employees") val totalActiveEmployees: Int = 0,
+    @SerialName("total_sales_count") val totalSalesCount: Long = 0,
+    @SerialName("total_sales_amount") val totalSalesAmount: String = "0.00"
 )

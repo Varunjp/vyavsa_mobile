@@ -886,6 +886,140 @@ class TransactionsViewModelTest {
         assertEquals(1, data.size)
         assertEquals("Today Item", data[0].item)
     }
+
+    @Test
+    fun testOpenPrintDialogForLineSalePopulatesPrintData() = runTest {
+        val sale = LineSale(
+            id = "sale-101",
+            customerName = "Ramesh Kumar",
+            totalAmount = "500.00",
+            discount = "50.00",
+            collectedAmount = "450.00",
+            balance = "0.00"
+        )
+
+        assertNull(viewModel.activePrintDialogData.value)
+        viewModel.openPrintDialogForLineSale(sale)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val data = viewModel.activePrintDialogData.value
+        assertNotNull(data)
+        assertEquals("sale-101", data?.invoiceNumber)
+        assertEquals("Ramesh Kumar", data?.customerName)
+        assertEquals(500.0, data?.totalAmount ?: 0.0, 0.01)
+
+        viewModel.dismissPrintDialog()
+        assertNull(viewModel.activePrintDialogData.value)
+    }
+
+    @Test
+    fun testOpenPrintDialogForCounterSalePopulatesPrintData() = runTest {
+        val sale = CounterSale(
+            id = "csale-202",
+            item = "Biscuits Box",
+            totalAmount = "250.00",
+            discount = "0.00",
+            cash = "250.00",
+            account = "0.00"
+        )
+
+        assertNull(viewModel.activePrintDialogData.value)
+        viewModel.openPrintDialogForCounterSale(sale)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val data = viewModel.activePrintDialogData.value
+        assertNotNull(data)
+        assertEquals("csale-202", data?.invoiceNumber)
+        assertEquals("Walk-in Counter Customer", data?.customerName)
+        assertEquals(250.0, data?.totalAmount ?: 0.0, 0.01)
+
+        viewModel.dismissPrintDialog()
+        assertNull(viewModel.activePrintDialogData.value)
+    }
+
+    @Test
+    fun testOpenPrintDialogForLineSaleFetchesItemsFromRepositoryWhenEmpty() = runTest {
+        val fullSaleWithItems = LineSale(
+            id = "sale-full-1",
+            customerName = "Full Store",
+            totalAmount = "800.00",
+            items = listOf(
+                com.vyavsa.app.core.model.SaleItem(
+                    id = "si-1",
+                    productNameSnapshot = "Wheat Flour 10kg",
+                    quantity = "2",
+                    unitPrice = "300.00",
+                    lineTotal = "600.00"
+                ),
+                com.vyavsa.app.core.model.SaleItem(
+                    id = "si-2",
+                    productNameSnapshot = "Mustard Oil 1L",
+                    quantity = "1",
+                    unitPrice = "200.00",
+                    lineTotal = "200.00"
+                )
+            )
+        )
+        fakeRepo.lineSales.add(fullSaleWithItems)
+
+        // Sales list item has empty items list
+        val listSaleItem = LineSale(
+            id = "sale-full-1",
+            customerName = "Full Store",
+            totalAmount = "800.00",
+            items = emptyList()
+        )
+
+        viewModel.openPrintDialogForLineSale(listSaleItem)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val data = viewModel.activePrintDialogData.value
+        assertNotNull(data)
+        assertEquals(2, data?.items?.size)
+        assertEquals("Wheat Flour 10kg", data?.items?.get(0)?.name)
+        assertEquals("2", data?.items?.get(0)?.quantity)
+        assertEquals("Mustard Oil 1L", data?.items?.get(1)?.name)
+        assertEquals(800.0, data?.totalAmount ?: 0.0, 0.01)
+    }
+
+    @Test
+    fun testOpenPrintDialogForCounterSaleFetchesItemsFromRepositoryWhenEmpty() = runTest {
+        val fullCounterSaleWithItems = CounterSale(
+            id = "csale-full-1",
+            item = "",
+            totalAmount = "350.00",
+            cash = "350.00",
+            items = listOf(
+                com.vyavsa.app.core.model.SaleItem(
+                    id = "csi-1",
+                    productNameSnapshot = "Basmati Rice 5kg",
+                    quantity = "1",
+                    unitPrice = "350.00",
+                    lineTotal = "350.00"
+                )
+            )
+        )
+        fakeRepo.counterSales.add(fullCounterSaleWithItems)
+
+        // List item has empty items
+        val listCounterItem = CounterSale(
+            id = "csale-full-1",
+            item = "",
+            totalAmount = "350.00",
+            cash = "350.00",
+            items = emptyList()
+        )
+
+        viewModel.openPrintDialogForCounterSale(listCounterItem)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val data = viewModel.activePrintDialogData.value
+        assertNotNull(data)
+        assertEquals(1, data?.items?.size)
+        assertEquals("Basmati Rice 5kg", data?.items?.get(0)?.name)
+        assertEquals("1", data?.items?.get(0)?.quantity)
+        assertEquals(350.0, data?.totalAmount ?: 0.0, 0.01)
+    }
 }
 
 class FakeTransactionsRepository : TransactionsRepository {

@@ -32,40 +32,57 @@ object EscPosCommands {
      * Converts a 2D raster image into standard ESC/POS raster bit image format:
      * GS v 0 m xL xH yL yH d1...dk
      *
-     * Centers the bitmap, applies luminance thresholding for high-contrast thermal printing,
-     * and restores left alignment after printing.
+     * Centers the bitmap horizontally across [paperWidthDots] by padding left/right
+     * margins with blank dots. This guarantees hardware-independent centering on 58mm and 80mm
+     * thermal receipt printers regardless of firmware support for ESC a alignment commands.
      */
-    fun generateRasterBitImage(raster: RasterImage, maxWidthDots: Int): ByteArray {
+    fun generateRasterBitImage(
+        raster: RasterImage,
+        maxWidthDots: Int = 384,
+        paperWidthDots: Int = maxWidthDots,
+        maxHeightDots: Int = 140
+    ): ByteArray {
         if (raster.width <= 0 || raster.height <= 0) return ByteArray(0)
 
-        // Scale proportionally if original width exceeds maxWidthDots
-        val scale = if (raster.width > maxWidthDots) {
-            maxWidthDots.toDouble() / raster.width
-        } else {
-            1.0
-        }
+        // Scale proportionally preserving aspect ratio
+        val scale = minOf(
+            1.0,
+            minOf(
+                maxWidthDots.toDouble() / raster.width,
+                maxHeightDots.toDouble() / raster.height
+            )
+        )
         val scaledWidth = maxOf(1, (raster.width * scale).toInt())
         val scaledHeight = maxOf(1, (raster.height * scale).toInt())
 
-        // Width in bytes must be rounded up to whole bytes (8 dots per byte)
-        val bytesPerRow = (scaledWidth + 7) / 8
+        // Target row is full paper width so image is guaranteed centered on any POS printer
+        val totalBytesPerRow = (paperWidthDots + 7) / 8
+        val logoBytesPerRow = (scaledWidth + 7) / 8
+        val leftPaddingBytes = maxOf(0, (totalBytesPerRow - logoBytesPerRow) / 2)
         val targetHeightDots = scaledHeight
 
         // ESC/POS GS v 0 header
         val header = byteArrayOf(
             0x1D, 0x76, 0x30, 0x00, // GS v 0 m (m=0: normal mode)
-            (bytesPerRow and 0xFF).toByte(),
-            ((bytesPerRow shr 8) and 0xFF).toByte(),
+            (totalBytesPerRow and 0xFF).toByte(),
+            ((totalBytesPerRow shr 8) and 0xFF).toByte(),
             (targetHeightDots and 0xFF).toByte(),
             ((targetHeightDots shr 8) and 0xFF).toByte()
         )
 
-        val rasterBytes = ByteArray(bytesPerRow * targetHeightDots)
+        val rasterBytes = ByteArray(totalBytesPerRow * targetHeightDots)
         var byteIdx = 0
 
         for (y in 0 until targetHeightDots) {
             val srcY = ((y.toDouble() / targetHeightDots) * raster.height).toInt().coerceIn(0, raster.height - 1)
-            for (xByte in 0 until bytesPerRow) {
+
+            // Left padding bytes (blank white dots to center on paper)
+            for (p in 0 until leftPaddingBytes) {
+                rasterBytes[byteIdx++] = 0x00
+            }
+
+            // Thresholded image dots
+            for (xByte in 0 until logoBytesPerRow) {
                 var currentByte = 0
                 for (bit in 0..7) {
                     val dotX = xByte * 8 + bit
@@ -77,16 +94,21 @@ object EscPosCommands {
                             val r = (pixel shr 16) and 0xFF
                             val g = (pixel shr 8) and 0xFF
                             val b = pixel and 0xFF
-                            // Standard luminance formula
                             val luminance = (0.299 * r + 0.587 * g + 0.114 * b).toInt()
                             if (luminance < 160) {
-                                // 1 = Black dot printed
                                 currentByte = currentByte or (1 shl (7 - bit))
                             }
                         }
                     }
                 }
                 rasterBytes[byteIdx++] = currentByte.toByte()
+            }
+
+            // Right padding bytes (fill remainder of paper row with white dots)
+            val writtenSoFar = leftPaddingBytes + logoBytesPerRow
+            val remainingBytes = totalBytesPerRow - writtenSoFar
+            for (p in 0 until remainingBytes) {
+                rasterBytes[byteIdx++] = 0x00
             }
         }
 

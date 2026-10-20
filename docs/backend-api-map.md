@@ -186,6 +186,7 @@ All tenant operations require:
 
 ### 3.1 Financial Metrics & Dashboard
 - **Route**: `GET /api/v1/tenant/dashboard` or `GET /api/v1/tenant/metrics`
+- **Authorized Roles**: `tenant_admin`, `tenant_user` (returns 403 for `sales` or `office` roles)
 - **Response (`FinancialMetrics`)**:
   - `cash_balance`: Authoritative cash on hand.
   - `bank_balance`: Total across all bank accounts.
@@ -202,6 +203,34 @@ All tenant operations require:
     - `employee_advance`: Advances disbursed today.
     - `outstanding_payable`: Total outstanding payables.
     - `date`: YYYY-MM-DD
+
+### 3.1.1 Sales Role Dashboard
+- **Route**: `GET /api/v1/tenant/dashboard/sales?date=YYYY-MM-DD`
+- **Authorized Roles**: `tenant_admin`, `sales`
+- **Response (`SalesDashboardResponse`)**:
+  - `business_date`: Authoritative server business date.
+  - `currency`: Default `"INR"`.
+  - `total_cash_collected`: Total cash collected by sales agents on route today.
+  - `total_bank_received`: Total bank/UPI payments collected today.
+  - `total_sales_count`: Number of completed line sales today.
+  - `total_sales_amount`: Total gross value of line sales today.
+  - `outstanding_dues`: Outstanding balance from route customers.
+
+### 3.1.2 Office Role Dashboard
+- **Route**: `GET /api/v1/tenant/dashboard/office?date=YYYY-MM-DD`
+- **Authorized Roles**: `tenant_admin`, `office`
+- **Response (`OfficeDashboardResponse`)**:
+  - `business_date`: Authoritative server business date.
+  - `currency`: Default `"INR"`.
+  - `total_cash_collected`: Counter retail cash received in store drawer.
+  - `total_bank_received`: POS / UPI card collections received.
+  - `total_attendance`: Total active employees registered today.
+  - `present_count`: Number of employees present.
+  - `absent_count`: Number of employees marked absent.
+  - `half_day_count`: Number of employees on half-day shift.
+  - `total_active_employees`: Headcount of all active employees.
+  - `total_sales_count`: Number of completed counter retail bills today.
+  - `total_sales_amount`: Total gross value of counter retail sales today.
 
 ### 3.2 Tenant Profile, Address, Logo & Settings
 - **Profile**: `GET /api/v1/tenant/profile`
@@ -532,6 +561,38 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
     }
     ```
   - `clear_daily_salary`: Set to `true` to clear the daily wage and mark salary as pending/unpaid.
+
+- **Record Employee Advance Entry**: `POST /api/v1/tenant/attendance/advance`
+  - Authorized Roles: `tenant_admin`, `office`
+  - Request:
+    ```json
+    {
+      "employee_id": "uuid",
+      "date": "2026-10-20",
+      "amount": "1500.00",
+      "payment_method": "cash",
+      "bank_id": null,
+      "bank_name": null,
+      "reference_id": null,
+      "note": "Emergency advance"
+    }
+    ```
+  - Response: Updated attendance record reflecting advance.
+
+- **Record Employee Overtime Entry**: `POST /api/v1/tenant/attendance/overtime`
+  - Authorized Roles: `tenant_admin`, `office`
+  - Request:
+    ```json
+    {
+      "employee_id": "uuid",
+      "date": "2026-10-20",
+      "amount": "250.00",
+      "ot": "3.5",
+      "reference_id": null,
+      "note": "Night inventory packing"
+    }
+    ```
+  - Response: Updated attendance record reflecting overtime.
 
 ### 8.3 Salary Management (`tenant_admin` only)
 - **Pending Salaries**: `GET /api/v1/tenant/salaries/pending`

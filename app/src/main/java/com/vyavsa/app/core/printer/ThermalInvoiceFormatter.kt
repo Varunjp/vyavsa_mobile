@@ -20,12 +20,6 @@ object ThermalInvoiceFormatter {
         val width = paperWidth.charsPerLine
         val sb = StringBuilder()
 
-        // 0. Company Logo Tag (Centered)
-        if (data.hasLogo) {
-            sb.appendLine(centerText("[ COMPANY LOGO ]", width))
-            sb.appendLine()
-        }
-
         // 1. Business Header (Centered)
         sb.appendLine(centerText(data.businessName.uppercase(Locale.US), width))
         if (!data.businessAddress.isNullOrBlank()) {
@@ -102,9 +96,13 @@ object ThermalInvoiceFormatter {
         // Footer Separator
         sb.appendLine("=".repeat(width))
 
-        // 6. Footer
-        sb.appendLine(centerText("Thank you for your business!", width))
-        sb.appendLine(centerText("Generated via Vyavsa Bill Book", width))
+        // 6. Dynamic Footer
+        wrapText(data.effectiveFooterHeading, width).forEach { line ->
+            sb.appendLine(centerText(line, width))
+        }
+        wrapText(data.effectiveFooterParagraph, width).forEach { line ->
+            sb.appendLine(centerText(line, width))
+        }
 
         return sb.toString()
     }
@@ -119,11 +117,20 @@ object ThermalInvoiceFormatter {
         // 1. Initialize Printer
         out.write(EscPosCommands.INIT)
 
-        // 2. Company Logo (Raster Bit Image if bitmap provided)
+        // 2. Company Logo (Raster Bit Image centered on thermal paper roll)
         val logoBmp = data.logoBitmap
         if (logoBmp != null) {
-            val maxDots = if (paperWidth == PaperWidth.WIDTH_58MM) 256 else 384
-            val rasterBytes = EscPosCommands.generateRasterBitImage(AndroidBitmapRaster(logoBmp), maxDots)
+            val (paperDots, maxLogoDots) = if (paperWidth == PaperWidth.WIDTH_58MM) {
+                384 to 200
+            } else {
+                576 to 320
+            }
+            val rasterBytes = EscPosCommands.generateRasterBitImage(
+                raster = AndroidBitmapRaster(logoBmp),
+                maxWidthDots = maxLogoDots,
+                paperWidthDots = paperDots,
+                maxHeightDots = 110
+            )
             if (rasterBytes.isNotEmpty()) {
                 out.write(rasterBytes)
             }
@@ -223,10 +230,14 @@ object ThermalInvoiceFormatter {
 
         out.write(encodeString("=".repeat(width) + "\n"))
 
-        // 6. Footer
+        // 6. Dynamic Footer
         out.write(EscPosCommands.ALIGN_CENTER)
-        out.write(encodeString("Thank you for your business!\n"))
-        out.write(encodeString("Generated via Vyavsa Bill Book\n"))
+        wrapText(data.effectiveFooterHeading, width).forEach { line ->
+            out.write(encodeString("${line}\n"))
+        }
+        wrapText(data.effectiveFooterParagraph, width).forEach { line ->
+            out.write(encodeString("${line}\n"))
+        }
 
         // 7. Feed lines & Partial Cut
         out.write(EscPosCommands.feedLines(4))
@@ -236,7 +247,7 @@ object ThermalInvoiceFormatter {
     }
 
     private fun formatItems58mm(data: InvoicePrintData, sb: StringBuilder, width: Int) {
-        sb.appendLine("ITEM             QTY/RATE  TOTAL")
+        sb.appendLine("ITEM / QTY x RATE          TOTAL")
         if (data.items.isNotEmpty()) {
             data.items.forEach { item ->
                 // Wrap item name so it never collides with quantities or prices
@@ -252,19 +263,24 @@ object ThermalInvoiceFormatter {
                 sb.appendLine(line)
             }
             sb.appendLine(formatKeyValue("  1 x ${formatCurrency(data.subtotal)}", formatCurrency(data.subtotal), width))
+        } else {
+            sb.appendLine("Sale Item")
+            sb.appendLine(formatKeyValue("  1 x ${formatCurrency(data.subtotal)}", formatCurrency(data.subtotal), width))
         }
     }
 
     private fun formatItems80mm(data: InvoicePrintData, sb: StringBuilder, width: Int) {
-        // 48 columns total: Item (22) + Qty (5) + Price (10) + Total (11) = 48
-        val itemColWidth = 22
-        val qtyColWidth = 5
+        // 48 columns total: Item (18) + Qty (6) + Sp (2) + Price (10) + Sp (2) + Total (10) = 48
+        val itemColWidth = 18
+        val qtyColWidth = 6
         val priceColWidth = 10
-        val totalColWidth = 11
+        val totalColWidth = 10
 
         val header = "ITEM".padEnd(itemColWidth) +
             "QTY".padStart(qtyColWidth) +
+            "  " +
             "PRICE".padStart(priceColWidth) +
+            "  " +
             "TOTAL".padStart(totalColWidth)
         sb.appendLine(header)
         sb.appendLine("-".repeat(width))
@@ -277,7 +293,7 @@ object ThermalInvoiceFormatter {
                 val totalStr = formatCurrency(item.lineTotal.toDoubleOrNull() ?: 0.0).padStart(totalColWidth)
 
                 val firstChunk = nameChunks.firstOrNull() ?: ""
-                sb.appendLine(firstChunk.padEnd(itemColWidth) + qtyStr + priceStr + totalStr)
+                sb.appendLine(firstChunk.padEnd(itemColWidth) + qtyStr + "  " + priceStr + "  " + totalStr)
 
                 // If name wrapped, print remaining chunks indented in the item column
                 for (i in 1 until nameChunks.size) {
@@ -291,11 +307,19 @@ object ThermalInvoiceFormatter {
             val totalStr = formatCurrency(data.subtotal).padStart(totalColWidth)
 
             val firstChunk = nameChunks.firstOrNull() ?: ""
-            sb.appendLine(firstChunk.padEnd(itemColWidth) + qtyStr + priceStr + totalStr)
+            sb.appendLine(firstChunk.padEnd(itemColWidth) + qtyStr + "  " + priceStr + "  " + totalStr)
 
             for (i in 1 until nameChunks.size) {
                 sb.appendLine(nameChunks[i].padEnd(itemColWidth))
             }
+        } else {
+            val nameChunks = wrapText("Sale Item", itemColWidth)
+            val qtyStr = "1".padStart(qtyColWidth)
+            val priceStr = formatCurrency(data.subtotal).padStart(priceColWidth)
+            val totalStr = formatCurrency(data.subtotal).padStart(totalColWidth)
+
+            val firstChunk = nameChunks.firstOrNull() ?: ""
+            sb.appendLine(firstChunk.padEnd(itemColWidth) + qtyStr + "  " + priceStr + "  " + totalStr)
         }
     }
 

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CardMembership
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Inventory2
@@ -106,12 +107,15 @@ fun ProfileScreen(
     val logoActionState by viewModel.logoActionState.collectAsState()
     val subscriptionState by viewModel.subscriptionState.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
+    val footerUpdateState by viewModel.footerUpdateState.collectAsState()
     val sessionState by viewModel.sessionState.collectAsState()
     val userProfile = remember(sessionState) { viewModel.getUserProfile() }
     val isAdmin = remember(sessionState) { viewModel.isTenantAdmin() }
     val context = LocalContext.current
+    val tenantProfile = (profileState as? UiState.Success)?.data
 
     var showEditProfileDialog by remember { mutableStateOf(false) }
+    var showEditFooterDialog by remember { mutableStateOf(false) }
     var showLogoutConfirmDialog by remember { mutableStateOf(false) }
     var showDeleteLogoConfirmDialog by remember { mutableStateOf(false) }
 
@@ -202,9 +206,9 @@ fun ProfileScreen(
                 )
             }
 
-            if (updateState is UiState.Error) {
+            if (footerUpdateState is UiState.Error) {
                 ErrorBanner(
-                    message = (updateState as UiState.Error).message
+                    message = (footerUpdateState as UiState.Error).message
                 )
             } else if (updateState is UiState.Success) {
                 Surface(
@@ -225,7 +229,6 @@ fun ProfileScreen(
                 }
             }
 
-            val tenantProfile = (profileState as? UiState.Success)?.data
             val tenantName = tenantProfile?.name ?: "Business Organization"
             val currentLogo = (logoState as? UiState.Success)?.data ?: tenantProfile?.logoUrl
 
@@ -613,6 +616,95 @@ fun ProfileScreen(
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            // Invoice Branding & Footer Card
+            val effectiveFooterHeading = tenantProfile?.getEffectiveFooterHeading() ?: "Thank You for Your Business!"
+            val effectiveFooterParagraph = tenantProfile?.getEffectiveFooterParagraph() ?: "Thank you for choosing us. We appreciate your trust and look forward to serving you again."
+
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.primaryContainer)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Description,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text(
+                                    text = "Invoice Footer & Terms",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Printed on all receipts & shared PDFs",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                )
+                            }
+                        }
+
+                        if (isAdmin && tenantProfile != null) {
+                            FilledTonalIconButton(
+                                onClick = { showEditFooterDialog = true },
+                                shape = CircleShape,
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Invoice Footer",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = effectiveFooterHeading,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                            Text(
+                                text = effectiveFooterParagraph,
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            )
                         }
                     }
                 }
@@ -1058,6 +1150,29 @@ fun ProfileScreen(
             showEditProfileDialog = false
         }
     }
+
+    LaunchedEffect(footerUpdateState) {
+        if (footerUpdateState is UiState.Success) {
+            showEditFooterDialog = false
+            viewModel.resetFooterUpdateState()
+        }
+    }
+
+    if (showEditFooterDialog && tenantProfile != null) {
+        EditInvoiceFooterDialog(
+            initialHeading = tenantProfile.invoiceFooterHeading ?: "",
+            initialParagraph = tenantProfile.invoiceFooterParagraph ?: "",
+            isSaving = footerUpdateState is UiState.Loading,
+            errorMessage = (footerUpdateState as? UiState.Error)?.message,
+            onDismiss = {
+                showEditFooterDialog = false
+                viewModel.resetFooterUpdateState()
+            },
+            onConfirm = { heading, paragraph ->
+                viewModel.updateInvoiceFooter(heading, paragraph)
+            }
+        )
+    }
     if (showDeleteLogoConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteLogoConfirmDialog = false },
@@ -1331,3 +1446,90 @@ fun EditProfileDialog(
         }
     )
 }
+
+@Composable
+fun EditInvoiceFooterDialog(
+    initialHeading: String,
+    initialParagraph: String,
+    isSaving: Boolean = false,
+    errorMessage: String? = null,
+    onDismiss: () -> Unit,
+    onConfirm: (heading: String, paragraph: String) -> Unit
+) {
+    var heading by remember { mutableStateOf(initialHeading) }
+    var paragraph by remember { mutableStateOf(initialParagraph) }
+
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Edit Invoice Footer", fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                if (!errorMessage.isNullOrBlank()) {
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodySmall.copy(color = Crimson600, fontWeight = FontWeight.Bold)
+                    )
+                }
+
+                Text(
+                    text = "Configure the custom closing note and terms printed at the bottom of all customer invoices, PDF shares, and receipts.",
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                )
+
+                VyavsaTextField(
+                    value = heading,
+                    onValueChange = { if (it.length <= 255) heading = it },
+                    label = "Footer Heading (max 255)",
+                    placeholder = "e.g. Thank You for Your Business!"
+                )
+                Text(
+                    text = "${heading.length} / 255 characters",
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+
+                VyavsaTextField(
+                    value = paragraph,
+                    onValueChange = { if (it.length <= 1000) paragraph = it },
+                    label = "Footer Paragraph / Note (max 1000)",
+                    placeholder = "e.g. Thank you for choosing us. Goods once sold will not be taken back.",
+                    minLines = 3,
+                    maxLines = 6
+                )
+                Text(
+                    text = "${paragraph.length} / 1000 characters",
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(heading, paragraph) },
+                enabled = !isSaving
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Save Footer", fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isSaving
+            ) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+

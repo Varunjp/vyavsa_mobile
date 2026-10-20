@@ -38,7 +38,8 @@ class MainActivity : ComponentActivity() {
                 ) {
                     VyavsaNavGraph(
                         navController = navController,
-                        sessionState = sessionState
+                        sessionState = sessionState,
+                        tokenManager = tokenManager
                     )
                 }
             }

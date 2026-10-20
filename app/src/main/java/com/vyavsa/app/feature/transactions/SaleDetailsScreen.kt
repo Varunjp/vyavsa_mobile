@@ -56,7 +56,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import com.vyavsa.app.core.document.InvoiceShareManager
+import com.vyavsa.app.core.printer.InvoiceDataMapper
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -223,6 +228,9 @@ fun SaleDetailsScreen(
             paperWidth = paperWidth,
             hasCompanyLogo = !companyProfile?.logoUrl.isNullOrBlank(),
             receiptPreviewText = viewModel.getReceiptPreviewText(),
+            logoUrl = companyProfile?.logoUrl,
+            businessName = companyProfile?.name,
+            logoBitmap = viewModel.getCachedLogoBitmap(),
             onSelectConnectionType = { viewModel.setConnectionType(it) },
             onSetNetworkPrinterIp = { viewModel.setNetworkPrinterIp(it) },
             onSelectPrinter = { viewModel.selectPrinter(it) },
@@ -934,7 +942,7 @@ private fun SaleItemsBreakdownCard(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "${item.quantity} × ${FormatUtils.formatCurrency(item.unitPrice)}",
+                                text = "Qty: ${item.quantity}   •   Price: ${FormatUtils.formatCurrency(item.unitPrice)}",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.Medium
@@ -1056,60 +1064,88 @@ private fun InvoiceReceiptDialog(
         }
     }
 
-    fun shareReceipt() {
-        val text = buildString {
-            appendLine("==================================")
-            appendLine(companyProfile?.name?.ifBlank { "VYAVSA BUSINESS" } ?: "VYAVSA BUSINESS")
-            val address = companyProfile?.getEffectiveAddress()
-            if (!address.isNullOrBlank()) {
-                appendLine(address)
-            }
-            val phone = companyProfile?.phone
-            if (!phone.isNullOrBlank()) {
-                appendLine("Phone: $phone")
-            }
-            val email = companyProfile?.email
-            if (!email.isNullOrBlank()) {
-                appendLine("Email: $email")
-            }
-            appendLine("==================================")
-            appendLine(receiptData.title.uppercase())
-            appendLine("Bill ID: ${receiptData.saleId}")
-            appendLine("Date: ${receiptData.date}")
-            appendLine("Customer: ${receiptData.customerInfo}")
-            appendLine("----------------------------------")
-            if (receiptData.items.isNotEmpty()) {
-                appendLine("ITEMS:")
-                receiptData.items.forEach { item ->
-                    appendLine(" - ${item.productNameSnapshot}: ${item.quantity} x ${FormatUtils.formatCurrency(item.unitPrice)} = ${FormatUtils.formatCurrency(item.lineTotal)}")
-                }
-                appendLine("----------------------------------")
-            } else if (!receiptData.singleItemName.isNullOrBlank()) {
-                appendLine("Item: ${receiptData.singleItemName}")
-                appendLine("----------------------------------")
-            }
-            appendLine("Subtotal: ${FormatUtils.formatCurrency(receiptData.subtotal.toString())}")
-            if (receiptData.discount > 0.0) {
-                appendLine("Discount: -${FormatUtils.formatCurrency(receiptData.discount.toString())}")
-            }
-            appendLine("Total Payable: ${FormatUtils.formatCurrency(receiptData.total.toString())}")
-            appendLine("Amount Paid: ${FormatUtils.formatCurrency(receiptData.paid.toString())}")
-            if (receiptData.due > 0.0) {
-                appendLine("Balance Due: ${FormatUtils.formatCurrency(receiptData.due.toString())}")
-            } else {
-                appendLine("Payment Status: PAID IN FULL")
-            }
-            appendLine("Payment: ${receiptData.paymentMethodSummary}")
-            appendLine("==================================")
-            appendLine("Generated via Vyavsa Bill Book")
-        }
+    val coroutineScope = rememberCoroutineScope()
+    var isSharingPdf by remember { mutableStateOf(false) }
 
-        val sendIntent = Intent().apply {
-            action = Intent.ACTION_SEND
-            putExtra(Intent.EXTRA_TEXT, text)
-            type = "text/plain"
+    fun buildTextReceipt(): String = buildString {
+        appendLine("==================================")
+        appendLine(companyProfile?.name?.ifBlank { "VYAVSA BUSINESS" } ?: "VYAVSA BUSINESS")
+        val address = companyProfile?.getEffectiveAddress()
+        if (!address.isNullOrBlank()) {
+            appendLine(address)
         }
-        context.startActivity(Intent.createChooser(sendIntent, "Share Bill Receipt via"))
+        val phone = companyProfile?.phone
+        if (!phone.isNullOrBlank()) {
+            appendLine("Phone: $phone")
+        }
+        val email = companyProfile?.email
+        if (!email.isNullOrBlank()) {
+            appendLine("Email: $email")
+        }
+        appendLine("==================================")
+        appendLine(receiptData.title.uppercase())
+        appendLine("Bill ID: ${receiptData.saleId}")
+        appendLine("Date: ${receiptData.date}")
+        appendLine("Customer: ${receiptData.customerInfo}")
+        appendLine("----------------------------------")
+        if (receiptData.items.isNotEmpty()) {
+            appendLine("ITEMS:")
+            receiptData.items.forEach { item ->
+                appendLine(" - ${item.productNameSnapshot}: ${item.quantity} x ${FormatUtils.formatCurrency(item.unitPrice)} = ${FormatUtils.formatCurrency(item.lineTotal)}")
+            }
+            appendLine("----------------------------------")
+        } else if (!receiptData.singleItemName.isNullOrBlank()) {
+            appendLine("Item: ${receiptData.singleItemName}")
+            appendLine("----------------------------------")
+        }
+        appendLine("Subtotal: ${FormatUtils.formatCurrency(receiptData.subtotal.toString())}")
+        if (receiptData.discount > 0.0) {
+            appendLine("Discount: -${FormatUtils.formatCurrency(receiptData.discount.toString())}")
+        }
+        appendLine("Total Payable: ${FormatUtils.formatCurrency(receiptData.total.toString())}")
+        appendLine("Amount Paid: ${FormatUtils.formatCurrency(receiptData.paid.toString())}")
+        if (receiptData.due > 0.0) {
+            appendLine("Balance Due: ${FormatUtils.formatCurrency(receiptData.due.toString())}")
+        } else {
+            appendLine("Payment Status: PAID IN FULL")
+        }
+        appendLine("Payment: ${receiptData.paymentMethodSummary}")
+        appendLine("==================================")
+        appendLine(companyProfile?.getEffectiveFooterHeading() ?: "Thank You for Your Business!")
+        appendLine(companyProfile?.getEffectiveFooterParagraph() ?: "Generated via Vyavsa Bill Book")
+    }
+
+    fun shareReceipt() {
+        if (isSharingPdf) return
+        coroutineScope.launch {
+            isSharingPdf = true
+            try {
+                val printData = when (saleData) {
+                    is SaleDetailData.Line -> InvoiceDataMapper.fromLineSale(saleData.sale, companyProfile, null)
+                    is SaleDetailData.Counter -> InvoiceDataMapper.fromCounterSale(saleData.sale, companyProfile, null)
+                }
+                val shareResult = InvoiceShareManager.shareInvoicePdf(context, printData)
+                if (shareResult.isFailure) {
+                    val text = buildTextReceipt()
+                    val sendIntent = Intent().apply {
+                        action = Intent.ACTION_SEND
+                        putExtra(Intent.EXTRA_TEXT, text)
+                        type = "text/plain"
+                    }
+                    context.startActivity(Intent.createChooser(sendIntent, "Share Bill Receipt via"))
+                }
+            } catch (_: Exception) {
+                val text = buildTextReceipt()
+                val sendIntent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_TEXT, text)
+                    type = "text/plain"
+                }
+                context.startActivity(Intent.createChooser(sendIntent, "Share Bill Receipt via"))
+            } finally {
+                isSharingPdf = false
+            }
+        }
     }
 
     Dialog(
@@ -1259,7 +1295,7 @@ private fun InvoiceReceiptDialog(
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = "${item.quantity} × ${FormatUtils.formatCurrency(item.unitPrice)}",
+                                    text = "Qty: ${item.quantity}   •   Price: ${FormatUtils.formatCurrency(item.unitPrice)}",
                                     style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 )
                             }
@@ -1327,6 +1363,28 @@ private fun InvoiceReceiptDialog(
                 Text(
                     text = receiptData.paymentMethodSummary,
                     style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                )
+
+                // Configured Invoice Footer
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                val footerHeading = companyProfile?.getEffectiveFooterHeading() ?: "Thank You for Your Business!"
+                val footerParagraph = companyProfile?.getEffectiveFooterParagraph() ?: "Thank you for choosing us. We appreciate your trust and look forward to serving you again."
+
+                Text(
+                    text = footerHeading,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = footerParagraph,
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))

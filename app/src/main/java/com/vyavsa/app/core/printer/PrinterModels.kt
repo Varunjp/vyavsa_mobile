@@ -96,8 +96,16 @@ data class InvoicePrintData(
     val amountPaid: Double,
     val balanceDue: Double = 0.0,
     val paymentSummary: String,
-    val note: String? = null
+    val note: String? = null,
+    val footerHeading: String? = null,
+    val footerParagraph: String? = null
 ) {
     val hasLogo: Boolean
         get() = logoBitmap != null || !logoUrl.isNullOrBlank()
+
+    val effectiveFooterHeading: String
+        get() = footerHeading?.trim()?.ifBlank { null } ?: "Thank you for your business!"
+
+    val effectiveFooterParagraph: String
+        get() = footerParagraph?.trim()?.ifBlank { null } ?: "Generated via Vyavsa Bill Book"
 }

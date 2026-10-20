@@ -412,7 +412,9 @@ fun VyavsaTextField(
     errorMessage: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
-    singleLine: Boolean = true
+    singleLine: Boolean = true,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
+    minLines: Int = 1
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         OutlinedTextField(
@@ -451,6 +453,8 @@ fun VyavsaTextField(
             trailingIcon = trailingIcon,
             isError = isError,
             singleLine = singleLine,
+            maxLines = maxLines,
+            minLines = minLines,
             shape = RoundedCornerShape(18.dp),
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions,

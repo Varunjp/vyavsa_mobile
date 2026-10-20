@@ -155,11 +155,20 @@ fun CreateLineSaleScreen(
 fun CreateSaleScreen(
     viewModel: TransactionsViewModel,
     initialSaleType: SaleType = SaleType.LINE_SALE,
+    lockSaleType: Boolean = false,
     onSaleCreated: () -> Unit,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selectedSaleType by remember { mutableStateOf(initialSaleType) }
+    val isSalesRole = viewModel.tokenManager?.isSales() == true
+    val isOfficeRole = viewModel.tokenManager?.isOffice() == true
+    val determinedInitialType = when {
+        isSalesRole -> SaleType.LINE_SALE
+        isOfficeRole -> SaleType.COUNTER_SALE
+        else -> initialSaleType
+    }
+    var selectedSaleType by remember { mutableStateOf(determinedInitialType) }
+    val canSwitchSaleType = !lockSaleType && !isSalesRole && !isOfficeRole
 
     val createActionState by viewModel.createActionState.collectAsState()
     val customersState by viewModel.customersState.collectAsState()
@@ -390,16 +399,18 @@ fun CreateSaleScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp, vertical = 14.dp)
             ) {
-                // Sale Type Segmented Selector
-                VyavsaSegmentedTabs(
-                    tabs = listOf("Line / Route Sale", "Counter / POS Sale"),
-                    selectedIndex = if (selectedSaleType == SaleType.LINE_SALE) 0 else 1,
-                    onTabSelected = { idx ->
-                        selectedSaleType = if (idx == 0) SaleType.LINE_SALE else SaleType.COUNTER_SALE
-                        viewModel.resetCreateState()
-                    },
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+                // Sale Type Segmented Selector (Shown only when role is authorized to switch)
+                if (canSwitchSaleType) {
+                    VyavsaSegmentedTabs(
+                        tabs = listOf("Line / Route Sale", "Counter / POS Sale"),
+                        selectedIndex = if (selectedSaleType == SaleType.LINE_SALE) 0 else 1,
+                        onTabSelected = { idx ->
+                            selectedSaleType = if (idx == 0) SaleType.LINE_SALE else SaleType.COUNTER_SALE
+                            viewModel.resetCreateState()
+                        },
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                }
 
                 if (createActionState is UiState.Error) {
                     ErrorBanner(

@@ -20,14 +20,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.People
+import androidx.compose.material.icons.outlined.PointOfSale
 import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -37,6 +43,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,23 +53,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.vyavsa.app.core.model.UserRole
 import com.vyavsa.app.core.navigation.BottomBarDestination
 import com.vyavsa.app.feature.dashboard.DashboardScreen
 import com.vyavsa.app.feature.dashboard.DashboardViewModel
+import com.vyavsa.app.feature.dashboard.OfficeDashboardScreen
+import com.vyavsa.app.feature.dashboard.SalesDashboardScreen
 import com.vyavsa.app.feature.dues.DuesScreen
 import com.vyavsa.app.feature.dues.DuesViewModel
+import com.vyavsa.app.feature.products.ProductViewModel
+import com.vyavsa.app.feature.products.ProductsScreen
 import com.vyavsa.app.feature.profile.ProfileScreen
 import com.vyavsa.app.feature.profile.ProfileViewModel
 import com.vyavsa.app.feature.staff.StaffScreen
 import com.vyavsa.app.feature.staff.StaffViewModel
+import com.vyavsa.app.feature.transactions.SalesScreen
 import com.vyavsa.app.feature.transactions.TransactionsScreen
 import com.vyavsa.app.feature.transactions.TransactionsViewModel
 
 @Composable
 fun MainShellScreen(
     onNavigateToCreateSale: () -> Unit,
+    onNavigateToCreateCounterSale: () -> Unit = {},
     onNavigateToCreateExpense: () -> Unit,
     onNavigateToCreatePurchase: () -> Unit = {},
     onNavigateToPurchaseDetails: (purchaseId: String) -> Unit = {},
@@ -78,14 +94,23 @@ fun MainShellScreen(
     onLogoutSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selectedDestination by rememberSaveable { mutableStateOf(BottomBarDestination.HOME) }
-    val destinations = remember { BottomBarDestination.values().toList() }
-
     val dashboardViewModel: DashboardViewModel = hiltViewModel()
     val transactionsViewModel: TransactionsViewModel = hiltViewModel()
     val duesViewModel: DuesViewModel = hiltViewModel()
     val staffViewModel: StaffViewModel = hiltViewModel()
     val profileViewModel: ProfileViewModel = hiltViewModel()
+
+    val userRole = dashboardViewModel.tokenManager.getUserRole()
+    val destinations = remember(userRole) { BottomBarDestination.destinationsForRole(userRole) }
+
+    var selectedDestination by rememberSaveable { mutableStateOf(BottomBarDestination.HOME) }
+
+    // Ensure selected destination is valid for current role
+    LaunchedEffect(destinations) {
+        if (selectedDestination !in destinations) {
+            selectedDestination = destinations.firstOrNull() ?: BottomBarDestination.HOME
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -117,15 +142,19 @@ fun MainShellScreen(
                         )
                         val icon = when (destination) {
                             BottomBarDestination.HOME -> if (isSelected) Icons.Filled.Home else Icons.Outlined.Home
+                            BottomBarDestination.SALES -> if (isSelected) Icons.Filled.ShoppingCart else Icons.Outlined.ShoppingCart
+                            BottomBarDestination.COUNTER_SALES -> if (isSelected) Icons.Filled.PointOfSale else Icons.Outlined.PointOfSale
                             BottomBarDestination.TRANSACTIONS -> if (isSelected) Icons.Filled.ReceiptLong else Icons.Outlined.ReceiptLong
                             BottomBarDestination.DUES -> if (isSelected) Icons.Filled.People else Icons.Outlined.People
                             BottomBarDestination.STAFF -> if (isSelected) Icons.Filled.Badge else Icons.Outlined.Badge
+                            BottomBarDestination.PRODUCTS -> if (isSelected) Icons.Filled.Inventory2 else Icons.Outlined.Inventory2
                             BottomBarDestination.MORE -> if (isSelected) Icons.Filled.Menu else Icons.Outlined.Menu
                         }
 
                         NavigationBarItem(
                             selected = isSelected,
                             onClick = { selectedDestination = destination },
+                            alwaysShowLabel = false,
                             icon = {
                                 Icon(
                                     imageVector = icon,
@@ -139,7 +168,10 @@ fun MainShellScreen(
                             label = {
                                 Text(
                                     text = destination.title,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                     style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
                                     )
                                 )
@@ -182,21 +214,57 @@ fun MainShellScreen(
             ) { destination ->
                 when (destination) {
                     BottomBarDestination.HOME -> {
-                        DashboardScreen(
-                            viewModel = dashboardViewModel,
+                        when (userRole) {
+                            UserRole.SALES -> {
+                                SalesDashboardScreen(
+                                    viewModel = dashboardViewModel,
+                                    onNavigateToCreateLineSale = onNavigateToCreateSale,
+                                    onNavigateToLineSales = { selectedDestination = BottomBarDestination.SALES },
+                                    onNavigateToProducts = { selectedDestination = BottomBarDestination.PRODUCTS }
+                                )
+                            }
+                            UserRole.OFFICE -> {
+                                OfficeDashboardScreen(
+                                    viewModel = dashboardViewModel,
+                                    onNavigateToCreateCounterSale = onNavigateToCreateCounterSale,
+                                    onNavigateToCreatePurchase = onNavigateToCreatePurchase,
+                                    onNavigateToCreateExpense = onNavigateToCreateExpense,
+                                    onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF },
+                                    onNavigateToCounterSales = { selectedDestination = BottomBarDestination.COUNTER_SALES }
+                                )
+                            }
+                            UserRole.ADMIN, UserRole.USER -> {
+                                DashboardScreen(
+                                    viewModel = dashboardViewModel,
+                                    onNavigateToCreateSale = onNavigateToCreateSale,
+                                    onNavigateToCreateExpense = onNavigateToCreateExpense,
+                                    onNavigateToCashDrawer = onNavigateToCashDrawer,
+                                    onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF },
+                                    onNavigateToBankAccounts = onNavigateToBankAccounts,
+                                    onNavigateToProducts = onNavigateToProducts,
+                                    onNavigateToProductAnalytics = onNavigateToProductAnalytics
+                                )
+                            }
+                        }
+                    }
+                    BottomBarDestination.SALES -> {
+                        SalesScreen(
+                            viewModel = transactionsViewModel,
                             onNavigateToCreateSale = onNavigateToCreateSale,
-                            onNavigateToCreateExpense = onNavigateToCreateExpense,
-                            onNavigateToCashDrawer = onNavigateToCashDrawer,
-                            onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF },
-                            onNavigateToBankAccounts = onNavigateToBankAccounts,
-                            onNavigateToProducts = onNavigateToProducts,
-                            onNavigateToProductAnalytics = onNavigateToProductAnalytics
+                            onNavigateToSaleDetails = onNavigateToSaleDetails
+                        )
+                    }
+                    BottomBarDestination.COUNTER_SALES -> {
+                        SalesScreen(
+                            viewModel = transactionsViewModel,
+                            onNavigateToCreateSale = onNavigateToCreateCounterSale,
+                            onNavigateToSaleDetails = onNavigateToSaleDetails
                         )
                     }
                     BottomBarDestination.TRANSACTIONS -> {
                         TransactionsScreen(
                             viewModel = transactionsViewModel,
-                            onNavigateToCreateSale = onNavigateToCreateSale,
+                            onNavigateToCreateSale = if (userRole == UserRole.OFFICE) onNavigateToCreateCounterSale else onNavigateToCreateSale,
                             onNavigateToCreateExpense = onNavigateToCreateExpense,
                             onNavigateToCreatePurchase = onNavigateToCreatePurchase,
                             onNavigateToPurchaseDetails = onNavigateToPurchaseDetails,
@@ -213,6 +281,14 @@ fun MainShellScreen(
                     BottomBarDestination.STAFF -> {
                         StaffScreen(
                             viewModel = staffViewModel
+                        )
+                    }
+                    BottomBarDestination.PRODUCTS -> {
+                        val productViewModel: ProductViewModel = hiltViewModel()
+                        ProductsScreen(
+                            viewModel = productViewModel,
+                            onNavigateBack = { selectedDestination = BottomBarDestination.HOME },
+                            onNavigateToAnalytics = onNavigateToProductAnalytics
                         )
                     }
                     BottomBarDestination.MORE -> {

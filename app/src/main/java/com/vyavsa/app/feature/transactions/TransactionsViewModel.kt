@@ -26,13 +26,37 @@ import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import com.vyavsa.app.feature.bank.BankRepository
 import com.vyavsa.app.feature.products.ProductRepository
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import com.vyavsa.app.core.common.FormatUtils
+import com.vyavsa.app.core.designsystem.LogoMemoryCache
+import com.vyavsa.app.core.document.InvoiceShareManager
+import com.vyavsa.app.core.model.TenantProfile
+import com.vyavsa.app.core.printer.InvoiceDataMapper
+import com.vyavsa.app.core.printer.InvoicePrintAdapter
+import com.vyavsa.app.core.printer.InvoicePrintData
+import com.vyavsa.app.core.printer.PaperWidth
+import com.vyavsa.app.core.printer.PrintJobState
+import com.vyavsa.app.core.printer.PrintJobStatus
+import com.vyavsa.app.core.printer.PrinterConnectionType
+import com.vyavsa.app.core.printer.PrinterDevice
+import com.vyavsa.app.core.printer.PrinterPreferences
+import com.vyavsa.app.core.printer.ThermalInvoiceFormatter
+import com.vyavsa.app.core.printer.ThermalPrinterManager
+import com.vyavsa.app.feature.dashboard.DashboardRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 enum class TransactionTab {
@@ -54,8 +78,25 @@ class TransactionsViewModel @Inject constructor(
     private val bankRepository: BankRepository,
     private val refreshCoordinator: DataRefreshCoordinator,
     val tokenManager: TokenManager? = null,
-    private val productRepository: ProductRepository? = null
+    private val productRepository: ProductRepository? = null,
+    val dashboardRepository: DashboardRepository? = null,
+    val printerManager: ThermalPrinterManager? = null,
+    val printerPreferences: PrinterPreferences? = null
 ) : ViewModel() {
+
+    constructor(
+        repository: TransactionsRepository,
+        bankRepository: BankRepository,
+        refreshCoordinator: DataRefreshCoordinator
+    ) : this(repository, bankRepository, refreshCoordinator, null, null, null, null, null)
+
+    constructor(
+        repository: TransactionsRepository,
+        bankRepository: BankRepository,
+        refreshCoordinator: DataRefreshCoordinator,
+        tokenManager: TokenManager?,
+        productRepository: ProductRepository?
+    ) : this(repository, bankRepository, refreshCoordinator, tokenManager, productRepository, null, null, null)
 
     private val _selectedTab = MutableStateFlow(TransactionTab.SALES)
     val selectedTab: StateFlow<TransactionTab> = _selectedTab.asStateFlow()
@@ -99,6 +140,45 @@ class TransactionsViewModel @Inject constructor(
     private val _createActionState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val createActionState: StateFlow<UiState<Unit>> = _createActionState.asStateFlow()
 
+    private val _companyProfile = MutableStateFlow<TenantProfile?>(null)
+    val companyProfile: StateFlow<TenantProfile?> = _companyProfile.asStateFlow()
+
+    private val _activePrintingSaleId = MutableStateFlow<String?>(null)
+    val activePrintingSaleId: StateFlow<String?> = _activePrintingSaleId.asStateFlow()
+
+    private val _activeSharingSaleId = MutableStateFlow<String?>(null)
+    val activeSharingSaleId: StateFlow<String?> = _activeSharingSaleId.asStateFlow()
+
+    private val _printJobState = MutableStateFlow(PrintJobState())
+    val printJobState: StateFlow<PrintJobState> = _printJobState.asStateFlow()
+
+    private val _activePrintDialogData = MutableStateFlow<InvoicePrintData?>(null)
+    val activePrintDialogData: StateFlow<InvoicePrintData?> = _activePrintDialogData.asStateFlow()
+
+    private val _pairedPrinters = MutableStateFlow<List<PrinterDevice>>(emptyList())
+    val pairedPrinters: StateFlow<List<PrinterDevice>> = _pairedPrinters.asStateFlow()
+
+    private val _usbPrinters = MutableStateFlow<List<PrinterDevice>>(emptyList())
+    val usbPrinters: StateFlow<List<PrinterDevice>> = _usbPrinters.asStateFlow()
+
+    private val _selectedPrinter = MutableStateFlow<PrinterDevice?>(null)
+    val selectedPrinter: StateFlow<PrinterDevice?> = _selectedPrinter.asStateFlow()
+
+    private val _selectedConnectionType = MutableStateFlow(
+        printerPreferences?.selectedConnectionType?.value ?: PrinterConnectionType.BLUETOOTH
+    )
+    val selectedConnectionType: StateFlow<PrinterConnectionType> = _selectedConnectionType.asStateFlow()
+
+    private val _networkPrinterIp = MutableStateFlow(
+        printerPreferences?.savedNetworkPrinterIp?.value ?: "192.168.1.100:9100"
+    )
+    val networkPrinterIp: StateFlow<String> = _networkPrinterIp.asStateFlow()
+
+    private val _paperWidth = MutableStateFlow(
+        printerPreferences?.paperWidth?.value ?: PaperWidth.WIDTH_58MM
+    )
+    val paperWidth: StateFlow<PaperWidth> = _paperWidth.asStateFlow()
+
     private var searchJob: Job? = null
 
     val isAdmin: Boolean
@@ -110,6 +190,8 @@ class TransactionsViewModel @Inject constructor(
         loadBanks()
         loadEmployees()
         loadProducts()
+        loadCompanyProfile()
+        loadPrinters()
         observeRefreshEvents()
     }
 
@@ -162,12 +244,16 @@ class TransactionsViewModel @Inject constructor(
                     DataMutation.STAFF -> {
                         loadEmployees()
                     }
+                    DataMutation.PROFILE -> {
+                        loadCompanyProfile()
+                    }
                     DataMutation.ALL -> {
                         loadData()
                         loadCustomers()
                         loadBanks()
                         loadEmployees()
                         loadProducts()
+                        loadCompanyProfile()
                     }
                     else -> {}
                 }
@@ -792,5 +878,271 @@ class TransactionsViewModel @Inject constructor(
 
     fun resetCreateState() {
         _createActionState.value = UiState.Idle
+    }
+
+    fun loadCompanyProfile() {
+        dashboardRepository?.let { repo ->
+            viewModelScope.launch {
+                repo.getProfile().collectLatest { res ->
+                    if (res is Resource.Success) {
+                        _companyProfile.value = res.data
+                    }
+                }
+            }
+        }
+    }
+
+    fun getCachedLogoBitmap(): Bitmap? {
+        val url = _companyProfile.value?.logoUrl
+        if (url.isNullOrBlank()) return null
+        val resolved = FormatUtils.resolveMediaUrl(url) ?: return null
+        return LogoMemoryCache.get(resolved)?.asAndroidBitmap()
+    }
+
+    suspend fun ensureCompanyProfile(): TenantProfile? {
+        val current = _companyProfile.value
+        if (current != null) return current
+        val repo = dashboardRepository ?: return null
+        var prof: TenantProfile? = null
+        try {
+            repo.getProfile().collect { res ->
+                if (res is Resource.Success) {
+                    prof = res.data
+                    _companyProfile.value = res.data
+                }
+            }
+        } catch (_: Exception) {}
+        return prof
+    }
+
+    suspend fun resolveFullLineSale(sale: LineSale): LineSale {
+        if (sale.items.isNotEmpty()) return sale
+        var fullSale: LineSale? = null
+        try {
+            repository.getLineSaleById(sale.id).collect { res ->
+                if (res is Resource.Success) {
+                    fullSale = res.data
+                }
+            }
+        } catch (_: Exception) {}
+        val resolved = fullSale ?: sale
+        val currentListState = _lineSalesState.value
+        if (currentListState is UiState.Success && fullSale != null) {
+            val updatedList = currentListState.data.map {
+                if (it.id == resolved.id) resolved else it
+            }
+            _lineSalesState.value = UiState.Success(updatedList)
+        }
+        return resolved
+    }
+
+    suspend fun resolveFullCounterSale(sale: CounterSale): CounterSale {
+        if (sale.items.isNotEmpty()) return sale
+        var fullSale: CounterSale? = null
+        try {
+            repository.getCounterSaleById(sale.id).collect { res ->
+                if (res is Resource.Success) {
+                    fullSale = res.data
+                }
+            }
+        } catch (_: Exception) {}
+        val resolved = fullSale ?: sale
+        val currentListState = _counterSalesState.value
+        if (currentListState is UiState.Success && fullSale != null) {
+            val updatedList = currentListState.data.map {
+                if (it.id == resolved.id) resolved else it
+            }
+            _counterSalesState.value = UiState.Success(updatedList)
+        }
+        return resolved
+    }
+
+    fun loadPrinters() {
+        _pairedPrinters.value = printerManager?.getPairedPrinters() ?: emptyList()
+        _usbPrinters.value = printerManager?.getConnectedUsbPrinters() ?: emptyList()
+        val savedAddr = printerPreferences?.selectedPrinterAddress?.value
+        val savedType = printerPreferences?.selectedConnectionType?.value ?: PrinterConnectionType.BLUETOOTH
+        _selectedConnectionType.value = savedType
+        if (savedType == PrinterConnectionType.BLUETOOTH) {
+            _selectedPrinter.value = _pairedPrinters.value.firstOrNull { it.address == savedAddr } ?: _pairedPrinters.value.firstOrNull()
+        } else if (savedType == PrinterConnectionType.USB) {
+            _selectedPrinter.value = _usbPrinters.value.firstOrNull { it.address == savedAddr } ?: _usbPrinters.value.firstOrNull()
+        } else if (savedType == PrinterConnectionType.NETWORK) {
+            val netIp = _networkPrinterIp.value
+            _selectedPrinter.value = PrinterDevice("Network Thermal Printer", netIp, true, PrinterConnectionType.NETWORK)
+        }
+    }
+
+    fun selectPrinter(printer: PrinterDevice) {
+        _selectedPrinter.value = printer
+        printerPreferences?.saveSelectedPrinter(printer)
+    }
+
+    fun setConnectionType(type: PrinterConnectionType) {
+        _selectedConnectionType.value = type
+        printerPreferences?.saveConnectionType(type)
+        when (type) {
+            PrinterConnectionType.BLUETOOTH -> {
+                _pairedPrinters.value = printerManager?.getPairedPrinters() ?: emptyList()
+                val savedAddr = printerPreferences?.selectedPrinterAddress?.value
+                _selectedPrinter.value = _pairedPrinters.value.firstOrNull { it.address == savedAddr } ?: _pairedPrinters.value.firstOrNull()
+                printerPreferences?.saveSelectedPrinter(_selectedPrinter.value)
+            }
+            PrinterConnectionType.USB -> {
+                _usbPrinters.value = printerManager?.getConnectedUsbPrinters() ?: emptyList()
+                val savedAddr = printerPreferences?.selectedPrinterAddress?.value
+                _selectedPrinter.value = _usbPrinters.value.firstOrNull { it.address == savedAddr } ?: _usbPrinters.value.firstOrNull()
+                printerPreferences?.saveSelectedPrinter(_selectedPrinter.value)
+            }
+            PrinterConnectionType.NETWORK -> {
+                val dev = PrinterDevice("Network Thermal Printer", _networkPrinterIp.value, true, PrinterConnectionType.NETWORK)
+                _selectedPrinter.value = dev
+                printerPreferences?.saveSelectedPrinter(dev)
+            }
+        }
+    }
+
+    fun setNetworkPrinterIp(ip: String) {
+        val clean = ip.trim()
+        _networkPrinterIp.value = clean
+        printerPreferences?.saveNetworkPrinterIp(clean)
+        val dev = PrinterDevice("Network Thermal Printer", clean, true, PrinterConnectionType.NETWORK)
+        _selectedPrinter.value = dev
+        printerPreferences?.saveSelectedPrinter(dev)
+    }
+
+    fun setPaperWidth(width: PaperWidth) {
+        _paperWidth.value = width
+        printerPreferences?.savePaperWidth(width)
+    }
+
+    fun openPrintDialogForLineSale(sale: LineSale) {
+        if (_activePrintingSaleId.value != null) return
+        _activePrintingSaleId.value = sale.id
+        viewModelScope.launch {
+            try {
+                val fullSale = resolveFullLineSale(sale)
+                val profile = ensureCompanyProfile() ?: _companyProfile.value
+                val logoBmp = getCachedLogoBitmap()
+                val data = InvoiceDataMapper.fromLineSale(fullSale, profile, logoBmp)
+                _activePrintDialogData.value = data
+                _printJobState.value = PrintJobState(status = PrintJobStatus.IDLE)
+                loadPrinters()
+            } finally {
+                _activePrintingSaleId.value = null
+            }
+        }
+    }
+
+    fun openPrintDialogForCounterSale(sale: CounterSale) {
+        if (_activePrintingSaleId.value != null) return
+        _activePrintingSaleId.value = sale.id
+        viewModelScope.launch {
+            try {
+                val fullSale = resolveFullCounterSale(sale)
+                val profile = ensureCompanyProfile() ?: _companyProfile.value
+                val logoBmp = getCachedLogoBitmap()
+                val data = InvoiceDataMapper.fromCounterSale(fullSale, profile, logoBmp)
+                _activePrintDialogData.value = data
+                _printJobState.value = PrintJobState(status = PrintJobStatus.IDLE)
+                loadPrinters()
+            } finally {
+                _activePrintingSaleId.value = null
+            }
+        }
+    }
+
+    fun dismissPrintDialog() {
+        _activePrintDialogData.value = null
+        _activePrintingSaleId.value = null
+    }
+
+    fun printCurrentDialogReceipt(context: Context) {
+        val printData = _activePrintDialogData.value ?: return
+        val printer = _selectedPrinter.value
+        val width = _paperWidth.value
+
+        if (printer == null) {
+            InvoicePrintAdapter.print(context, printData)
+            dismissPrintDialog()
+            return
+        }
+
+        val saleId = printData.invoiceNumber
+        _activePrintingSaleId.value = saleId
+        _printJobState.value = PrintJobState(status = PrintJobStatus.CONNECTING, message = "Connecting to ${printer.name}...")
+
+        viewModelScope.launch {
+            try {
+                val rawBytes = ThermalInvoiceFormatter.formatEscPosReceipt(printData, width)
+                _printJobState.value = PrintJobState(status = PrintJobStatus.PRINTING, message = "Printing receipt...")
+                val res = printerManager?.printReceipt(printer, rawBytes)
+                if (res != null && res.isSuccess) {
+                    _printJobState.value = PrintJobState(status = PrintJobStatus.SUCCESS, message = "Printed successfully")
+                    delay(800)
+                    dismissPrintDialog()
+                } else {
+                    _printJobState.value = PrintJobState(
+                        status = PrintJobStatus.ERROR,
+                        message = res?.exceptionOrNull()?.message ?: "Thermal print failed. Check printer connection or paper."
+                    )
+                }
+            } catch (e: Exception) {
+                _printJobState.value = PrintJobState(
+                    status = PrintJobStatus.ERROR,
+                    message = e.message ?: "Printer error"
+                )
+            } finally {
+                _activePrintingSaleId.value = null
+            }
+        }
+    }
+
+    fun shareLineSalePdf(context: Context, sale: LineSale, onComplete: ((Boolean, String?) -> Unit)? = null) {
+        if (_activeSharingSaleId.value != null) return
+        _activeSharingSaleId.value = sale.id
+
+        viewModelScope.launch {
+            try {
+                val fullSale = resolveFullLineSale(sale)
+                val profile = ensureCompanyProfile() ?: _companyProfile.value
+                val logoBmp = getCachedLogoBitmap()
+                val printData = InvoiceDataMapper.fromLineSale(fullSale, profile, logoBmp)
+                val res = InvoiceShareManager.shareInvoicePdf(context, printData)
+                if (res.isSuccess) {
+                    onComplete?.invoke(true, null)
+                } else {
+                    onComplete?.invoke(false, res.exceptionOrNull()?.message ?: "Failed to share PDF")
+                }
+            } catch (e: Exception) {
+                onComplete?.invoke(false, e.message ?: "Error sharing PDF")
+            } finally {
+                _activeSharingSaleId.value = null
+            }
+        }
+    }
+
+    fun shareCounterSalePdf(context: Context, sale: CounterSale, onComplete: ((Boolean, String?) -> Unit)? = null) {
+        if (_activeSharingSaleId.value != null) return
+        _activeSharingSaleId.value = sale.id
+
+        viewModelScope.launch {
+            try {
+                val fullSale = resolveFullCounterSale(sale)
+                val profile = ensureCompanyProfile() ?: _companyProfile.value
+                val logoBmp = getCachedLogoBitmap()
+                val printData = InvoiceDataMapper.fromCounterSale(fullSale, profile, logoBmp)
+                val res = InvoiceShareManager.shareInvoicePdf(context, printData)
+                if (res.isSuccess) {
+                    onComplete?.invoke(true, null)
+                } else {
+                    onComplete?.invoke(false, res.exceptionOrNull()?.message ?: "Failed to share PDF")
+                }
+            } catch (e: Exception) {
+                onComplete?.invoke(false, e.message ?: "Error sharing PDF")
+            } finally {
+                _activeSharingSaleId.value = null
+            }
+        }
     }
 }

@@ -18,6 +18,7 @@ sealed class Screen(val route: String) {
     // Sub-screens
     object CreateSale : Screen("create_line_sale")
     object CreateLineSale : Screen("create_line_sale")
+    object CreateCounterSale : Screen("create_counter_sale")
     object CreateExpense : Screen("create_expense")
     object CreatePurchase : Screen("create_purchase")
     object CustomerStatement : Screen("customer_statement/{customerId}/{customerName}") {
@@ -47,8 +48,22 @@ enum class BottomBarDestination(
     val iconName: String
 ) {
     HOME("Home", "home"),
+    SALES("Sales", "shopping_cart"),
+    COUNTER_SALES("Counter", "point_of_sale"),
     TRANSACTIONS("Ledger", "receipt_long"),
     DUES("Dues", "account_balance_wallet"),
     STAFF("Staff", "badge"),
-    MORE("More", "menu")
+    PRODUCTS("Catalog", "inventory_2"),
+    MORE("More", "menu");
+
+    companion object {
+        fun destinationsForRole(role: com.vyavsa.app.core.model.UserRole): List<BottomBarDestination> {
+            return when (role) {
+                com.vyavsa.app.core.model.UserRole.SALES -> listOf(HOME, SALES, PRODUCTS, MORE)
+                com.vyavsa.app.core.model.UserRole.OFFICE -> listOf(HOME, COUNTER_SALES, TRANSACTIONS, STAFF, MORE)
+                com.vyavsa.app.core.model.UserRole.ADMIN,
+                com.vyavsa.app.core.model.UserRole.USER -> listOf(HOME, SALES, TRANSACTIONS, DUES, STAFF, MORE)
+            }
+        }
+    }
 }
