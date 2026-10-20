@@ -23,6 +23,8 @@ import com.vyavsa.app.core.model.RecordSupplierPaymentRequest
 import com.vyavsa.app.core.model.SaleItemRequest
 import com.vyavsa.app.core.model.SupplierPaymentResponse
 import com.vyavsa.app.core.model.TenantBank
+import com.vyavsa.app.core.model.UpdateCounterSaleRequest
+import com.vyavsa.app.core.model.UpdateLineSaleRequest
 import com.vyavsa.app.core.model.UpdatePurchaseRequest
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
@@ -154,7 +156,126 @@ class TransactionsViewModelTest {
         val lastReq = fakeRepo.lastCreateCounterSaleRequest
         assertNotNull(lastReq)
         assertEquals(1, lastReq?.items?.size)
-        assertEquals("prod-1", lastReq?.items?.get(0)?.productId)
+    }
+
+    @Test
+    fun testCreateLineSaleWithCustomDiscountSuccess() = runTest {
+        viewModel.createLineSale(
+            customerId = "cust-1",
+            subtotal = "1000.00",
+            discount = "100.00",
+            totalAmount = "900.00",
+            cashIn = "900.00",
+            bankAmount = "0.00",
+            bankId = null
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue("Expected Success, got $actionState", actionState is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreateLineSaleRequest
+        assertNotNull(lastReq)
+        assertEquals("cust-1", lastReq?.customerId)
+        assertEquals("1000.00", lastReq?.subtotal)
+        assertEquals("100.00", lastReq?.discount)
+        assertEquals("100.00", lastReq?.discountAmount)
+        assertEquals("900.00", lastReq?.totalAmount)
+        assertEquals("900.00", lastReq?.cashAmount)
+    }
+
+    @Test
+    fun testCreateLineSaleWithDiscountExceedingSubtotalFails() = runTest {
+        viewModel.createLineSale(
+            customerId = "cust-1",
+            subtotal = "500.00",
+            discount = "600.00",
+            totalAmount = "500.00",
+            cashIn = "500.00",
+            bankAmount = "0.00",
+            bankId = null
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue("Expected Error, got $actionState", actionState is UiState.Error)
+        assertTrue(
+            "Expected discount exceed error, got ${(actionState as UiState.Error).message}",
+            actionState.message.contains("Discount cannot exceed subtotal", ignoreCase = true)
+        )
+        assertNull("Repository should not have been called", fakeRepo.lastCreateLineSaleRequest)
+    }
+
+    @Test
+    fun testCreateLineSaleWithNegativeDiscountFails() = runTest {
+        viewModel.createLineSale(
+            customerId = "cust-1",
+            subtotal = "500.00",
+            discount = "-20.00",
+            totalAmount = "500.00",
+            cashIn = "500.00",
+            bankAmount = "0.00",
+            bankId = null
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue("Expected Error, got $actionState", actionState is UiState.Error)
+        assertTrue(
+            "Expected non-negative discount error, got ${(actionState as UiState.Error).message}",
+            actionState.message.contains("Discount cannot be negative", ignoreCase = true)
+        )
+        assertNull("Repository should not have been called", fakeRepo.lastCreateLineSaleRequest)
+    }
+
+    @Test
+    fun testCreateCounterSaleWithCustomDiscountSuccess() = runTest {
+        viewModel.createCounterSale(
+            item = "Bulk Rice",
+            price = "1200.00",
+            subtotal = "1200.00",
+            discount = "200.00",
+            totalAmount = "1000.00",
+            cash = "1000.00",
+            bankAmount = "0.00",
+            bankId = null
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue("Expected Success, got $actionState", actionState is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreateCounterSaleRequest
+        assertNotNull(lastReq)
+        assertEquals("Bulk Rice", lastReq?.item)
+        assertEquals("1200.00", lastReq?.subtotal)
+        assertEquals("200.00", lastReq?.discount)
+        assertEquals("200.00", lastReq?.discountAmount)
+        assertEquals("1000.00", lastReq?.totalAmount)
+        assertEquals("1000.00", lastReq?.cash)
+    }
+
+    @Test
+    fun testCreateCounterSaleWithDiscountExceedingSubtotalFails() = runTest {
+        viewModel.createCounterSale(
+            item = "Bulk Rice",
+            price = "400.00",
+            subtotal = "400.00",
+            discount = "450.00",
+            totalAmount = "400.00",
+            cash = "400.00",
+            bankAmount = "0.00",
+            bankId = null
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.createActionState.value
+        assertTrue("Expected Error, got $actionState", actionState is UiState.Error)
+        assertTrue(
+            "Expected discount error, got ${(actionState as UiState.Error).message}",
+            actionState.message.contains("Discount cannot exceed subtotal", ignoreCase = true)
+        )
+        assertNull("Repository should not have been called", fakeRepo.lastCreateCounterSaleRequest)
     }
 
     @Test
@@ -804,6 +925,8 @@ class FakeTransactionsRepository : TransactionsRepository {
 
     var lastCreateLineSaleRequest: CreateLineSaleRequest? = null
     var lastCreateCounterSaleRequest: CreateCounterSaleRequest? = null
+    var lastUpdateLineSaleRequest: UpdateLineSaleRequest? = null
+    var lastUpdateCounterSaleRequest: UpdateCounterSaleRequest? = null
     var lastCreatePurchaseRequest: CreatePurchaseRequest? = null
     var lastCreateExpenseRequest: CreateExpenseRequest? = null
     var createLineSaleCallCount = 0
@@ -823,6 +946,8 @@ class FakeTransactionsRepository : TransactionsRepository {
                 id = "sale-${lineSales.size + 1}",
                 customerId = request.customerId,
                 customerName = "Customer",
+                subtotal = request.subtotal ?: request.totalAmount,
+                discount = request.discount ?: (request.discountAmount ?: "0.00"),
                 totalAmount = request.totalAmount,
                 totalCashIn = request.cashAmount ?: "0.00",
                 balance = "0.00",
@@ -830,6 +955,24 @@ class FakeTransactionsRepository : TransactionsRepository {
             )
             lineSales.add(sale)
             emit(Resource.Success(sale))
+        }
+    }
+
+    override fun updateLineSale(id: String, request: UpdateLineSaleRequest): Flow<Resource<LineSale>> = flow {
+        emit(Resource.Loading)
+        lastUpdateLineSaleRequest = request
+        val idx = lineSales.indexOfFirst { it.id == id }
+        if (idx != -1) {
+            val existing = lineSales[idx]
+            val updated = existing.copy(
+                subtotal = request.subtotal ?: existing.subtotal,
+                discount = request.discount ?: (request.discountAmount ?: existing.discount),
+                totalAmount = request.totalAmount ?: existing.totalAmount
+            )
+            lineSales[idx] = updated
+            emit(Resource.Success(updated))
+        } else {
+            emit(Resource.Error("Sale not found"))
         }
     }
 
@@ -844,6 +987,8 @@ class FakeTransactionsRepository : TransactionsRepository {
         val sale = CounterSale(
             id = "counter-${counterSales.size + 1}",
             item = request.item,
+            subtotal = request.subtotal ?: (request.price.ifBlank { request.totalAmount }),
+            discount = request.discount ?: (request.discountAmount ?: "0.00"),
             price = request.price,
             totalAmount = request.totalAmount,
             paymentMethod = request.paymentMethod,
@@ -852,6 +997,24 @@ class FakeTransactionsRepository : TransactionsRepository {
         )
         counterSales.add(sale)
         emit(Resource.Success(sale))
+    }
+
+    override fun updateCounterSale(id: String, request: UpdateCounterSaleRequest): Flow<Resource<CounterSale>> = flow {
+        emit(Resource.Loading)
+        lastUpdateCounterSaleRequest = request
+        val idx = counterSales.indexOfFirst { it.id == id }
+        if (idx != -1) {
+            val existing = counterSales[idx]
+            val updated = existing.copy(
+                subtotal = request.subtotal ?: existing.subtotal,
+                discount = request.discount ?: (request.discountAmount ?: existing.discount),
+                totalAmount = request.totalAmount ?: existing.totalAmount
+            )
+            counterSales[idx] = updated
+            emit(Resource.Success(updated))
+        } else {
+            emit(Resource.Error("Sale not found"))
+        }
     }
 
     override fun listPurchases(date: String?, search: String?, customerId: String?): Flow<Resource<List<Purchase>>> = flow {

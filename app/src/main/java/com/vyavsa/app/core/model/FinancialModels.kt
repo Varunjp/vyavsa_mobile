@@ -144,14 +144,53 @@ data class TenantProfile(
     val email: String = "",
     val phone: String? = null,
     @SerialName("logo_url") val logoUrl: String? = null,
+    @SerialName("address_line1") val addressLine1: String? = null,
+    @SerialName("address_line2") val addressLine2: String? = null,
+    val city: String? = null,
+    val state: String? = null,
+    @SerialName("postal_code") val postalCode: String? = null,
+    val country: String? = null,
+    @SerialName("formatted_address") val formattedAddress: String? = null,
+    val address: String? = null,
     val status: String = "active",
     @SerialName("created_at") val createdAt: String = ""
-)
+) {
+    /**
+     * Resolves the complete human-readable address with graceful fallbacks.
+     */
+    fun getEffectiveAddress(): String? {
+        if (!formattedAddress.isNullOrBlank()) return formattedAddress.trim()
+        if (!address.isNullOrBlank()) return address.trim()
+        val parts = mutableListOf<String>()
+        if (!addressLine1.isNullOrBlank()) parts.add(addressLine1.trim())
+        if (!addressLine2.isNullOrBlank()) parts.add(addressLine2.trim())
+
+        var cityStateZip = ""
+        if (!city.isNullOrBlank()) cityStateZip = city.trim()
+        if (!state.isNullOrBlank()) {
+            cityStateZip = if (cityStateZip.isNotEmpty()) "$cityStateZip, ${state.trim()}" else state.trim()
+        }
+        if (!postalCode.isNullOrBlank()) {
+            cityStateZip = if (cityStateZip.isNotEmpty()) "$cityStateZip - ${postalCode.trim()}" else postalCode.trim()
+        }
+        if (cityStateZip.isNotEmpty()) parts.add(cityStateZip)
+
+        if (!country.isNullOrBlank()) parts.add(country.trim())
+
+        return if (parts.isNotEmpty()) parts.joinToString(", ") else null
+    }
+}
 
 @Serializable
 data class UpdateTenantProfileRequest(
     val name: String,
     val email: String,
     val phone: String? = null,
-    @SerialName("logo_url") val logoUrl: String? = null
+    @SerialName("logo_url") val logoUrl: String? = null,
+    @SerialName("address_line1") val addressLine1: String? = null,
+    @SerialName("address_line2") val addressLine2: String? = null,
+    val city: String? = null,
+    val state: String? = null,
+    @SerialName("postal_code") val postalCode: String? = null,
+    val country: String? = null
 )

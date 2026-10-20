@@ -19,6 +19,8 @@ import com.vyavsa.app.core.model.PurchasePayment
 import com.vyavsa.app.core.model.RecordSalePaymentRequest
 import com.vyavsa.app.core.model.RecordSupplierPaymentRequest
 import com.vyavsa.app.core.model.SupplierPaymentResponse
+import com.vyavsa.app.core.model.UpdateCounterSaleRequest
+import com.vyavsa.app.core.model.UpdateLineSaleRequest
 import com.vyavsa.app.core.model.UpdatePurchaseRequest
 import com.vyavsa.app.core.network.VyavsaApiService
 import com.vyavsa.app.core.sync.DataMutation
@@ -33,12 +35,14 @@ import javax.inject.Singleton
 interface TransactionsRepository {
     fun listLineSales(date: String?, search: String?): Flow<Resource<List<LineSale>>>
     fun createLineSale(request: CreateLineSaleRequest): Flow<Resource<LineSale>>
+    fun updateLineSale(id: String, request: UpdateLineSaleRequest): Flow<Resource<LineSale>>
     fun getLineSaleById(id: String): Flow<Resource<LineSale>>
     fun listLineSalePayments(id: String): Flow<Resource<List<LineSalePayment>>>
     fun recordLineSalePayment(id: String, request: RecordSalePaymentRequest): Flow<Resource<LineSalePayment>>
 
     fun listCounterSales(date: String?, search: String?): Flow<Resource<List<CounterSale>>>
     fun createCounterSale(request: CreateCounterSaleRequest): Flow<Resource<CounterSale>>
+    fun updateCounterSale(id: String, request: UpdateCounterSaleRequest): Flow<Resource<CounterSale>>
     fun getCounterSaleById(id: String): Flow<Resource<CounterSale>>
     fun listCounterSalePayments(id: String): Flow<Resource<List<CounterSalePayment>>>
     fun recordCounterSalePayment(id: String, request: RecordSalePaymentRequest): Flow<Resource<CounterSalePayment>>
@@ -103,6 +107,25 @@ class TransactionsRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             emit(Resource.Error(e.message ?: "Network error creating sale"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun updateLineSale(id: String, request: UpdateLineSaleRequest): Flow<Resource<LineSale>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.updateLineSale(id, request)
+            if (response.success && response.data != null) {
+                refreshCoordinator.notifyMutation(DataMutation.SALES)
+                refreshCoordinator.notifyMutation(DataMutation.DUES)
+                if (request.items.isNotEmpty()) {
+                    refreshCoordinator.notifyMutation(DataMutation.PRODUCTS)
+                }
+                emit(Resource.Success(response.data, response.message))
+            } else {
+                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update line sale", response.error?.code))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error updating line sale"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -192,6 +215,24 @@ class TransactionsRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             emit(Resource.Error(e.message ?: "Network error recording sale"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun updateCounterSale(id: String, request: UpdateCounterSaleRequest): Flow<Resource<CounterSale>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.updateCounterSale(id, request)
+            if (response.success && response.data != null) {
+                refreshCoordinator.notifyMutation(DataMutation.SALES)
+                if (request.items.isNotEmpty()) {
+                    refreshCoordinator.notifyMutation(DataMutation.PRODUCTS)
+                }
+                emit(Resource.Success(response.data, response.message))
+            } else {
+                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update counter sale", response.error?.code))
+            }
+        } catch (e: Exception) {
+            emit(Resource.Error(e.message ?: "Network error updating counter sale"))
         }
     }.flowOn(Dispatchers.IO)
 

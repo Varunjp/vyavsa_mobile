@@ -203,11 +203,39 @@ All tenant operations require:
     - `outstanding_payable`: Total outstanding payables.
     - `date`: YYYY-MM-DD
 
-### 3.2 Tenant Profile, Logo & Settings
+### 3.2 Tenant Profile, Address, Logo & Settings
 - **Profile**: `GET /api/v1/tenant/profile`
-  - Response includes `logo_url`: `"/uploads/logos/tenant_...png"` or `null`.
+  - Response includes:
+    - `logo_url`: `"/uploads/logos/tenant_...png"` or `null`.
+    - `address_line1`: string or null (max 255 chars).
+    - `address_line2`: string or null (max 255 chars).
+    - `city`: string or null (max 100 chars).
+    - `state`: string or null (max 100 chars).
+    - `postal_code`: string or null (max 20 chars).
+    - `country`: string or null (max 100 chars).
+    - `formatted_address`: string or null (joined multi-line or comma-separated company address).
 - **Update Profile**: `PUT /api/v1/tenant/profile` (`tenant_admin` only)
-  - Request: `{"name": "...", "email": "...", "phone": "..."}`
+  - Request:
+    ```json
+    {
+      "name": "Vyavsa Enterprises",
+      "email": "owner@vyavsa.com",
+      "phone": "+91 9876543210",
+      "address_line1": "Plot 42, Industrial Area Phase 2",
+      "address_line2": "Near Metro Pillar 124",
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "postal_code": "560001",
+      "country": "India"
+    }
+    ```
+  - Validation:
+    - `name`: Required, max 255 chars.
+    - `email`: Required, valid email format.
+    - `phone`: Optional, max 50 chars.
+    - `address_line1`, `address_line2`: Optional, max 255 chars.
+    - `city`, `state`, `country`: Optional, max 100 chars.
+    - `postal_code`: Optional, max 20 chars.
 - **Get Company Logo**: `GET /api/v1/tenant/logo`
   - Response: `{"logo_url": "/uploads/logos/tenant_...png"}` (or `null`)
 - **Upload Company Logo**: `POST /api/v1/tenant/logo` (`tenant_admin` only)
@@ -291,6 +319,15 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
 
 ## 5. Line Sales & Counter Sales (Transactions)
 
+### Financial Calculation & Discount Rules
+- **Calculation Formula**: `Final Total Amount = Subtotal - Discount Amount`
+- **Validation Rules**:
+  - `subtotal`: Required, must be >= 0.00.
+  - `discount` / `discount_amount`: Non-negative (>= 0.00), must not exceed `subtotal`. Defaults to 0.00 if omitted.
+  - `collected_amount`: `cash + bank_amount` cannot exceed `total_amount`.
+  - Precision: All monetary calculations follow 2 decimal places with `HALF_UP` rounding.
+  - Backward Compatibility: Missing `subtotal` defaults to `total_amount`; missing `discount` defaults to `0.00`.
+
 ### 5.1 Line Sales
 - **List**: `GET /api/v1/tenant/line-sales?page=1&page_size=20&date=YYYY-MM-DD&search=`
 - **Create**: `POST /api/v1/tenant/line-sales`
@@ -301,6 +338,9 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
       "route": "North Route",
       "salesman": "Ramesh",
       "note": "Morning delivery",
+      "subtotal": "1600.00",
+      "discount": "100.00",
+      "discount_amount": "100.00",
       "total_amount": "1500.00",
       "total_cash_in": "500.00",
       "cash_amount": "500.00",
@@ -318,10 +358,19 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
           "bank_name": "State Bank of India",
           "amount": "400.00"
         }
+      ],
+      "items": [
+        {
+          "product_id": "uuid",
+          "quantity": "2.00",
+          "unit_price": "800.00"
+        }
       ]
     }
     ```
+- **Update**: `PUT /api/v1/tenant/line-sales/:id`
 - **Details**: `GET /api/v1/tenant/line-sales/:id`
+  - Response includes `subtotal`, `discount`, `total_amount`, `total_cash_in`, `bank_amount`, `balance`, `items`, `payments`.
 - **Payments**: `GET /api/v1/tenant/line-sales/:id/payments`
 - **Add Payment**: `POST /api/v1/tenant/line-sales/:id/payments`
 
@@ -332,7 +381,10 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
     ```json
     {
       "item": "Product A",
-      "price": "250.00",
+      "price": "300.00",
+      "subtotal": "300.00",
+      "discount": "50.00",
+      "discount_amount": "50.00",
       "total_amount": "250.00",
       "payment_method": "split",
       "cash": "100.00",
@@ -349,7 +401,9 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
       "account": "counter"
     }
     ```
+- **Update**: `PUT /api/v1/tenant/counter-sales/:id`
 - **Details**: `GET /api/v1/tenant/counter-sales/:id`
+  - Response includes `item`, `price`, `subtotal`, `discount`, `total_amount`, `payment_method`, `cash`, `bank_amount`, `account`, `items`, `payments`.
 - **Payments**: `GET /api/v1/tenant/counter-sales/:id/payments`
 - **Add Payment**: `POST /api/v1/tenant/counter-sales/:id/payments`
 

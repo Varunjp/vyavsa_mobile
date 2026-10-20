@@ -9,9 +9,11 @@ import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.RecordSalePaymentRequest
 import com.vyavsa.app.core.model.TenantBank
+import com.vyavsa.app.core.model.TenantProfile
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import com.vyavsa.app.feature.bank.BankRepository
+import com.vyavsa.app.feature.dashboard.DashboardRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,8 +32,16 @@ class SaleDetailsViewModel @Inject constructor(
     private val repository: TransactionsRepository,
     private val bankRepository: BankRepository,
     private val refreshCoordinator: DataRefreshCoordinator,
+    private val dashboardRepository: DashboardRepository? = null,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    constructor(
+        repository: TransactionsRepository,
+        bankRepository: BankRepository,
+        refreshCoordinator: DataRefreshCoordinator,
+        savedStateHandle: SavedStateHandle
+    ) : this(repository, bankRepository, refreshCoordinator, null, savedStateHandle)
 
     val saleType: String = savedStateHandle["saleType"] ?: "line"
     val saleId: String = savedStateHandle["saleId"] ?: ""
@@ -45,10 +55,26 @@ class SaleDetailsViewModel @Inject constructor(
     private val _banksState = MutableStateFlow<List<TenantBank>>(emptyList())
     val banksState: StateFlow<List<TenantBank>> = _banksState.asStateFlow()
 
+    private val _companyProfile = MutableStateFlow<TenantProfile?>(null)
+    val companyProfile: StateFlow<TenantProfile?> = _companyProfile.asStateFlow()
+
     init {
         loadSaleDetails()
         loadBanks()
+        loadCompanyProfile()
         observeMutations()
+    }
+
+    private fun loadCompanyProfile() {
+        dashboardRepository?.let { repo ->
+            viewModelScope.launch {
+                repo.getProfile().collectLatest { res ->
+                    if (res is Resource.Success) {
+                        _companyProfile.value = res.data
+                    }
+                }
+            }
+        }
     }
 
     fun loadSaleDetails() {
@@ -99,6 +125,9 @@ class SaleDetailsViewModel @Inject constructor(
             refreshCoordinator.refreshEvents.collectLatest { mutation ->
                 if (mutation == DataMutation.SALES || mutation == DataMutation.ALL) {
                     loadSaleDetails()
+                }
+                if (mutation == DataMutation.PROFILE || mutation == DataMutation.ALL) {
+                    loadCompanyProfile()
                 }
             }
         }

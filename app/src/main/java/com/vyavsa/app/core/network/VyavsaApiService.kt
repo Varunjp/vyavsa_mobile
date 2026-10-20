@@ -59,7 +59,9 @@ import com.vyavsa.app.core.model.TokenResponse
 import com.vyavsa.app.core.model.UpdateAttendanceRequest
 import com.vyavsa.app.core.model.UpdateBankRequest
 import com.vyavsa.app.core.model.UpdateCustomerRequest
+import com.vyavsa.app.core.model.UpdateCounterSaleRequest
 import com.vyavsa.app.core.model.UpdateEmployeeRequest
+import com.vyavsa.app.core.model.UpdateLineSaleRequest
 import com.vyavsa.app.core.model.UpdateProductRequest
 
 import com.vyavsa.app.core.model.UpdateTenantProfileRequest
@@ -165,6 +167,12 @@ interface VyavsaApiService {
     @POST("api/v1/tenant/line-sales")
     suspend fun createLineSale(@Body req: CreateLineSaleRequest): ApiResponse<LineSale>
 
+    @PUT("api/v1/tenant/line-sales/{id}")
+    suspend fun updateLineSale(
+        @Path("id") id: String,
+        @Body req: UpdateLineSaleRequest
+    ): ApiResponse<LineSale>
+
     @GET("api/v1/tenant/line-sales/{id}")
     suspend fun getLineSaleById(@Path("id") id: String): ApiResponse<LineSale>
 
@@ -187,6 +195,12 @@ interface VyavsaApiService {
 
     @POST("api/v1/tenant/counter-sales")
     suspend fun createCounterSale(@Body req: CreateCounterSaleRequest): ApiResponse<CounterSale>
+
+    @PUT("api/v1/tenant/counter-sales/{id}")
+    suspend fun updateCounterSale(
+        @Path("id") id: String,
+        @Body req: UpdateCounterSaleRequest
+    ): ApiResponse<CounterSale>
 
     @GET("api/v1/tenant/counter-sales/{id}")
     suspend fun getCounterSaleById(@Path("id") id: String): ApiResponse<CounterSale>

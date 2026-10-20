@@ -60,6 +60,8 @@ data class LineSale(
     val route: String? = null,
     val salesman: String? = null,
     val note: String? = null,
+    val subtotal: String = "0.00",
+    val discount: String = "0.00",
     @SerialName("total_amount") val totalAmount: String = "0.00",
     @SerialName("total_cash_in") val totalCashIn: String = "0.00",
     @SerialName("bank_amount") val bankAmount: String = "0.00",
@@ -69,7 +71,10 @@ data class LineSale(
     @SerialName("updated_at") val updatedAt: String = "",
     val payments: List<LineSalePayment> = emptyList(),
     val items: List<SaleItem> = emptyList()
-)
+) {
+    val cash: String
+        get() = totalCashIn
+}
 
 @Immutable
 @Serializable
@@ -86,12 +91,28 @@ data class CreateLineSaleRequest(
     val route: String? = null,
     val salesman: String? = null,
     val note: String? = null,
+    val subtotal: String? = null,
+    val discount: String? = null,
+    @SerialName("discount_amount") val discountAmount: String? = null,
     @SerialName("total_amount") val totalAmount: String = "0.00",
     @SerialName("total_cash_in") val totalCashIn: String = "0.00",
     @SerialName("cash_amount") val cashAmount: String? = null,
     @SerialName("bank_amount") val bankAmount: String = "0.00",
     @SerialName("bank_id") val bankId: String? = null,
     @SerialName("bank_payments") val bankPayments: List<BankPaymentSplit> = emptyList(),
+    val items: List<SaleItemRequest> = emptyList()
+)
+
+@Serializable
+data class UpdateLineSaleRequest(
+    val route: String? = null,
+    val salesman: String? = null,
+    val note: String? = null,
+    val subtotal: String? = null,
+    val discount: String? = null,
+    @SerialName("discount_amount") val discountAmount: String? = null,
+    @SerialName("total_amount") val totalAmount: String? = null,
+    @SerialName("total_cash_in") val totalCashIn: String? = null,
     val items: List<SaleItemRequest> = emptyList()
 )
 
@@ -119,6 +140,8 @@ data class CounterSale(
     val id: String = "",
     val item: String = "",
     val price: String = "0.00",
+    val subtotal: String = "0.00",
+    val discount: String = "0.00",
     @SerialName("total_amount") val totalAmount: String = "0.00",
     @SerialName("payment_method") val paymentMethod: String = "cash",
     val cash: String = "0.00",
@@ -135,6 +158,9 @@ data class CounterSale(
 data class CreateCounterSaleRequest(
     val item: String = "",
     val price: String = "0.00",
+    val subtotal: String? = null,
+    val discount: String? = null,
+    @SerialName("discount_amount") val discountAmount: String? = null,
     @SerialName("total_amount") val totalAmount: String = "0.00",
     @SerialName("payment_method") val paymentMethod: String = "cash",
     val cash: String = "0.00",
@@ -143,6 +169,21 @@ data class CreateCounterSaleRequest(
     @SerialName("bank_id") val bankId: String? = null,
     val account: String? = null,
     @SerialName("bank_payments") val bankPayments: List<BankPaymentSplit> = emptyList(),
+    val items: List<SaleItemRequest> = emptyList()
+)
+
+@Serializable
+data class UpdateCounterSaleRequest(
+    val item: String? = null,
+    val price: String? = null,
+    val subtotal: String? = null,
+    val discount: String? = null,
+    @SerialName("discount_amount") val discountAmount: String? = null,
+    @SerialName("total_amount") val totalAmount: String? = null,
+    @SerialName("payment_method") val paymentMethod: String? = null,
+    val cash: String? = null,
+    @SerialName("bank_amount") val bankAmount: String? = null,
+    val account: String? = null,
     val items: List<SaleItemRequest> = emptyList()
 )
 

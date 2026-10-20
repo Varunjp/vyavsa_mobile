@@ -96,6 +96,7 @@ import com.vyavsa.app.core.designsystem.VyavsaOutlinedButton
 import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
+import com.vyavsa.app.core.common.SaleCalculationUtils
 import com.vyavsa.app.core.model.BankPaymentSplit
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.Product
@@ -172,6 +173,8 @@ fun CreateSaleScreen(
     var customerDropdownExpanded by remember { mutableStateOf(false) }
     var route by remember { mutableStateOf("") }
     var salesman by remember { mutableStateOf("") }
+    var lineSubtotal by remember { mutableStateOf("") }
+    var lineDiscount by remember { mutableStateOf("0.00") }
     var lineTotalAmount by remember { mutableStateOf("") }
     var lineCashIn by remember { mutableStateOf("0.00") }
     var lineIncludeBank by remember { mutableStateOf(false) }
@@ -182,6 +185,8 @@ fun CreateSaleScreen(
     // Form fields for Counter Sale
     var counterItem by remember { mutableStateOf("") }
     var counterPrice by remember { mutableStateOf("") }
+    var counterSubtotal by remember { mutableStateOf("") }
+    var counterDiscount by remember { mutableStateOf("0.00") }
     var counterTotalAmount by remember { mutableStateOf("") }
     var counterCash by remember { mutableStateOf("0.00") }
     var counterIncludeBank by remember { mutableStateOf(false) }
@@ -225,6 +230,12 @@ fun CreateSaleScreen(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
                 ) {
                     val totalVal = if (selectedSaleType == SaleType.LINE_SALE) lineTotalAmount else counterTotalAmount
+                    val subVal = if (selectedSaleType == SaleType.LINE_SALE) {
+                        lineSubtotal.ifBlank { totalVal }
+                    } else {
+                        counterSubtotal.ifBlank { counterPrice.ifBlank { totalVal } }
+                    }
+                    val discVal = (if (selectedSaleType == SaleType.LINE_SALE) lineDiscount else counterDiscount).toDoubleOrNull() ?: 0.0
                     val cashVal = (if (selectedSaleType == SaleType.LINE_SALE) lineCashIn else counterCash).toDoubleOrNull() ?: 0.0
                     val bankEntriesVal = if (selectedSaleType == SaleType.LINE_SALE) {
                         if (lineIncludeBank) lineBankEntries else emptyList()
@@ -243,8 +254,17 @@ fun CreateSaleScreen(
                             .padding(bottom = 8.dp)
                     ) {
                         Column {
+                            if (discVal > 0.0) {
+                                Text(
+                                    text = "Subtotal: ${FormatUtils.formatCurrency(subVal.ifBlank { "0.00" })} • Disc: -${FormatUtils.formatCurrency(discVal.toString())}",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = Emerald600,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                            }
                             Text(
-                                text = "Total Sale Amount",
+                                text = "Final Payable Amount",
                                 style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                             )
                             Text(
@@ -301,6 +321,8 @@ fun CreateSaleScreen(
                                     customerId = selectedCustomer?.id ?: "",
                                     route = route,
                                     salesman = salesman,
+                                    subtotal = lineSubtotal.ifBlank { lineTotalAmount },
+                                    discount = lineDiscount.ifBlank { "0.00" },
                                     totalAmount = lineTotalAmount,
                                     cashIn = lineCashIn,
                                     bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
@@ -329,9 +351,12 @@ fun CreateSaleScreen(
                                         unitPrice = it.unitPrice.trim()
                                     )
                                 }
+                                val effectiveSub = counterSubtotal.ifBlank { counterPrice.ifBlank { counterTotalAmount } }
                                 viewModel.createCounterSale(
                                     item = counterItem.ifBlank { if (counterItems.isNotEmpty()) counterItems.first().productName else "" },
-                                    price = counterPrice.ifBlank { counterTotalAmount },
+                                    price = counterPrice.ifBlank { effectiveSub },
+                                    subtotal = effectiveSub,
+                                    discount = counterDiscount.ifBlank { "0.00" },
                                     totalAmount = counterTotalAmount,
                                     cash = counterCash,
                                     bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
@@ -550,14 +575,16 @@ fun CreateSaleScreen(
                                         val updated = lineItems.map { if (it.id == entry.id) it.copy(quantity = filtered) else it }
                                         lineItems = updated
                                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
-                                        lineTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        lineSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        lineTotalAmount = SaleCalculationUtils.calculateSaleTotal(lineSubtotal, lineDiscount)
                                     },
                                     onQuantityIncrement = { entry ->
                                         val currentQ = entry.quantity.toIntOrNull() ?: 1
                                         val updated = lineItems.map { if (it.id == entry.id) it.copy(quantity = (currentQ + 1).toString()) else it }
                                         lineItems = updated
                                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
-                                        lineTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        lineSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        lineTotalAmount = SaleCalculationUtils.calculateSaleTotal(lineSubtotal, lineDiscount)
                                     },
                                     onQuantityDecrement = { entry ->
                                         val currentQ = entry.quantity.toIntOrNull() ?: 1
@@ -565,28 +592,68 @@ fun CreateSaleScreen(
                                             val updated = lineItems.map { if (it.id == entry.id) it.copy(quantity = (currentQ - 1).toString()) else it }
                                             lineItems = updated
                                             val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
-                                            lineTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                            lineSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                            lineTotalAmount = SaleCalculationUtils.calculateSaleTotal(lineSubtotal, lineDiscount)
                                         }
                                     },
                                     onUnitPriceChange = { entry, newPrice ->
                                         val updated = lineItems.map { if (it.id == entry.id) it.copy(unitPrice = newPrice) else it }
                                         lineItems = updated
                                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
-                                        lineTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        lineSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        lineTotalAmount = SaleCalculationUtils.calculateSaleTotal(lineSubtotal, lineDiscount)
                                     },
                                     onRemoveItem = { entry ->
                                         val updated = lineItems.filterNot { it.id == entry.id }
                                         lineItems = updated
                                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
                                         if (updated.isNotEmpty()) {
-                                            lineTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                            lineSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                            lineTotalAmount = SaleCalculationUtils.calculateSaleTotal(lineSubtotal, lineDiscount)
                                         }
                                     }
                                 )
 
                                 Spacer(modifier = Modifier.height(14.dp))
 
-                                // Invoice Amount & Cash In
+                                // Subtotal & Custom Discount Row
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.Top,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    VyavsaTextField(
+                                        value = lineSubtotal,
+                                        onValueChange = {
+                                            lineSubtotal = it
+                                            lineTotalAmount = SaleCalculationUtils.calculateSaleTotal(it, lineDiscount)
+                                        },
+                                        label = "Subtotal (₹) *",
+                                        placeholder = "0.00",
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    VyavsaTextField(
+                                        value = lineDiscount,
+                                        onValueChange = {
+                                            lineDiscount = it
+                                            val effSub = lineSubtotal.ifBlank {
+                                                if (lineItems.isNotEmpty()) {
+                                                    String.format(java.util.Locale.US, "%.2f", lineItems.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) })
+                                                } else lineTotalAmount
+                                            }
+                                            lineTotalAmount = SaleCalculationUtils.calculateSaleTotal(effSub, it)
+                                        },
+                                        label = "Discount Amount (₹)",
+                                        placeholder = "0.00",
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Final Invoice Amount & Cash In
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     verticalAlignment = Alignment.Top,
@@ -595,7 +662,7 @@ fun CreateSaleScreen(
                                     VyavsaTextField(
                                         value = lineTotalAmount,
                                         onValueChange = { lineTotalAmount = it },
-                                        label = "Invoice Total (₹) *",
+                                        label = "Final Payable (₹) *",
                                         placeholder = "0.00",
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
                                         modifier = Modifier.weight(1f)
@@ -626,6 +693,8 @@ fun CreateSaleScreen(
 
                                 // Line Sale Calculations Box
                                 SaleCalculationBox(
+                                    subtotal = lineSubtotal.ifBlank { lineTotalAmount },
+                                    discount = lineDiscount,
                                     totalAmount = lineTotalAmount,
                                     cashAmount = lineCashIn,
                                     bankEntries = if (lineIncludeBank) lineBankEntries else emptyList(),
@@ -679,14 +748,16 @@ fun CreateSaleScreen(
                                         val updated = counterItems.map { if (it.id == entry.id) it.copy(quantity = filtered) else it }
                                         counterItems = updated
                                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
-                                        counterTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        counterSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        counterTotalAmount = SaleCalculationUtils.calculateSaleTotal(counterSubtotal, counterDiscount)
                                     },
                                     onQuantityIncrement = { entry ->
                                         val currentQ = entry.quantity.toIntOrNull() ?: 1
                                         val updated = counterItems.map { if (it.id == entry.id) it.copy(quantity = (currentQ + 1).toString()) else it }
                                         counterItems = updated
                                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
-                                        counterTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        counterSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        counterTotalAmount = SaleCalculationUtils.calculateSaleTotal(counterSubtotal, counterDiscount)
                                     },
                                     onQuantityDecrement = { entry ->
                                         val currentQ = entry.quantity.toIntOrNull() ?: 1
@@ -694,21 +765,24 @@ fun CreateSaleScreen(
                                             val updated = counterItems.map { if (it.id == entry.id) it.copy(quantity = (currentQ - 1).toString()) else it }
                                             counterItems = updated
                                             val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
-                                            counterTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                            counterSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                            counterTotalAmount = SaleCalculationUtils.calculateSaleTotal(counterSubtotal, counterDiscount)
                                         }
                                     },
                                     onUnitPriceChange = { entry, newPrice ->
                                         val updated = counterItems.map { if (it.id == entry.id) it.copy(unitPrice = newPrice) else it }
                                         counterItems = updated
                                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
-                                        counterTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        counterSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                        counterTotalAmount = SaleCalculationUtils.calculateSaleTotal(counterSubtotal, counterDiscount)
                                     },
                                     onRemoveItem = { entry ->
                                         val updated = counterItems.filterNot { it.id == entry.id }
                                         counterItems = updated
                                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
                                         if (updated.isNotEmpty()) {
-                                            counterTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                            counterSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
+                                            counterTotalAmount = SaleCalculationUtils.calculateSaleTotal(counterSubtotal, counterDiscount)
                                         }
                                     }
                                 )
@@ -724,27 +798,37 @@ fun CreateSaleScreen(
 
                                 Spacer(modifier = Modifier.height(14.dp))
 
+                                // Subtotal & Discount Row
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     verticalAlignment = Alignment.Top,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     VyavsaTextField(
-                                        value = counterPrice,
+                                        value = counterSubtotal.ifBlank { counterPrice },
                                         onValueChange = {
                                             counterPrice = it
-                                            if (counterTotalAmount.isBlank()) counterTotalAmount = it
+                                            counterSubtotal = it
+                                            counterTotalAmount = SaleCalculationUtils.calculateSaleTotal(it, counterDiscount)
                                         },
-                                        label = "Unit Price (₹)",
+                                        label = "Subtotal / Price (₹) *",
                                         placeholder = "0.00",
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
                                         modifier = Modifier.weight(1f)
                                     )
 
                                     VyavsaTextField(
-                                        value = counterTotalAmount,
-                                        onValueChange = { counterTotalAmount = it },
-                                        label = "Total Amount (₹) *",
+                                        value = counterDiscount,
+                                        onValueChange = {
+                                            counterDiscount = it
+                                            val effSub = counterSubtotal.ifBlank {
+                                                if (counterItems.isNotEmpty()) {
+                                                    String.format(java.util.Locale.US, "%.2f", counterItems.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) })
+                                                } else counterPrice
+                                            }
+                                            counterTotalAmount = SaleCalculationUtils.calculateSaleTotal(effSub, it)
+                                        },
+                                        label = "Discount Amount (₹)",
                                         placeholder = "0.00",
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
                                         modifier = Modifier.weight(1f)
@@ -753,13 +837,29 @@ fun CreateSaleScreen(
 
                                 Spacer(modifier = Modifier.height(14.dp))
 
-                                VyavsaTextField(
-                                    value = counterCash,
-                                    onValueChange = { counterCash = it },
-                                    label = "Physical Cash Received (₹)",
-                                    placeholder = "0.00",
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next)
-                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.Top,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    VyavsaTextField(
+                                        value = counterTotalAmount,
+                                        onValueChange = { counterTotalAmount = it },
+                                        label = "Final Amount (₹) *",
+                                        placeholder = "0.00",
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    VyavsaTextField(
+                                        value = counterCash,
+                                        onValueChange = { counterCash = it },
+                                        label = "Physical Cash (₹)",
+                                        placeholder = "0.00",
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
 
                                 Spacer(modifier = Modifier.height(14.dp))
 
@@ -777,6 +877,8 @@ fun CreateSaleScreen(
 
                                 // Counter Sale Calculations Box
                                 SaleCalculationBox(
+                                    subtotal = counterSubtotal.ifBlank { counterPrice.ifBlank { counterTotalAmount } },
+                                    discount = counterDiscount,
                                     totalAmount = counterTotalAmount,
                                     cashAmount = counterCash,
                                     bankEntries = if (counterIncludeBank) counterBankEntries else emptyList(),
@@ -820,7 +922,8 @@ fun CreateSaleScreen(
                         }
                         lineItems = updated
                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
-                        lineTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                        lineSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
+                        lineTotalAmount = SaleCalculationUtils.calculateSaleTotal(lineSubtotal, lineDiscount)
                     } else {
                         val existing = counterItems.find { it.productId == selectedProduct.id }
                         val updated = if (existing != null) {
@@ -839,7 +942,8 @@ fun CreateSaleScreen(
                         }
                         counterItems = updated
                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
-                        counterTotalAmount = String.format(java.util.Locale.US, "%.2f", subtotal)
+                        counterSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
+                        counterTotalAmount = SaleCalculationUtils.calculateSaleTotal(counterSubtotal, counterDiscount)
                         if (counterItem.isBlank() || counterItem.startsWith(selectedProduct.name)) {
                             counterItem = if (updated.size == 1) updated.first().productName else "${updated.first().productName} (+${updated.size - 1} items)"
                         }
@@ -1466,6 +1570,8 @@ private fun CustomerBalancePreviewBox(
 
 @Composable
 private fun SaleCalculationBox(
+    subtotal: String = "",
+    discount: String = "0.00",
     totalAmount: String,
     cashAmount: String,
     bankEntries: List<BankPaymentEntry> = emptyList(),
@@ -1474,22 +1580,25 @@ private fun SaleCalculationBox(
     modifier: Modifier = Modifier
 ) {
     val total = totalAmount.toDoubleOrNull() ?: 0.0
+    val sub = subtotal.toDoubleOrNull() ?: (itemsSubtotal ?: total)
+    val disc = discount.toDoubleOrNull() ?: 0.0
     val cash = cashAmount.toDoubleOrNull() ?: 0.0
     val bankTotal = bankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
     val collected = cash + bankTotal
     val due = if (total > collected) total - collected else 0.0
     val exceeds = total > 0.0 && collected > total
+    val invalidDiscount = disc < 0.0 || (sub > 0.0 && disc > sub)
 
     Card(
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (exceeds) Crimson50.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = if (exceeds || invalidDiscount) Crimson50.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceContainerLow
         ),
         modifier = modifier
             .fillMaxWidth()
             .border(
                 1.dp,
-                if (exceeds) Crimson600.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant,
+                if (exceeds || invalidDiscount) Crimson600.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant,
                 RoundedCornerShape(18.dp)
             )
     ) {
@@ -1498,16 +1607,62 @@ private fun SaleCalculationBox(
                 .padding(14.dp)
                 .animateContentSize()
         ) {
-            if (itemsSubtotal != null && itemsSubtotal > 0.0) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = if (itemsSubtotal != null && itemsSubtotal > 0.0) "Items Subtotal:" else "Sale Subtotal:",
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                )
+                Text(
+                    text = FormatUtils.formatCurrency(sub.toString()),
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+                )
+            }
+
+            if (disc > 0.0 || discount.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Items Subtotal:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
-                    Text(FormatUtils.formatCurrency(itemsSubtotal.toString()), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold))
+                    Text(
+                        text = "Discount Amount:",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = if (disc > 0.0) Emerald600 else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = if (disc > 0.0) FontWeight.Bold else FontWeight.Normal
+                        )
+                    )
+                    Text(
+                        text = if (disc > 0.0) "-${FormatUtils.formatCurrency(disc.toString())}" else FormatUtils.formatCurrency("0.00"),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = if (disc > 0.0) Emerald600 else MaterialTheme.colorScheme.onSurface
+                        )
+                    )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
             }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Final Payable Amount:", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                Text(
+                    text = FormatUtils.formatCurrency(total.toString()),
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
 
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1624,7 +1779,19 @@ private fun SaleCalculationBox(
                 }
             }
 
-            if (exceeds) {
+            if (disc < 0.0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "⚠️ Discount cannot be negative",
+                    style = MaterialTheme.typography.bodySmall.copy(color = Crimson600, fontWeight = FontWeight.Bold)
+                )
+            } else if (sub > 0.0 && disc > sub) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "⚠️ Discount (${FormatUtils.formatCurrency(disc.toString())}) cannot exceed subtotal (${FormatUtils.formatCurrency(sub.toString())})",
+                    style = MaterialTheme.typography.bodySmall.copy(color = Crimson600, fontWeight = FontWeight.Bold)
+                )
+            } else if (exceeds) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "⚠️ Collected amount cannot exceed total sale amount (${FormatUtils.formatCurrency(total.toString())})",

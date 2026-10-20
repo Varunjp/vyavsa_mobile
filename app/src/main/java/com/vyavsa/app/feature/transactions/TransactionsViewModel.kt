@@ -3,6 +3,7 @@ package com.vyavsa.app.feature.transactions
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vyavsa.app.core.common.Resource
+import com.vyavsa.app.core.common.SaleCalculationUtils
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.BankPaymentSplit
 import com.vyavsa.app.core.model.CashTransaction
@@ -291,30 +292,46 @@ class TransactionsViewModel @Inject constructor(
         bankId: String? = null,
         bankPayments: List<BankPaymentSplit> = emptyList(),
         note: String? = null,
-        items: List<SaleItemRequest> = emptyList()
+        items: List<SaleItemRequest> = emptyList(),
+        subtotal: String? = null,
+        discount: String? = null
     ) {
         if (_createActionState.value is UiState.Loading) return
+
+        if (customerId.isBlank()) {
+            _createActionState.value = UiState.Error("Customer and total amount are required")
+            return
+        }
 
         val calculatedItemsSubtotal = if (items.isNotEmpty()) {
             items.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
         } else null
 
-        val effectiveTotalAmount = if (calculatedItemsSubtotal != null && (totalAmount.isBlank() || (totalAmount.toDoubleOrNull() ?: 0.0) <= 0.0)) {
-            String.format(java.util.Locale.US, "%.2f", calculatedItemsSubtotal)
-        } else {
-            totalAmount.trim()
+        val rawSubtotal = when {
+            calculatedItemsSubtotal != null -> String.format(java.util.Locale.US, "%.2f", calculatedItemsSubtotal)
+            !subtotal.isNullOrBlank() -> subtotal.trim()
+            else -> totalAmount.trim()
         }
 
-        if (customerId.isBlank() || effectiveTotalAmount.isBlank()) {
+        if (rawSubtotal.isBlank()) {
             _createActionState.value = UiState.Error("Customer and total amount are required")
             return
         }
 
-        val total = effectiveTotalAmount.toDoubleOrNull()
-        if (total == null || total <= 0.0) {
+        val calcResult = SaleCalculationUtils.calculateResult(rawSubtotal, discount)
+        if (!calcResult.isValid) {
+            _createActionState.value = UiState.Error(calcResult.errorMessage ?: "Invalid discount or subtotal")
+            return
+        }
+
+        val subtotalVal = calcResult.subtotal.toDouble()
+        if (subtotalVal <= 0.0) {
             _createActionState.value = UiState.Error("Total invoice amount must be greater than zero")
             return
         }
+
+        val effectiveTotalAmount = calcResult.finalAmountString
+        val total = calcResult.finalAmount.toDouble()
 
         val cash = cashIn.trim().ifBlank { "0.00" }.toDoubleOrNull() ?: 0.0
         if (cash < 0.0) {
@@ -384,6 +401,9 @@ class TransactionsViewModel @Inject constructor(
                 customerId = customerId,
                 route = route?.trim()?.ifBlank { null },
                 salesman = salesman?.trim()?.ifBlank { null },
+                subtotal = calcResult.subtotalString,
+                discount = calcResult.discountString,
+                discountAmount = calcResult.discountString,
                 totalAmount = effectiveTotalAmount,
                 totalCashIn = cashIn.trim().ifBlank { "0.00" },
                 cashAmount = cashIn.trim().ifBlank { "0.00" },
@@ -414,7 +434,9 @@ class TransactionsViewModel @Inject constructor(
         bankAmount: String = "0.00",
         bankId: String? = null,
         bankPayments: List<BankPaymentSplit> = emptyList(),
-        items: List<SaleItemRequest> = emptyList()
+        items: List<SaleItemRequest> = emptyList(),
+        subtotal: String? = null,
+        discount: String? = null
     ) {
         if (_createActionState.value is UiState.Loading) return
 
@@ -422,23 +444,32 @@ class TransactionsViewModel @Inject constructor(
             items.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
         } else null
 
-        val effectiveTotalAmount = if (calculatedItemsSubtotal != null && (totalAmount.isBlank() || (totalAmount.toDoubleOrNull() ?: 0.0) <= 0.0)) {
-            String.format(java.util.Locale.US, "%.2f", calculatedItemsSubtotal)
-        } else {
-            totalAmount.trim()
+        val rawSubtotal = when {
+            calculatedItemsSubtotal != null -> String.format(java.util.Locale.US, "%.2f", calculatedItemsSubtotal)
+            !subtotal.isNullOrBlank() -> subtotal.trim()
+            else -> totalAmount.trim()
         }
 
         val trimmedItem = item.trim()
-        if ((trimmedItem.isBlank() && items.isEmpty()) || effectiveTotalAmount.isBlank()) {
+        if ((trimmedItem.isBlank() && items.isEmpty()) || rawSubtotal.isBlank()) {
             _createActionState.value = UiState.Error("Item description and total amount are required")
             return
         }
 
-        val total = effectiveTotalAmount.toDoubleOrNull()
-        if (total == null || total <= 0.0) {
+        val calcResult = SaleCalculationUtils.calculateResult(rawSubtotal, discount)
+        if (!calcResult.isValid) {
+            _createActionState.value = UiState.Error(calcResult.errorMessage ?: "Invalid discount or subtotal")
+            return
+        }
+
+        val subtotalVal = calcResult.subtotal.toDouble()
+        if (subtotalVal <= 0.0) {
             _createActionState.value = UiState.Error("Total sale amount must be greater than zero")
             return
         }
+
+        val effectiveTotalAmount = calcResult.finalAmountString
+        val total = calcResult.finalAmount.toDouble()
 
         val cashVal = cash.trim().ifBlank { "0.00" }.toDoubleOrNull() ?: 0.0
         if (cashVal < 0.0) {
@@ -502,13 +533,16 @@ class TransactionsViewModel @Inject constructor(
         }
 
         val method = if (cashVal > 0.0 && effectiveBankTotal > 0.0) "split" else if (effectiveBankTotal > 0.0) "bank" else "cash"
-        val itemPrice = price?.trim()?.ifBlank { effectiveTotalAmount } ?: effectiveTotalAmount
+        val itemPrice = price?.trim()?.ifBlank { calcResult.subtotalString } ?: calcResult.subtotalString
         val formattedBankAmount = String.format(java.util.Locale.US, "%.2f", effectiveBankTotal)
 
         viewModelScope.launch {
             val req = CreateCounterSaleRequest(
-                item = trimmedItem,
+                item = trimmedItem.ifBlank { if (items.isNotEmpty()) items.first().productId else "Sale Item" },
                 price = itemPrice,
+                subtotal = calcResult.subtotalString,
+                discount = calcResult.discountString,
+                discountAmount = calcResult.discountString,
                 totalAmount = effectiveTotalAmount,
                 paymentMethod = method,
                 cash = cash.trim().ifBlank { "0.00" },
