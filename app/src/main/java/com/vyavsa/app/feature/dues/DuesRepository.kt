@@ -10,6 +10,7 @@ import com.vyavsa.app.core.model.CustomerStatement
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.RecordPaymentRequest
 import com.vyavsa.app.core.model.UpdateCustomerRequest
+import com.vyavsa.app.core.network.ApiErrorParser
 import com.vyavsa.app.core.network.VyavsaApiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -44,10 +45,10 @@ class DuesRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load customers"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load customers"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading dues"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading dues"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -63,10 +64,10 @@ class DuesRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to add customer"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to add customer"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error adding customer"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error adding customer"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -77,10 +78,10 @@ class DuesRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load customer profile"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load customer profile"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading customer"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading customer"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -96,10 +97,10 @@ class DuesRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update customer"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to update customer"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error updating customer"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error updating customer"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -110,10 +111,10 @@ class DuesRepositoryImpl @Inject constructor(
             if (response.success) {
                 emit(Resource.Success(Unit, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to delete customer"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to delete customer"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error deleting customer"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error deleting customer"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -134,10 +135,10 @@ class DuesRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to adjust balance"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to adjust balance"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error adjusting balance"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error adjusting balance"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -148,10 +149,10 @@ class DuesRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load balance adjustments"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load balance adjustments"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading adjustments"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading adjustments"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -162,10 +163,10 @@ class DuesRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load customer balance"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load customer balance"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading customer balance"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -176,10 +177,10 @@ class DuesRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load customer statement"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load customer statement"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading customer statement"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -190,10 +191,10 @@ class DuesRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load customer sales"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load customer sales"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading sales"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading customer sales"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -216,10 +217,10 @@ class DuesRepositoryImpl @Inject constructor(
             if (response.success) {
                 emit(Resource.Success(Unit, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to record payment"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to record payment"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error recording payment"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error recording payment"))
         }
     }.flowOn(Dispatchers.IO)
 }

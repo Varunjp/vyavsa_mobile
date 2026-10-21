@@ -4,6 +4,7 @@ import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.model.FinancialMetrics
 import com.vyavsa.app.core.model.TenantProfile
 import com.vyavsa.app.core.model.TenantSubscription
+import com.vyavsa.app.core.network.ApiErrorParser
 import com.vyavsa.app.core.network.VyavsaApiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -32,10 +33,10 @@ class DashboardRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load dashboard metrics", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load dashboard metrics"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading dashboard"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading dashboard"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -46,10 +47,10 @@ class DashboardRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load sales dashboard", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load sales dashboard"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading sales dashboard"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading sales dashboard"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -60,10 +61,10 @@ class DashboardRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load office dashboard", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load office dashboard"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading office dashboard"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading office dashboard"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -74,10 +75,10 @@ class DashboardRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load profile"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load profile"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading profile"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading profile"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -88,10 +89,10 @@ class DashboardRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load subscription"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load subscription"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading subscription"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading subscription"))
         }
     }.flowOn(Dispatchers.IO)
 }

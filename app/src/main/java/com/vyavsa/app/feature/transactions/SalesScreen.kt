@@ -2,9 +2,8 @@
 package com.vyavsa.app.feature.transactions
 
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +48,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -77,8 +77,7 @@ import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.designsystem.vyavsaClickable
 import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.LineSale
-import com.vyavsa.app.core.printer.ThermalInvoiceFormatter
-import com.vyavsa.app.core.printer.ThermalPrintDialog
+import com.vyavsa.app.core.printer.PrintJobStatus
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -95,23 +94,35 @@ fun SalesScreen(
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val allGranted = grants.values.all { it }
+        if (!allGranted) {
+            Toast.makeText(context, "Bluetooth permissions are required for printing.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val searchQuery by viewModel.searchQuery.collectAsState()
     val dateFilter by viewModel.dateFilter.collectAsState()
     val lineSalesState by viewModel.lineSalesState.collectAsState()
     val counterSalesState by viewModel.counterSalesState.collectAsState()
 
-    val companyProfile by viewModel.companyProfile.collectAsState()
     val activePrintingSaleId by viewModel.activePrintingSaleId.collectAsState()
     val activeSharingSaleId by viewModel.activeSharingSaleId.collectAsState()
-
-    val activePrintDialogData by viewModel.activePrintDialogData.collectAsState()
     val printJobState by viewModel.printJobState.collectAsState()
-    val pairedPrinters by viewModel.pairedPrinters.collectAsState()
-    val usbPrinters by viewModel.usbPrinters.collectAsState()
-    val selectedPrinter by viewModel.selectedPrinter.collectAsState()
-    val selectedConnectionType by viewModel.selectedConnectionType.collectAsState()
-    val networkPrinterIp by viewModel.networkPrinterIp.collectAsState()
-    val paperWidth by viewModel.paperWidth.collectAsState()
+
+    LaunchedEffect(printJobState) {
+        when (printJobState.status) {
+            PrintJobStatus.SUCCESS -> {
+                snackbarHostState.showSnackbar(printJobState.message ?: "Receipt printed successfully")
+            }
+            PrintJobStatus.ERROR -> {
+                snackbarHostState.showSnackbar(printJobState.message ?: "Print failed. Check printer connection.")
+            }
+            else -> {}
+        }
+    }
 
     val isSalesRole = viewModel.tokenManager?.isSales() == true
     val isOfficeRole = viewModel.tokenManager?.isOffice() == true
@@ -295,7 +306,11 @@ fun SalesScreen(
                                 isPrinting = activePrintingSaleId == sale.id,
                                 isSharing = activeSharingSaleId == sale.id,
                                 onCardClick = { onNavigateToSaleDetails("line", sale.id) },
-                                onPrintClick = { viewModel.openPrintDialogForLineSale(sale) },
+                                onPrintClick = {
+                                    viewModel.printLineSale(sale, context) {
+                                        permissionLauncher.launch(it)
+                                    }
+                                },
                                 onShareClick = {
                                     viewModel.shareLineSalePdf(context, sale) { success, err ->
                                         if (!success && err != null) {
@@ -326,7 +341,11 @@ fun SalesScreen(
                                 isPrinting = activePrintingSaleId == sale.id,
                                 isSharing = activeSharingSaleId == sale.id,
                                 onCardClick = { onNavigateToSaleDetails("counter", sale.id) },
-                                onPrintClick = { viewModel.openPrintDialogForCounterSale(sale) },
+                                onPrintClick = {
+                                    viewModel.printCounterSale(sale, context) {
+                                        permissionLauncher.launch(it)
+                                    }
+                                },
                                 onShareClick = {
                                     viewModel.shareCounterSalePdf(context, sale) { success, err ->
                                         if (!success && err != null) {
@@ -342,37 +361,6 @@ fun SalesScreen(
                 }
             }
         }
-    }
-
-    // Active Print Dialog for Thermal / System Printing
-    if (activePrintDialogData != null) {
-        val printData = activePrintDialogData!!
-        val cachedLogo = remember(companyProfile) { viewModel.getCachedLogoBitmap() }
-        val receiptPreview = remember(printData, paperWidth) {
-            ThermalInvoiceFormatter.formatPlainTextReceipt(printData, paperWidth)
-        }
-
-        ThermalPrintDialog(
-            printJobState = printJobState,
-            pairedPrinters = pairedPrinters,
-            usbPrinters = usbPrinters,
-            selectedConnectionType = selectedConnectionType,
-            networkPrinterIp = networkPrinterIp,
-            selectedPrinter = selectedPrinter,
-            paperWidth = paperWidth,
-            hasCompanyLogo = cachedLogo != null || !companyProfile?.logoUrl.isNullOrBlank(),
-            receiptPreviewText = receiptPreview,
-            logoUrl = companyProfile?.logoUrl,
-            businessName = companyProfile?.name ?: printData.businessName,
-            logoBitmap = cachedLogo,
-            onSelectConnectionType = { viewModel.setConnectionType(it) },
-            onSetNetworkPrinterIp = { viewModel.setNetworkPrinterIp(it) },
-            onSelectPrinter = { viewModel.selectPrinter(it) },
-            onSelectPaperWidth = { viewModel.setPaperWidth(it) },
-            onRefreshPrinters = { viewModel.loadPrinters() },
-            onPrintClick = { viewModel.printCurrentDialogReceipt(context) },
-            onDismiss = { viewModel.dismissPrintDialog() }
-        )
     }
 }
 
@@ -442,7 +430,7 @@ private fun SaleItemCard(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = subtitle,
+                            text = "#$invoiceNumber • $subtitle",
                             style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -462,6 +450,16 @@ private fun SaleItemCard(
                         )
                     )
                     val balVal = balance.toDoubleOrNull() ?: 0.0
+                    val discVal = discount.toDoubleOrNull() ?: 0.0
+                    if (discVal > 0.0) {
+                        Text(
+                            text = "Disc: -${FormatUtils.formatCurrency(discount)}",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 11.sp
+                            )
+                        )
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
                     if (balVal > 0.0) {
                         StatBadge(

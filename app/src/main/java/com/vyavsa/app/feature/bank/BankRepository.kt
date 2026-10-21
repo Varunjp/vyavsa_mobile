@@ -4,6 +4,7 @@ import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.model.CreateBankRequest
 import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.model.UpdateBankRequest
+import com.vyavsa.app.core.network.ApiErrorParser
 import com.vyavsa.app.core.network.VyavsaApiService
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
@@ -34,10 +35,10 @@ class BankRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load bank accounts"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load bank accounts"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading bank accounts"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading bank accounts"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -49,10 +50,10 @@ class BankRepositoryImpl @Inject constructor(
                 refreshCoordinator.notifyMutation(DataMutation.BANK)
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to create bank account", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to create bank account"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error creating bank account"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error creating bank account"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -64,10 +65,10 @@ class BankRepositoryImpl @Inject constructor(
                 refreshCoordinator.notifyMutation(DataMutation.BANK)
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update bank account", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to update bank account"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error updating bank account"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error updating bank account"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -79,10 +80,10 @@ class BankRepositoryImpl @Inject constructor(
                 refreshCoordinator.notifyMutation(DataMutation.BANK)
                 emit(Resource.Success(Unit, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to delete bank account", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to delete bank account"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error deleting bank account"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error deleting bank account"))
         }
     }.flowOn(Dispatchers.IO)
 }

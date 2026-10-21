@@ -48,6 +48,9 @@ import com.vyavsa.app.feature.users.TenantUsersScreen
 import com.vyavsa.app.feature.users.TenantUsersViewModel
 
 import com.vyavsa.app.core.security.TokenManager
+import com.vyavsa.app.core.settings.SettingsPreferences
+import com.vyavsa.app.feature.settings.SettingsScreen
+import com.vyavsa.app.feature.settings.SettingsViewModel
 import com.vyavsa.app.feature.transactions.CreateCounterSaleScreen
 
 @Composable
@@ -55,6 +58,7 @@ fun VyavsaNavGraph(
     navController: NavHostController,
     sessionState: SessionState,
     tokenManager: TokenManager? = null,
+    settingsPreferences: SettingsPreferences? = null,
     modifier: Modifier = Modifier
 ) {
     val startDestination = if (sessionState is SessionState.Authenticated) {
@@ -230,11 +234,15 @@ fun VyavsaNavGraph(
                 onNavigateToProductAnalytics = {
                     navController.navigate(Screen.ProductAnalytics.route)
                 },
+                onNavigateToSettings = {
+                    navController.navigate(Screen.Settings.route)
+                },
                 onLogoutSuccess = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.MainShell.route) { inclusive = true }
                     }
-                }
+                },
+                settingsPreferences = settingsPreferences
             )
         }
 
@@ -374,7 +382,10 @@ fun VyavsaNavGraph(
             val saleDetailsViewModel: SaleDetailsViewModel = hiltViewModel()
             SaleDetailsScreen(
                 viewModel = saleDetailsViewModel,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToSettings = {
+                    navController.navigate(Screen.Settings.route)
+                }
             )
         }
 
@@ -435,6 +446,14 @@ fun VyavsaNavGraph(
             val productViewModel: ProductViewModel = hiltViewModel()
             ProductAnalyticsScreen(
                 viewModel = productViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Settings.route) {
+            val settingsViewModel: SettingsViewModel = hiltViewModel()
+            SettingsScreen(
+                viewModel = settingsViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

@@ -9,6 +9,7 @@ import com.vyavsa.app.core.model.SubscriptionPlan
 import com.vyavsa.app.core.model.TenantProfile
 import com.vyavsa.app.core.model.TenantSubscription
 import com.vyavsa.app.core.model.UpdateTenantProfileRequest
+import com.vyavsa.app.core.network.ApiErrorParser
 import com.vyavsa.app.core.network.VyavsaApiService
 import com.vyavsa.app.core.security.TokenManager
 import com.vyavsa.app.core.sync.DataMutation
@@ -79,7 +80,7 @@ class ProfileViewModel @Inject constructor(
                     _profileState.value = UiState.Error(res.error?.message ?: "Failed to load profile")
                 }
             } catch (e: Exception) {
-                _profileState.value = UiState.Error(e.message ?: "Network error")
+                _profileState.value = UiState.Error(ApiErrorParser.parseException(e).message)
             }
         }
 
@@ -92,7 +93,7 @@ class ProfileViewModel @Inject constructor(
                     _subscriptionState.value = UiState.Error(res.error?.message ?: "Failed to load subscription")
                 }
             } catch (e: Exception) {
-                _subscriptionState.value = UiState.Error(e.message ?: "Network error")
+                _subscriptionState.value = UiState.Error(ApiErrorParser.parseException(e).message)
             }
         }
 
@@ -175,7 +176,7 @@ class ProfileViewModel @Inject constructor(
                     _updateState.value = UiState.Error(res.error?.message ?: "Update failed")
                 }
             } catch (e: Exception) {
-                _updateState.value = UiState.Error(e.message ?: "Network error updating profile")
+                _updateState.value = UiState.Error(ApiErrorParser.parseException(e).message)
             }
         }
     }
@@ -225,7 +226,7 @@ class ProfileViewModel @Inject constructor(
                     _footerUpdateState.value = UiState.Error(res.error?.message ?: "Failed to update invoice footer")
                 }
             } catch (e: Exception) {
-                _footerUpdateState.value = UiState.Error(e.message ?: "Network error updating invoice footer")
+                _footerUpdateState.value = UiState.Error(ApiErrorParser.parseException(e).message)
             }
         }
     }
@@ -248,7 +249,7 @@ class ProfileViewModel @Inject constructor(
                     _logoState.value = UiState.Error(res.error?.message ?: "Failed to load logo")
                 }
             } catch (e: Exception) {
-                _logoState.value = UiState.Error(e.message ?: "Network error loading logo")
+                _logoState.value = UiState.Error(ApiErrorParser.parseException(e).message)
             }
         }
     }
@@ -285,7 +286,7 @@ class ProfileViewModel @Inject constructor(
                     _logoActionState.value = UiState.Error(res.error?.message ?: "Failed to upload logo")
                 }
             } catch (e: Exception) {
-                _logoActionState.value = UiState.Error(e.message ?: "Network error uploading logo")
+                _logoActionState.value = UiState.Error(ApiErrorParser.parseException(e).message)
             }
         }
     }
@@ -305,7 +306,7 @@ class ProfileViewModel @Inject constructor(
                     _logoActionState.value = UiState.Error(res.error?.message ?: "Failed to remove logo")
                 }
             } catch (e: Exception) {
-                _logoActionState.value = UiState.Error(e.message ?: "Network error removing logo")
+                _logoActionState.value = UiState.Error(ApiErrorParser.parseException(e).message)
             }
         }
     }

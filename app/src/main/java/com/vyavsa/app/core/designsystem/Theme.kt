@@ -197,10 +197,36 @@ private val DarkColorScheme = darkColorScheme(
     outlineVariant = OutlineVariantDark
 )
 
+fun Typography.scale(factor: Float): Typography {
+    if (factor == 1.0f) return this
+    fun TextStyle.scale(): TextStyle = this.copy(
+        fontSize = this.fontSize * factor,
+        lineHeight = this.lineHeight * factor
+    )
+    return this.copy(
+        displayLarge = this.displayLarge.scale(),
+        displayMedium = this.displayMedium.scale(),
+        displaySmall = this.displaySmall.scale(),
+        headlineLarge = this.headlineLarge.scale(),
+        headlineMedium = this.headlineMedium.scale(),
+        headlineSmall = this.headlineSmall.scale(),
+        titleLarge = this.titleLarge.scale(),
+        titleMedium = this.titleMedium.scale(),
+        titleSmall = this.titleSmall.scale(),
+        bodyLarge = this.bodyLarge.scale(),
+        bodyMedium = this.bodyMedium.scale(),
+        bodySmall = this.bodySmall.scale(),
+        labelLarge = this.labelLarge.scale(),
+        labelMedium = this.labelMedium.scale(),
+        labelSmall = this.labelSmall.scale()
+    )
+}
+
 @Composable
 fun VyavsaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
+    fontSizeScale: Float = 1.0f,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -227,9 +253,15 @@ fun VyavsaTheme(
         }
     }
 
+    val typography = if (fontSizeScale != 1.0f) {
+        VyavsaTypography.scale(fontSizeScale)
+    } else {
+        VyavsaTypography
+    }
+
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = VyavsaTypography,
+        typography = typography,
         shapes = VyavsaShapes,
         content = content
     )

@@ -7,6 +7,7 @@ import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.EmployeeSalary
 import com.vyavsa.app.core.model.PaySalaryRequest
 import com.vyavsa.app.core.model.RecordAttendanceRequest
+import com.vyavsa.app.core.network.ApiErrorParser
 import com.vyavsa.app.core.network.VyavsaApiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -95,10 +96,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load staff list"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load staff list"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading employees"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -115,10 +116,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to add employee"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to add employee"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error adding employee"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -129,10 +130,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load attendance"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load attendance"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading attendance"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -158,10 +159,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to mark attendance"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to mark attendance"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error recording attendance"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -186,10 +187,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update attendance"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to update attendance"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error updating attendance"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -200,10 +201,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load pending salaries"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load pending salaries"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading salaries"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -226,10 +227,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success) {
                 emit(Resource.Success(Unit, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to disburse salary"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to disburse salary"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error paying salary"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -256,10 +257,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message ?: "Employee updated successfully"))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update employee"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to update employee"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error updating employee"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -270,10 +271,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success) {
                 emit(Resource.Success(Unit, response.message ?: "Employee deleted successfully"))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to delete employee"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to delete employee"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error deleting employee"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -284,10 +285,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load salary statement"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load salary statement"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading salary statement"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -317,10 +318,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message ?: "Advance recorded successfully"))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to record advance"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to record advance"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error recording advance"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -346,10 +347,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message ?: "Overtime recorded successfully"))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to record overtime"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to record overtime"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error recording overtime"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -365,10 +366,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load advances"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load advances"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading advances"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -384,10 +385,10 @@ class StaffRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load overtime"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load overtime"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading overtime"))
         }
     }.flowOn(Dispatchers.IO)
 }

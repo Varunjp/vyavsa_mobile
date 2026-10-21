@@ -35,17 +35,21 @@ import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.designsystem.LogoMemoryCache
 import com.vyavsa.app.core.document.InvoiceShareManager
 import com.vyavsa.app.core.model.TenantProfile
+import com.vyavsa.app.core.printer.InvoiceContentSettings
 import com.vyavsa.app.core.printer.InvoiceDataMapper
 import com.vyavsa.app.core.printer.InvoicePrintAdapter
 import com.vyavsa.app.core.printer.InvoicePrintData
+import com.vyavsa.app.core.printer.InvoiceTheme
 import com.vyavsa.app.core.printer.PaperWidth
 import com.vyavsa.app.core.printer.PrintJobState
 import com.vyavsa.app.core.printer.PrintJobStatus
+import com.vyavsa.app.core.printer.PrintTypography
 import com.vyavsa.app.core.printer.PrinterConnectionType
 import com.vyavsa.app.core.printer.PrinterDevice
 import com.vyavsa.app.core.printer.PrinterPreferences
 import com.vyavsa.app.core.printer.ThermalInvoiceFormatter
 import com.vyavsa.app.core.printer.ThermalPrinterManager
+import com.vyavsa.app.core.settings.SettingsPreferences
 import com.vyavsa.app.feature.dashboard.DashboardRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -81,14 +85,15 @@ class TransactionsViewModel @Inject constructor(
     private val productRepository: ProductRepository? = null,
     val dashboardRepository: DashboardRepository? = null,
     val printerManager: ThermalPrinterManager? = null,
-    val printerPreferences: PrinterPreferences? = null
+    val printerPreferences: PrinterPreferences? = null,
+    val settingsPreferences: SettingsPreferences? = null
 ) : ViewModel() {
 
     constructor(
         repository: TransactionsRepository,
         bankRepository: BankRepository,
         refreshCoordinator: DataRefreshCoordinator
-    ) : this(repository, bankRepository, refreshCoordinator, null, null, null, null, null)
+    ) : this(repository, bankRepository, refreshCoordinator, null, null, null, null, null, null)
 
     constructor(
         repository: TransactionsRepository,
@@ -96,7 +101,18 @@ class TransactionsViewModel @Inject constructor(
         refreshCoordinator: DataRefreshCoordinator,
         tokenManager: TokenManager?,
         productRepository: ProductRepository?
-    ) : this(repository, bankRepository, refreshCoordinator, tokenManager, productRepository, null, null, null)
+    ) : this(repository, bankRepository, refreshCoordinator, tokenManager, productRepository, null, null, null, null)
+
+    constructor(
+        repository: TransactionsRepository,
+        bankRepository: BankRepository,
+        refreshCoordinator: DataRefreshCoordinator,
+        tokenManager: TokenManager?,
+        productRepository: ProductRepository?,
+        dashboardRepository: DashboardRepository?,
+        printerManager: ThermalPrinterManager?,
+        printerPreferences: PrinterPreferences?
+    ) : this(repository, bankRepository, refreshCoordinator, tokenManager, productRepository, dashboardRepository, printerManager, printerPreferences, null)
 
     private val _selectedTab = MutableStateFlow(TransactionTab.SALES)
     val selectedTab: StateFlow<TransactionTab> = _selectedTab.asStateFlow()
@@ -899,6 +915,25 @@ class TransactionsViewModel @Inject constructor(
         return LogoMemoryCache.get(resolved)?.asAndroidBitmap()
     }
 
+    suspend fun ensureLogoBitmapLoaded(logoUrl: String? = _companyProfile.value?.logoUrl) {
+        if (logoUrl.isNullOrBlank()) return
+        val resolved = FormatUtils.resolveMediaUrl(logoUrl) ?: return
+        if (LogoMemoryCache.get(resolved) != null) return
+        withContext(Dispatchers.IO) {
+            try {
+                val conn = java.net.URL(resolved).openConnection()
+                conn.connectTimeout = 4000
+                conn.readTimeout = 6000
+                conn.getInputStream().use { stream ->
+                    val bmp = BitmapFactory.decodeStream(stream)
+                    if (bmp != null) {
+                        LogoMemoryCache.put(resolved, bmp.asImageBitmap())
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
     suspend fun ensureCompanyProfile(): TenantProfile? {
         val current = _companyProfile.value
         if (current != null) return current
@@ -1016,6 +1051,139 @@ class TransactionsViewModel @Inject constructor(
         printerPreferences?.savePaperWidth(width)
     }
 
+    fun printLineSale(
+        sale: LineSale,
+        context: Context,
+        onPermissionRequired: ((Array<String>) -> Unit)? = null
+    ) {
+        if (_activePrintingSaleId.value != null) return
+        _activePrintingSaleId.value = sale.id
+        viewModelScope.launch {
+            try {
+                val fullSale = resolveFullLineSale(sale)
+                val profile = ensureCompanyProfile() ?: _companyProfile.value
+                val content = settingsPreferences?.contentSettings?.value ?: InvoiceContentSettings()
+                if (content.showLogo && getCachedLogoBitmap() == null && !profile?.logoUrl.isNullOrBlank()) {
+                    ensureLogoBitmapLoaded(profile?.logoUrl)
+                }
+                val logoBmp = getCachedLogoBitmap()
+                val data = InvoiceDataMapper.fromLineSale(fullSale, profile, logoBmp)
+                executeDirectPrint(data, context, onPermissionRequired)
+            } finally {
+                _activePrintingSaleId.value = null
+            }
+        }
+    }
+
+    fun printCounterSale(
+        sale: CounterSale,
+        context: Context,
+        onPermissionRequired: ((Array<String>) -> Unit)? = null
+    ) {
+        if (_activePrintingSaleId.value != null) return
+        _activePrintingSaleId.value = sale.id
+        viewModelScope.launch {
+            try {
+                val fullSale = resolveFullCounterSale(sale)
+                val profile = ensureCompanyProfile() ?: _companyProfile.value
+                val content = settingsPreferences?.contentSettings?.value ?: InvoiceContentSettings()
+                if (content.showLogo && getCachedLogoBitmap() == null && !profile?.logoUrl.isNullOrBlank()) {
+                    ensureLogoBitmapLoaded(profile?.logoUrl)
+                }
+                val logoBmp = getCachedLogoBitmap()
+                val data = InvoiceDataMapper.fromCounterSale(fullSale, profile, logoBmp)
+                executeDirectPrint(data, context, onPermissionRequired)
+            } finally {
+                _activePrintingSaleId.value = null
+            }
+        }
+    }
+
+    private suspend fun executeDirectPrint(
+        printData: InvoicePrintData,
+        context: Context,
+        onPermissionRequired: ((Array<String>) -> Unit)? = null
+    ) {
+        val manager = printerManager
+        val prefs = printerPreferences
+
+        // 1. Resolve configured or saved printer
+        val savedAddr = prefs?.selectedPrinterAddress?.value
+        val savedName = prefs?.selectedPrinterName?.value ?: "Saved Thermal Printer"
+        val savedConnType = prefs?.selectedConnectionType?.value ?: PrinterConnectionType.BLUETOOTH
+
+        var targetPrinter: PrinterDevice? = _selectedPrinter.value
+        if (targetPrinter == null && !savedAddr.isNullOrBlank()) {
+            targetPrinter = PrinterDevice(name = savedName, address = savedAddr, connectionType = savedConnType)
+            _selectedPrinter.value = targetPrinter
+        }
+        if (targetPrinter == null && manager != null) {
+            val paired = manager.getPairedPrinters()
+            targetPrinter = paired.firstOrNull { it.address == savedAddr } ?: paired.firstOrNull()
+            if (targetPrinter != null) {
+                _selectedPrinter.value = targetPrinter
+            }
+        }
+
+        // 2. If no hardware printer is available or configured, fallback gracefully to Android System Print
+        if (targetPrinter == null || manager == null) {
+            InvoicePrintAdapter.print(context, printData)
+            _printJobState.value = PrintJobState(status = PrintJobStatus.SUCCESS, message = "Sent to system print service")
+            return
+        }
+
+        // 3. Hardware permission & connection checks for Bluetooth
+        if (targetPrinter.connectionType == PrinterConnectionType.BLUETOOTH) {
+            if (!manager.isBluetoothSupported()) {
+                _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "Bluetooth is not supported on this device.")
+                return
+            }
+            if (!manager.isBluetoothEnabled()) {
+                _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "Bluetooth is turned off. Please enable Bluetooth.")
+                return
+            }
+            if (!manager.hasBluetoothPermission()) {
+                _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "Bluetooth permission is required.")
+                onPermissionRequired?.invoke(com.vyavsa.app.core.printer.BluetoothPermissionHelper.getRequiredPermissions())
+                return
+            }
+        }
+
+        // 4. Format ESC/POS using saved Settings preferences
+        val paperWidth = prefs?.paperWidth?.value ?: PaperWidth.WIDTH_58MM
+        val theme = settingsPreferences?.invoiceTheme?.value ?: InvoiceTheme.CLASSIC
+        val content = settingsPreferences?.contentSettings?.value ?: InvoiceContentSettings()
+        val typo = settingsPreferences?.typography?.value ?: PrintTypography.STANDARD
+
+        _printJobState.value = PrintJobState(status = PrintJobStatus.CONNECTING, message = "Connecting to ${targetPrinter.name}...")
+
+        try {
+            val rawBytes = ThermalInvoiceFormatter.formatEscPosReceipt(
+                data = printData,
+                paperWidth = paperWidth,
+                theme = theme,
+                contentSettings = content,
+                typography = typo
+            )
+
+            _printJobState.value = PrintJobState(status = PrintJobStatus.PRINTING, message = "Printing receipt...")
+            val res = manager.printReceipt(targetPrinter, rawBytes)
+            if (res.isSuccess) {
+                _printJobState.value = PrintJobState(status = PrintJobStatus.SUCCESS, message = "Printed successfully on ${targetPrinter.name}")
+            } else {
+                _printJobState.value = PrintJobState(
+                    status = PrintJobStatus.ERROR,
+                    message = res.exceptionOrNull()?.message ?: "Print failed. Check printer connection or paper roll."
+                )
+            }
+        } catch (e: Exception) {
+            _printJobState.value = PrintJobState(
+                status = PrintJobStatus.ERROR,
+                message = e.message ?: "Printer error"
+            )
+        }
+    }
+
     fun openPrintDialogForLineSale(sale: LineSale) {
         if (_activePrintingSaleId.value != null) return
         _activePrintingSaleId.value = sale.id
@@ -1023,6 +1191,10 @@ class TransactionsViewModel @Inject constructor(
             try {
                 val fullSale = resolveFullLineSale(sale)
                 val profile = ensureCompanyProfile() ?: _companyProfile.value
+                val content = settingsPreferences?.contentSettings?.value ?: InvoiceContentSettings()
+                if (content.showLogo && getCachedLogoBitmap() == null && !profile?.logoUrl.isNullOrBlank()) {
+                    ensureLogoBitmapLoaded(profile?.logoUrl)
+                }
                 val logoBmp = getCachedLogoBitmap()
                 val data = InvoiceDataMapper.fromLineSale(fullSale, profile, logoBmp)
                 _activePrintDialogData.value = data
@@ -1041,6 +1213,10 @@ class TransactionsViewModel @Inject constructor(
             try {
                 val fullSale = resolveFullCounterSale(sale)
                 val profile = ensureCompanyProfile() ?: _companyProfile.value
+                val content = settingsPreferences?.contentSettings?.value ?: InvoiceContentSettings()
+                if (content.showLogo && getCachedLogoBitmap() == null && !profile?.logoUrl.isNullOrBlank()) {
+                    ensureLogoBitmapLoaded(profile?.logoUrl)
+                }
                 val logoBmp = getCachedLogoBitmap()
                 val data = InvoiceDataMapper.fromCounterSale(fullSale, profile, logoBmp)
                 _activePrintDialogData.value = data
@@ -1072,9 +1248,19 @@ class TransactionsViewModel @Inject constructor(
         _activePrintingSaleId.value = saleId
         _printJobState.value = PrintJobState(status = PrintJobStatus.CONNECTING, message = "Connecting to ${printer.name}...")
 
+        val theme = settingsPreferences?.invoiceTheme?.value ?: InvoiceTheme.CLASSIC
+        val content = settingsPreferences?.contentSettings?.value ?: InvoiceContentSettings()
+        val typo = settingsPreferences?.typography?.value ?: PrintTypography.STANDARD
+
         viewModelScope.launch {
             try {
-                val rawBytes = ThermalInvoiceFormatter.formatEscPosReceipt(printData, width)
+                val rawBytes = ThermalInvoiceFormatter.formatEscPosReceipt(
+                    data = printData,
+                    paperWidth = width,
+                    theme = theme,
+                    contentSettings = content,
+                    typography = typo
+                )
                 _printJobState.value = PrintJobState(status = PrintJobStatus.PRINTING, message = "Printing receipt...")
                 val res = printerManager?.printReceipt(printer, rawBytes)
                 if (res != null && res.isSuccess) {

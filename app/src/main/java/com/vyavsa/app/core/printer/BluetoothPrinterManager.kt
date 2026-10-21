@@ -49,17 +49,11 @@ class BluetoothPrinterManager @Inject constructor(
     override fun isBluetoothEnabled(): Boolean = bluetoothAdapter?.isEnabled == true
 
     override fun hasBluetoothPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.BLUETOOTH_CONNECT
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.BLUETOOTH
-            ) == PackageManager.PERMISSION_GRANTED
-        }
+        return BluetoothPermissionHelper.hasConnectPermission(context)
+    }
+
+    fun hasBluetoothScanPermission(): Boolean {
+        return BluetoothPermissionHelper.hasScanPermission(context)
     }
 
     override fun getPairedPrinters(): List<PrinterDevice> {
@@ -118,7 +112,7 @@ class BluetoothPrinterManager @Inject constructor(
         }
 
         if (!hasBluetoothPermission()) {
-            return@withContext Result.failure(SecurityException("Bluetooth permission denied."))
+            return@withContext Result.failure(SecurityException("Bluetooth permission denied. Please grant Nearby Devices permission."))
         }
 
         val device: BluetoothDevice = try {
@@ -131,10 +125,16 @@ class BluetoothPrinterManager @Inject constructor(
         var outputStream: OutputStream? = null
 
         try {
-            // Cancel discovery before connecting to preserve bandwidth and stability
-            @Suppress("MissingPermission")
-            if (adapter.isDiscovering) {
-                adapter.cancelDiscovery()
+            // Cancel discovery before connecting to preserve bandwidth and stability, only if scan permission is granted
+            if (hasBluetoothScanPermission()) {
+                try {
+                    @Suppress("MissingPermission")
+                    if (adapter.isDiscovering) {
+                        adapter.cancelDiscovery()
+                    }
+                } catch (_: SecurityException) {
+                    // Ignore scan exception to allow RFCOMM socket connection to proceed
+                }
             }
 
             // Connect with timeout to avoid blocking indefinitely
@@ -172,7 +172,7 @@ class BluetoothPrinterManager @Inject constructor(
         } catch (e: IOException) {
             Result.failure(IOException("Printing failed: ${e.message ?: "Printer disconnected or unreachable."}"))
         } catch (e: SecurityException) {
-            Result.failure(SecurityException("Bluetooth permission denied."))
+            Result.failure(SecurityException("Bluetooth permission denied. Please enable Nearby Devices permission in App Info."))
         } catch (e: Exception) {
             Result.failure(e)
         } finally {

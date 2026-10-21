@@ -5,6 +5,7 @@ import com.vyavsa.app.core.model.AddCashRequest
 import com.vyavsa.app.core.model.AdjustCashRequest
 import com.vyavsa.app.core.model.CashBalanceResponse
 import com.vyavsa.app.core.model.CashTransaction
+import com.vyavsa.app.core.network.ApiErrorParser
 import com.vyavsa.app.core.network.VyavsaApiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -32,10 +33,10 @@ class CashRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to fetch cash balance"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to fetch cash balance"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error fetching cash balance"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -46,10 +47,10 @@ class CashRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load cash transactions"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load cash transactions"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading cash transactions"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -64,10 +65,10 @@ class CashRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to add cash"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to add cash"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error adding cash"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error adding cash"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -82,10 +83,10 @@ class CashRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to adjust balance"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to adjust balance"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error adjusting cash"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error adjusting cash"))
         }
     }.flowOn(Dispatchers.IO)
 }

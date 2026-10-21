@@ -13,6 +13,8 @@ object EscPosCommands {
     val ALIGN_RIGHT = byteArrayOf(0x1B, 0x61, 0x02) // ESC a 2: Right justify
 
     // Font Sizing & Weight
+    val FONT_A = byteArrayOf(0x1B, 0x4D, 0x00) // ESC M 0: Font A (Standard)
+    val FONT_B = byteArrayOf(0x1B, 0x4D, 0x01) // ESC M 1: Font B (Compressed / Compact)
     val BOLD_ON = byteArrayOf(0x1B, 0x45, 0x01) // ESC E 1: Bold on
     val BOLD_OFF = byteArrayOf(0x1B, 0x45, 0x00) // ESC E 0: Bold off
     val DOUBLE_SIZE_ON = byteArrayOf(0x1D, 0x21, 0x11) // GS ! 0x11: Double height + width

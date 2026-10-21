@@ -89,6 +89,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -2025,6 +2027,97 @@ fun ProductSalesBarChart(
                 }
             }
         }
+    }
+}
+
+/**
+ * Shared, theme-aware Switch colors ensuring consistent styling across the entire Vyavsa application
+ * for enabled, disabled, and disabled-control states.
+ */
+@Composable
+fun vyavsaSwitchColors() = SwitchDefaults.colors(
+    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+    checkedTrackColor = MaterialTheme.colorScheme.primary,
+    checkedBorderColor = Color.Transparent,
+    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    uncheckedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+    disabledCheckedThumbColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+    disabledCheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+    disabledCheckedBorderColor = Color.Transparent,
+    disabledUncheckedThumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+    disabledUncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.12f),
+    disabledUncheckedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.12f)
+)
+
+/**
+ * Consistent, accessible Switch composable adhering to Vyavsa Material 3 styling.
+ */
+@Composable
+fun VyavsaSwitch(
+    checked: Boolean,
+    onCheckedChange: ((Boolean) -> Unit)?,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    thumbContent: (@Composable () -> Unit)? = null
+) {
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier,
+        enabled = enabled,
+        thumbContent = thumbContent,
+        colors = vyavsaSwitchColors()
+    )
+}
+
+/**
+ * Modern, accessible full-row switch item that supports tapping anywhere on the row
+ * to toggle state, providing immediate visual feedback and consistent color conventions.
+ */
+@Composable
+fun VyavsaSwitchRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    enabled: Boolean = true
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
+            .padding(vertical = 8.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 16.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                )
+            }
+        }
+        VyavsaSwitch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled
+        )
     }
 }
 

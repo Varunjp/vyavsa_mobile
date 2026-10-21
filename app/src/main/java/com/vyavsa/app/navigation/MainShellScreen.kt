@@ -75,6 +75,16 @@ import com.vyavsa.app.feature.transactions.SalesScreen
 import com.vyavsa.app.feature.transactions.TransactionsScreen
 import com.vyavsa.app.feature.transactions.TransactionsViewModel
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.collectAsState
+import com.vyavsa.app.core.settings.SettingsPreferences
+
+import androidx.compose.ui.graphics.Color
+
 @Composable
 fun MainShellScreen(
     onNavigateToCreateSale: () -> Unit,
@@ -91,7 +101,9 @@ fun MainShellScreen(
     onNavigateToTenantUsers: () -> Unit = {},
     onNavigateToProducts: () -> Unit = {},
     onNavigateToProductAnalytics: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     onLogoutSuccess: () -> Unit,
+    settingsPreferences: SettingsPreferences? = null,
     modifier: Modifier = Modifier
 ) {
     val dashboardViewModel: DashboardViewModel = hiltViewModel()
@@ -101,7 +113,17 @@ fun MainShellScreen(
     val profileViewModel: ProfileViewModel = hiltViewModel()
 
     val userRole = dashboardViewModel.tokenManager.getUserRole()
-    val destinations = remember(userRole) { BottomBarDestination.destinationsForRole(userRole) }
+    val customDockOrder = settingsPreferences?.customDockOrder?.collectAsState()?.value ?: emptyList()
+    val destinations = remember(userRole, customDockOrder) {
+        val defaultList = BottomBarDestination.destinationsForRole(userRole)
+        if (customDockOrder.isEmpty()) {
+            defaultList
+        } else {
+            val valid = customDockOrder.filter { it in defaultList }
+            val missing = defaultList.filter { it !in valid }
+            valid + missing
+        }
+    }
 
     var selectedDestination by rememberSaveable { mutableStateOf(BottomBarDestination.HOME) }
 
@@ -115,27 +137,37 @@ fun MainShellScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            Surface(
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 3.dp,
-                shadowElevation = 12.dp,
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-                )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp, top = 4.dp)
             ) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 0.dp,
-                    modifier = Modifier.clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    tonalElevation = 4.dp,
+                    shadowElevation = 10.dp,
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.50f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    destinations.forEach { destination ->
+                    NavigationBar(
+                        containerColor = Color.Transparent,
+                        tonalElevation = 0.dp,
+                        windowInsets = WindowInsets(0.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp)
+                    ) {
+                        destinations.forEach { destination ->
                         val isSelected = selectedDestination == destination
                         val iconScale by animateFloatAsState(
                             targetValue = if (isSelected) 1.12f else 1.0f,
                             animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                dampingRatio = Spring.DampingRatioLowBouncy,
                                 stiffness = Spring.StiffnessMediumLow
                             ),
                             label = "BottomNavIconScale"
@@ -154,7 +186,7 @@ fun MainShellScreen(
                         NavigationBarItem(
                             selected = isSelected,
                             onClick = { selectedDestination = destination },
-                            alwaysShowLabel = false,
+                            alwaysShowLabel = true,
                             icon = {
                                 Icon(
                                     imageVector = icon,
@@ -171,24 +203,25 @@ fun MainShellScreen(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
+                                        fontSize = 10.5.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                     )
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                             )
                         )
                     }
                 }
             }
-        },
-        modifier = modifier
+        }
+    },
+    modifier = modifier
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -299,7 +332,8 @@ fun MainShellScreen(
                             onNavigateToPlans = onNavigateToPlans,
                             onNavigateToTenantUsers = onNavigateToTenantUsers,
                             onNavigateToProducts = onNavigateToProducts,
-                            onNavigateToProductAnalytics = onNavigateToProductAnalytics
+                            onNavigateToProductAnalytics = onNavigateToProductAnalytics,
+                            onNavigateToSettings = onNavigateToSettings
                         )
                     }
                 }
