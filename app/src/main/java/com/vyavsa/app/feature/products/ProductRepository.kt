@@ -5,6 +5,7 @@ import com.vyavsa.app.core.model.CreateProductRequest
 import com.vyavsa.app.core.model.Product
 import com.vyavsa.app.core.model.ProductAnalyticsResponse
 import com.vyavsa.app.core.model.UpdateProductRequest
+import com.vyavsa.app.core.network.ApiErrorParser
 import com.vyavsa.app.core.network.VyavsaApiService
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
@@ -61,10 +62,10 @@ class ProductRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load products"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load products"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading product catalog"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading product catalog"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -75,10 +76,10 @@ class ProductRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load product details"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load product details"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading product details"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading product details"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -90,10 +91,10 @@ class ProductRepositoryImpl @Inject constructor(
                 refreshCoordinator.notifyMutation(DataMutation.PRODUCTS)
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to create product", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to create product"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error creating product"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error creating product"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -105,10 +106,10 @@ class ProductRepositoryImpl @Inject constructor(
                 refreshCoordinator.notifyMutation(DataMutation.PRODUCTS)
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update product", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to update product"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error updating product"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error updating product"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -120,10 +121,10 @@ class ProductRepositoryImpl @Inject constructor(
                 refreshCoordinator.notifyMutation(DataMutation.PRODUCTS)
                 emit(Resource.Success(Unit, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to delete product", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to delete product"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error deleting product"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error deleting product"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -142,10 +143,10 @@ class ProductRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load product analytics"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load product analytics"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading product sales analytics"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading product sales analytics"))
         }
     }.flowOn(Dispatchers.IO)
 }

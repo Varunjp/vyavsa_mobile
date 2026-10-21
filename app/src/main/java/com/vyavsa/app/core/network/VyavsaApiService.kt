@@ -23,10 +23,16 @@ import com.vyavsa.app.core.model.CustomerBalance
 import com.vyavsa.app.core.model.CustomerBalanceAdjustment
 import com.vyavsa.app.core.model.CustomerStatement
 import com.vyavsa.app.core.model.Employee
+import com.vyavsa.app.core.model.EmployeeAdvance
+import com.vyavsa.app.core.model.EmployeeOvertime
 import com.vyavsa.app.core.model.EmployeeSalary
 import com.vyavsa.app.core.model.EmployeeSalaryStatement
 import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.FinancialMetrics
+import com.vyavsa.app.core.model.SalesDashboardResponse
+import com.vyavsa.app.core.model.OfficeDashboardResponse
+import com.vyavsa.app.core.model.RecordAdvanceRequest
+import com.vyavsa.app.core.model.RecordOvertimeRequest
 import com.vyavsa.app.core.model.CreateProductRequest
 import com.vyavsa.app.core.model.ForgotPasswordRequest
 import com.vyavsa.app.core.model.Product
@@ -119,6 +125,12 @@ interface VyavsaApiService {
 
     @GET("api/v1/tenant/dashboard")
     suspend fun getDashboardMetrics(): ApiResponse<FinancialMetrics>
+
+    @GET("api/v1/tenant/dashboard/sales")
+    suspend fun getSalesDashboard(@Query("date") date: String? = null): ApiResponse<SalesDashboardResponse>
+
+    @GET("api/v1/tenant/dashboard/office")
+    suspend fun getOfficeDashboard(@Query("date") date: String? = null): ApiResponse<OfficeDashboardResponse>
 
     @GET("api/v1/tenant/profile")
     suspend fun getProfile(): ApiResponse<TenantProfile>
@@ -346,6 +358,28 @@ interface VyavsaApiService {
         @Path("id") id: String,
         @Body req: UpdateAttendanceRequest
     ): ApiResponse<AttendanceRecord>
+
+    @POST("api/v1/tenant/advances")
+    suspend fun recordAdvance(@Body req: RecordAdvanceRequest): ApiResponse<AttendanceRecord>
+
+    @POST("api/v1/tenant/overtime")
+    suspend fun recordOvertime(@Body req: RecordOvertimeRequest): ApiResponse<AttendanceRecord>
+
+    @GET("api/v1/tenant/advances")
+    suspend fun listAdvances(
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 50,
+        @Query("date") date: String? = null,
+        @Query("employee_id") employeeId: String? = null
+    ): ApiResponse<List<EmployeeAdvance>>
+
+    @GET("api/v1/tenant/overtime")
+    suspend fun listOvertime(
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 50,
+        @Query("date") date: String? = null,
+        @Query("employee_id") employeeId: String? = null
+    ): ApiResponse<List<EmployeeOvertime>>
 
     @GET("api/v1/tenant/salaries/pending")
     suspend fun listPendingSalaries(): ApiResponse<List<EmployeeSalary>>

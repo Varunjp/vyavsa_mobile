@@ -47,10 +47,18 @@ import com.vyavsa.app.feature.transactions.TransactionsViewModel
 import com.vyavsa.app.feature.users.TenantUsersScreen
 import com.vyavsa.app.feature.users.TenantUsersViewModel
 
+import com.vyavsa.app.core.security.TokenManager
+import com.vyavsa.app.core.settings.SettingsPreferences
+import com.vyavsa.app.feature.settings.SettingsScreen
+import com.vyavsa.app.feature.settings.SettingsViewModel
+import com.vyavsa.app.feature.transactions.CreateCounterSaleScreen
+
 @Composable
 fun VyavsaNavGraph(
     navController: NavHostController,
     sessionState: SessionState,
+    tokenManager: TokenManager? = null,
+    settingsPreferences: SettingsPreferences? = null,
     modifier: Modifier = Modifier
 ) {
     val startDestination = if (sessionState is SessionState.Authenticated) {
@@ -187,6 +195,9 @@ fun VyavsaNavGraph(
                 onNavigateToCreateSale = {
                     navController.navigate(Screen.CreateLineSale.route)
                 },
+                onNavigateToCreateCounterSale = {
+                    navController.navigate(Screen.CreateCounterSale.route)
+                },
                 onNavigateToCreateExpense = {
                     navController.navigate(Screen.CreateExpense.route)
                 },
@@ -223,11 +234,15 @@ fun VyavsaNavGraph(
                 onNavigateToProductAnalytics = {
                     navController.navigate(Screen.ProductAnalytics.route)
                 },
+                onNavigateToSettings = {
+                    navController.navigate(Screen.Settings.route)
+                },
                 onLogoutSuccess = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(Screen.MainShell.route) { inclusive = true }
                     }
-                }
+                },
+                settingsPreferences = settingsPreferences
             )
         }
 
@@ -235,6 +250,12 @@ fun VyavsaNavGraph(
         // Detail & Action Screens
         // ----------------------------------------------------
         composable(Screen.CreateLineSale.route) {
+            if (tokenManager != null && !tokenManager.canAccessLineSales()) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                return@composable
+            }
             val transactionsViewModel: TransactionsViewModel = hiltViewModel()
             CreateLineSaleScreen(
                 viewModel = transactionsViewModel,
@@ -243,7 +264,28 @@ fun VyavsaNavGraph(
             )
         }
 
+        composable(Screen.CreateCounterSale.route) {
+            if (tokenManager != null && !tokenManager.canAccessCounterSales()) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                return@composable
+            }
+            val transactionsViewModel: TransactionsViewModel = hiltViewModel()
+            CreateCounterSaleScreen(
+                viewModel = transactionsViewModel,
+                onSaleCreated = { navController.popBackStack() },
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
         composable(Screen.CreateExpense.route) {
+            if (tokenManager != null && !tokenManager.canAccessExpenses()) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                return@composable
+            }
             val transactionsViewModel: TransactionsViewModel = hiltViewModel()
             CreateExpenseScreen(
                 viewModel = transactionsViewModel,
@@ -253,6 +295,12 @@ fun VyavsaNavGraph(
         }
 
         composable(Screen.CreatePurchase.route) {
+            if (tokenManager != null && !tokenManager.canAccessPurchases()) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                return@composable
+            }
             val transactionsViewModel: TransactionsViewModel = hiltViewModel()
             CreatePurchaseScreen(
                 viewModel = transactionsViewModel,
@@ -275,6 +323,12 @@ fun VyavsaNavGraph(
         }
 
         composable(Screen.CashDrawer.route) {
+            if (tokenManager != null && !tokenManager.isAdminOrUser()) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                return@composable
+            }
             val cashViewModel: CashViewModel = hiltViewModel()
             CashDrawerScreen(
                 viewModel = cashViewModel,
@@ -328,11 +382,20 @@ fun VyavsaNavGraph(
             val saleDetailsViewModel: SaleDetailsViewModel = hiltViewModel()
             SaleDetailsScreen(
                 viewModel = saleDetailsViewModel,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToSettings = {
+                    navController.navigate(Screen.Settings.route)
+                }
             )
         }
 
         composable(Screen.Plans.route) {
+            if (tokenManager != null && !tokenManager.isAdminOrUser()) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                return@composable
+            }
             val plansViewModel: PlansViewModel = hiltViewModel()
             PlansScreen(
                 viewModel = plansViewModel,
@@ -341,6 +404,12 @@ fun VyavsaNavGraph(
         }
 
         composable(Screen.TenantUsers.route) {
+            if (tokenManager != null && !tokenManager.canAccessTenantManagement()) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                return@composable
+            }
             val tenantUsersViewModel: TenantUsersViewModel = hiltViewModel()
             TenantUsersScreen(
                 viewModel = tenantUsersViewModel,
@@ -349,6 +418,12 @@ fun VyavsaNavGraph(
         }
 
         composable(Screen.BankAccounts.route) {
+            if (tokenManager != null && !tokenManager.isAdminOrUser()) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                return@composable
+            }
             val bankViewModel: BankViewModel = hiltViewModel()
             BankAccountsScreen(
                 viewModel = bankViewModel,
@@ -371,6 +446,14 @@ fun VyavsaNavGraph(
             val productViewModel: ProductViewModel = hiltViewModel()
             ProductAnalyticsScreen(
                 viewModel = productViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Settings.route) {
+            val settingsViewModel: SettingsViewModel = hiltViewModel()
+            SettingsScreen(
+                viewModel = settingsViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

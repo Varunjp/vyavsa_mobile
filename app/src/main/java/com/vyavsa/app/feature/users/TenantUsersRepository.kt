@@ -4,6 +4,7 @@ import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.model.CreateTenantUserRequest
 import com.vyavsa.app.core.model.TenantUser
 import com.vyavsa.app.core.model.UpdateTenantUserRequest
+import com.vyavsa.app.core.network.ApiErrorParser
 import com.vyavsa.app.core.network.VyavsaApiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -38,10 +39,10 @@ class TenantUsersRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to list tenant users"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to list tenant users"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading tenant users"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -52,10 +53,10 @@ class TenantUsersRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message ?: "User created successfully"))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to create user"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to create user"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error creating user"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -66,10 +67,10 @@ class TenantUsersRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load user details"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load user details"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading user details"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -80,10 +81,10 @@ class TenantUsersRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message ?: "User updated successfully"))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update user"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to update user"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error updating user"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -94,10 +95,10 @@ class TenantUsersRepositoryImpl @Inject constructor(
             if (response.success) {
                 emit(Resource.Success(Unit, response.message ?: "User deleted successfully"))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to delete user"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to delete user"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error deleting user"))
         }
     }.flowOn(Dispatchers.IO)
 }

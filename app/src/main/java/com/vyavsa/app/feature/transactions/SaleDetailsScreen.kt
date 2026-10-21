@@ -56,7 +56,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import com.vyavsa.app.core.document.InvoiceShareManager
+import com.vyavsa.app.core.printer.InvoiceContentSettings
+import com.vyavsa.app.core.printer.InvoiceDataMapper
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -89,13 +95,28 @@ import com.vyavsa.app.core.model.SaleItem
 import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.model.TenantProfile
 
+import android.app.Activity
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Settings
+import androidx.core.app.ActivityCompat
+import com.vyavsa.app.core.printer.BluetoothPermissionHelper
+import com.vyavsa.app.core.printer.PrintJobStatus
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SaleDetailsScreen(
     viewModel: SaleDetailsViewModel,
     onNavigateBack: () -> Unit,
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val detailState by viewModel.detailState.collectAsState()
     val banks by viewModel.banksState.collectAsState()
     val companyProfile by viewModel.companyProfile.collectAsState()
@@ -107,10 +128,39 @@ fun SaleDetailsScreen(
     val networkPrinterIp by viewModel.networkPrinterIp.collectAsState()
     val selectedPrinter by viewModel.selectedPrinter.collectAsState()
     val paperWidth by viewModel.paperWidth.collectAsState()
+    val contentSettings = viewModel.settingsPreferences?.contentSettings?.collectAsState()?.value ?: InvoiceContentSettings()
 
     var showPaymentDialog by remember { mutableStateOf(false) }
     var showReceiptDialog by remember { mutableStateOf(false) }
     var showPrintDialog by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val allGranted = grants.values.all { it }
+        if (allGranted) {
+            viewModel.printInvoice()
+        } else {
+            val permanentlyDenied = grants.filter { !it.value }.any { (permission, _) ->
+                val activity = context as? Activity
+                activity != null && !ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
+            }
+            if (permanentlyDenied) {
+                Toast.makeText(context, "Bluetooth permissions denied. Please enable Nearby Devices in App Settings.", Toast.LENGTH_LONG).show()
+                context.startActivity(BluetoothPermissionHelper.createAppSettingsIntent(context))
+            } else {
+                Toast.makeText(context, "Bluetooth permission denied. Cannot communicate with thermal printer.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    val handlePrint = {
+        viewModel.printInvoice(
+            onPermissionRequired = { perms ->
+                permissionLauncher.launch(perms)
+            }
+        )
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -119,7 +169,16 @@ fun SaleDetailsScreen(
                 title = if (viewModel.saleType == "counter") "Counter Sale Details" else "Line Sale Details",
                 subtitle = "Transaction & payment audit record",
                 navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
-                onNavigationClick = onNavigateBack
+                onNavigationClick = onNavigateBack,
+                actions = {
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Printer Settings",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             )
         },
         modifier = modifier
@@ -157,7 +216,7 @@ fun SaleDetailsScreen(
                                 sale = data.sale,
                                 onRecordPaymentClick = { showPaymentDialog = true },
                                 onShowReceiptClick = { showReceiptDialog = true },
-                                onPrintClick = { showPrintDialog = true }
+                                onPrintClick = handlePrint
                             )
                         }
                         is SaleDetailData.Counter -> {
@@ -165,12 +224,89 @@ fun SaleDetailsScreen(
                                 sale = data.sale,
                                 onRecordPaymentClick = { showPaymentDialog = true },
                                 onShowReceiptClick = { showReceiptDialog = true },
-                                onPrintClick = { showPrintDialog = true }
+                                onPrintClick = handlePrint
                             )
                         }
                     }
                 }
                 else -> {}
+            }
+
+            // Floating print job status and actionable error banner
+            AnimatedVisibility(
+                visible = printJobState.status != PrintJobStatus.IDLE,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = when (printJobState.status) {
+                        PrintJobStatus.SUCCESS -> MaterialTheme.colorScheme.primaryContainer
+                        PrintJobStatus.ERROR -> MaterialTheme.colorScheme.errorContainer
+                        else -> MaterialTheme.colorScheme.surfaceContainerHigh
+                    },
+                    shadowElevation = 8.dp,
+                    border = BorderStroke(
+                        1.dp,
+                        when (printJobState.status) {
+                            PrintJobStatus.SUCCESS -> MaterialTheme.colorScheme.primary
+                            PrintJobStatus.ERROR -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.outlineVariant
+                        }
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (printJobState.status == PrintJobStatus.CONNECTING || printJobState.status == PrintJobStatus.PRINTING) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            } else if (printJobState.status == PrintJobStatus.SUCCESS) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            } else {
+                                Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = printJobState.message ?: "",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = when (printJobState.status) {
+                                    PrintJobStatus.ERROR -> MaterialTheme.colorScheme.onErrorContainer
+                                    PrintJobStatus.SUCCESS -> MaterialTheme.colorScheme.onPrimaryContainer
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (printJobState.status == PrintJobStatus.ERROR) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(onClick = { viewModel.resetPrintJobState() }) {
+                                    Text("Dismiss")
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                OutlinedButton(onClick = onNavigateToSettings) {
+                                    Text("Settings")
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(onClick = handlePrint) {
+                                    Text("Retry")
+                                }
+                            }
+                        } else if (printJobState.status == PrintJobStatus.SUCCESS) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = { viewModel.resetPrintJobState() }) {
+                                    Text("Dismiss")
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -204,7 +340,11 @@ fun SaleDetailsScreen(
                 InvoiceReceiptDialog(
                     saleData = state.data,
                     companyProfile = companyProfile,
-                    onPrintClick = { showPrintDialog = true },
+                    contentSettings = contentSettings,
+                    onPrintClick = {
+                        showReceiptDialog = false
+                        handlePrint()
+                    },
                     onDismiss = { showReceiptDialog = false }
                 )
             }
@@ -223,6 +363,9 @@ fun SaleDetailsScreen(
             paperWidth = paperWidth,
             hasCompanyLogo = !companyProfile?.logoUrl.isNullOrBlank(),
             receiptPreviewText = viewModel.getReceiptPreviewText(),
+            logoUrl = companyProfile?.logoUrl,
+            businessName = companyProfile?.name,
+            logoBitmap = viewModel.getCachedLogoBitmap(),
             onSelectConnectionType = { viewModel.setConnectionType(it) },
             onSetNetworkPrinterIp = { viewModel.setNetworkPrinterIp(it) },
             onSelectPrinter = { viewModel.selectPrinter(it) },
@@ -934,7 +1077,7 @@ private fun SaleItemsBreakdownCard(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "${item.quantity} × ${FormatUtils.formatCurrency(item.unitPrice)}",
+                                text = "Qty: ${item.quantity}   •   Price: ${FormatUtils.formatCurrency(item.unitPrice)}",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.Medium
@@ -999,6 +1142,7 @@ private data class ReceiptDisplayData(
 private fun InvoiceReceiptDialog(
     saleData: SaleDetailData,
     companyProfile: TenantProfile?,
+    contentSettings: InvoiceContentSettings = InvoiceContentSettings(),
     onPrintClick: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1056,60 +1200,88 @@ private fun InvoiceReceiptDialog(
         }
     }
 
-    fun shareReceipt() {
-        val text = buildString {
-            appendLine("==================================")
-            appendLine(companyProfile?.name?.ifBlank { "VYAVSA BUSINESS" } ?: "VYAVSA BUSINESS")
-            val address = companyProfile?.getEffectiveAddress()
-            if (!address.isNullOrBlank()) {
-                appendLine(address)
-            }
-            val phone = companyProfile?.phone
-            if (!phone.isNullOrBlank()) {
-                appendLine("Phone: $phone")
-            }
-            val email = companyProfile?.email
-            if (!email.isNullOrBlank()) {
-                appendLine("Email: $email")
-            }
-            appendLine("==================================")
-            appendLine(receiptData.title.uppercase())
-            appendLine("Bill ID: ${receiptData.saleId}")
-            appendLine("Date: ${receiptData.date}")
-            appendLine("Customer: ${receiptData.customerInfo}")
-            appendLine("----------------------------------")
-            if (receiptData.items.isNotEmpty()) {
-                appendLine("ITEMS:")
-                receiptData.items.forEach { item ->
-                    appendLine(" - ${item.productNameSnapshot}: ${item.quantity} x ${FormatUtils.formatCurrency(item.unitPrice)} = ${FormatUtils.formatCurrency(item.lineTotal)}")
-                }
-                appendLine("----------------------------------")
-            } else if (!receiptData.singleItemName.isNullOrBlank()) {
-                appendLine("Item: ${receiptData.singleItemName}")
-                appendLine("----------------------------------")
-            }
-            appendLine("Subtotal: ${FormatUtils.formatCurrency(receiptData.subtotal.toString())}")
-            if (receiptData.discount > 0.0) {
-                appendLine("Discount: -${FormatUtils.formatCurrency(receiptData.discount.toString())}")
-            }
-            appendLine("Total Payable: ${FormatUtils.formatCurrency(receiptData.total.toString())}")
-            appendLine("Amount Paid: ${FormatUtils.formatCurrency(receiptData.paid.toString())}")
-            if (receiptData.due > 0.0) {
-                appendLine("Balance Due: ${FormatUtils.formatCurrency(receiptData.due.toString())}")
-            } else {
-                appendLine("Payment Status: PAID IN FULL")
-            }
-            appendLine("Payment: ${receiptData.paymentMethodSummary}")
-            appendLine("==================================")
-            appendLine("Generated via Vyavsa Bill Book")
-        }
+    val coroutineScope = rememberCoroutineScope()
+    var isSharingPdf by remember { mutableStateOf(false) }
 
-        val sendIntent = Intent().apply {
-            action = Intent.ACTION_SEND
-            putExtra(Intent.EXTRA_TEXT, text)
-            type = "text/plain"
+    fun buildTextReceipt(): String = buildString {
+        appendLine("==================================")
+        appendLine(companyProfile?.name?.ifBlank { "VYAVSA BUSINESS" } ?: "VYAVSA BUSINESS")
+        val address = companyProfile?.getEffectiveAddress()
+        if (!address.isNullOrBlank()) {
+            appendLine(address)
         }
-        context.startActivity(Intent.createChooser(sendIntent, "Share Bill Receipt via"))
+        val phone = companyProfile?.phone
+        if (!phone.isNullOrBlank()) {
+            appendLine("Phone: $phone")
+        }
+        val email = companyProfile?.email
+        if (!email.isNullOrBlank()) {
+            appendLine("Email: $email")
+        }
+        appendLine("==================================")
+        appendLine(receiptData.title.uppercase())
+        appendLine("Bill ID: ${receiptData.saleId}")
+        appendLine("Date: ${receiptData.date}")
+        appendLine("Customer: ${receiptData.customerInfo}")
+        appendLine("----------------------------------")
+        if (receiptData.items.isNotEmpty()) {
+            appendLine("ITEMS:")
+            receiptData.items.forEach { item ->
+                appendLine(" - ${item.productNameSnapshot}: ${item.quantity} x ${FormatUtils.formatCurrency(item.unitPrice)} = ${FormatUtils.formatCurrency(item.lineTotal)}")
+            }
+            appendLine("----------------------------------")
+        } else if (!receiptData.singleItemName.isNullOrBlank()) {
+            appendLine("Item: ${receiptData.singleItemName}")
+            appendLine("----------------------------------")
+        }
+        appendLine("Subtotal: ${FormatUtils.formatCurrency(receiptData.subtotal.toString())}")
+        if (receiptData.discount > 0.0) {
+            appendLine("Discount: -${FormatUtils.formatCurrency(receiptData.discount.toString())}")
+        }
+        appendLine("Total Payable: ${FormatUtils.formatCurrency(receiptData.total.toString())}")
+        appendLine("Amount Paid: ${FormatUtils.formatCurrency(receiptData.paid.toString())}")
+        if (receiptData.due > 0.0) {
+            appendLine("Balance Due: ${FormatUtils.formatCurrency(receiptData.due.toString())}")
+        } else {
+            appendLine("Payment Status: PAID IN FULL")
+        }
+        appendLine("Payment: ${receiptData.paymentMethodSummary}")
+        appendLine("==================================")
+        appendLine(companyProfile?.getEffectiveFooterHeading() ?: "Thank You for Your Business!")
+        appendLine(companyProfile?.getEffectiveFooterParagraph() ?: "Generated via Vyavsa Bill Book")
+    }
+
+    fun shareReceipt() {
+        if (isSharingPdf) return
+        coroutineScope.launch {
+            isSharingPdf = true
+            try {
+                val printData = when (saleData) {
+                    is SaleDetailData.Line -> InvoiceDataMapper.fromLineSale(saleData.sale, companyProfile, null)
+                    is SaleDetailData.Counter -> InvoiceDataMapper.fromCounterSale(saleData.sale, companyProfile, null)
+                }
+                val shareResult = InvoiceShareManager.shareInvoicePdf(context, printData)
+                if (shareResult.isFailure) {
+                    val text = buildTextReceipt()
+                    val sendIntent = Intent().apply {
+                        action = Intent.ACTION_SEND
+                        putExtra(Intent.EXTRA_TEXT, text)
+                        type = "text/plain"
+                    }
+                    context.startActivity(Intent.createChooser(sendIntent, "Share Bill Receipt via"))
+                }
+            } catch (_: Exception) {
+                val text = buildTextReceipt()
+                val sendIntent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_TEXT, text)
+                    type = "text/plain"
+                }
+                context.startActivity(Intent.createChooser(sendIntent, "Share Bill Receipt via"))
+            } finally {
+                isSharingPdf = false
+            }
+        }
     }
 
     Dialog(
@@ -1140,19 +1312,21 @@ private fun InvoiceReceiptDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f)
                     ) {
-                        CompanyLogoImage(
-                            logoUrl = companyProfile?.logoUrl,
-                            companyName = companyProfile?.name ?: "Vyavsa Business",
-                            size = 48.dp
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
+                        if (contentSettings.showLogo) {
+                            CompanyLogoImage(
+                                logoUrl = companyProfile?.logoUrl,
+                                companyName = companyProfile?.name ?: "Vyavsa Business",
+                                size = 48.dp
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                        }
                         Column {
                             Text(
                                 text = companyProfile?.name?.ifBlank { "Vyavsa Business" } ?: "Vyavsa Business",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                             )
                             val phone = companyProfile?.phone
-                            if (!phone.isNullOrBlank()) {
+                            if (contentSettings.showBusinessPhone && !phone.isNullOrBlank()) {
                                 Text(
                                     text = "Ph: $phone",
                                     style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1168,7 +1342,7 @@ private fun InvoiceReceiptDialog(
 
                 // Company Address Header
                 val effectiveAddress = companyProfile?.getEffectiveAddress()
-                if (!effectiveAddress.isNullOrBlank()) {
+                if (contentSettings.showBusinessAddress && !effectiveAddress.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Surface(
                         shape = RoundedCornerShape(10.dp),
@@ -1229,10 +1403,12 @@ private fun InvoiceReceiptDialog(
                     text = "Date: ${receiptData.date}",
                     style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
-                Text(
-                    text = "Customer: ${receiptData.customerInfo}",
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
-                )
+                if (contentSettings.showCustomerDetails) {
+                    Text(
+                        text = "Customer: ${receiptData.customerInfo}",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
@@ -1259,7 +1435,7 @@ private fun InvoiceReceiptDialog(
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = "${item.quantity} × ${FormatUtils.formatCurrency(item.unitPrice)}",
+                                    text = "Qty: ${item.quantity}   •   Price: ${FormatUtils.formatCurrency(item.unitPrice)}",
                                     style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 )
                             }
@@ -1323,11 +1499,37 @@ private fun InvoiceReceiptDialog(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = receiptData.paymentMethodSummary,
-                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                )
+                if (contentSettings.showPaymentInfo && receiptData.paymentMethodSummary.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = receiptData.paymentMethodSummary,
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
+                }
+
+                // Configured Invoice Footer
+                if (contentSettings.showFooterNote) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    val footerHeading = companyProfile?.getEffectiveFooterHeading() ?: "Thank You for Your Business!"
+                    val footerParagraph = companyProfile?.getEffectiveFooterParagraph() ?: "Thank you for choosing us. We appreciate your trust and look forward to serving you again."
+
+                    Text(
+                        text = footerHeading,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface),
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = footerParagraph,
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(20.dp))
 

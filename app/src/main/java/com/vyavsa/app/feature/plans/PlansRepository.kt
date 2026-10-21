@@ -5,6 +5,7 @@ import com.vyavsa.app.core.model.PlanTransaction
 import com.vyavsa.app.core.model.PurchasePlanRequest
 import com.vyavsa.app.core.model.SubscriptionPlan
 import com.vyavsa.app.core.model.TenantSubscription
+import com.vyavsa.app.core.network.ApiErrorParser
 import com.vyavsa.app.core.network.VyavsaApiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -32,10 +33,10 @@ class PlansRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load subscription details"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load subscription details"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading subscription"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -46,10 +47,10 @@ class PlansRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load subscription plans"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load subscription plans"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading plans"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -64,10 +65,10 @@ class PlansRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message ?: "Plan upgraded successfully"))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to purchase plan"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to purchase plan"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error purchasing plan"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -78,10 +79,10 @@ class PlansRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to load billing history"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load billing history"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading billing history"))
         }
     }.flowOn(Dispatchers.IO)
 }

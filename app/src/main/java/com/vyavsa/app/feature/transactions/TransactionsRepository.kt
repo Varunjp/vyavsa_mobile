@@ -22,6 +22,7 @@ import com.vyavsa.app.core.model.SupplierPaymentResponse
 import com.vyavsa.app.core.model.UpdateCounterSaleRequest
 import com.vyavsa.app.core.model.UpdateLineSaleRequest
 import com.vyavsa.app.core.model.UpdatePurchaseRequest
+import com.vyavsa.app.core.network.ApiErrorParser
 import com.vyavsa.app.core.network.VyavsaApiService
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
@@ -76,10 +77,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load line sales"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load line sales"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading line sales"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading line sales"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -103,10 +104,10 @@ class TransactionsRepositoryImpl @Inject constructor(
                 }
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to create line sale", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to create line sale"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error creating sale"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error creating sale"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -122,10 +123,10 @@ class TransactionsRepositoryImpl @Inject constructor(
                 }
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update line sale", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to update line sale"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error updating line sale"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error updating line sale"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -136,10 +137,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load line sale details"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load line sale details"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading sale details"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading sale details"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -150,10 +151,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load line sale payments"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load line sale payments"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading payments"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading payments"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -171,10 +172,10 @@ class TransactionsRepositoryImpl @Inject constructor(
                 }
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to record payment", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to record payment"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error recording payment"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error recording payment"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -185,10 +186,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load counter sales"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load counter sales"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading counter sales"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading counter sales"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -211,10 +212,10 @@ class TransactionsRepositoryImpl @Inject constructor(
                 }
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to record counter sale", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to record counter sale"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error recording sale"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error recording sale"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -229,10 +230,10 @@ class TransactionsRepositoryImpl @Inject constructor(
                 }
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update counter sale", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to update counter sale"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error updating counter sale"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error updating counter sale"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -243,10 +244,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load counter sale details"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load counter sale details"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading counter sale details"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading counter sale details"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -257,10 +258,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load counter sale payments"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load counter sale payments"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading payments"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading payments"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -277,10 +278,10 @@ class TransactionsRepositoryImpl @Inject constructor(
                 }
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to record payment", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to record payment"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error recording payment"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error recording payment"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -291,10 +292,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load purchases"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load purchases"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading purchases"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading purchases"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -314,10 +315,10 @@ class TransactionsRepositoryImpl @Inject constructor(
                 }
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to record purchase", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to record purchase"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error recording purchase"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error recording purchase"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -328,10 +329,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load purchase details"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load purchase details"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading purchase details"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading purchase details"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -346,10 +347,10 @@ class TransactionsRepositoryImpl @Inject constructor(
                 refreshCoordinator.notifyMutation(DataMutation.BANK)
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to update purchase", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to update purchase"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error updating purchase"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error updating purchase"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -364,10 +365,10 @@ class TransactionsRepositoryImpl @Inject constructor(
                 refreshCoordinator.notifyMutation(DataMutation.BANK)
                 emit(Resource.Success(Unit, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to delete purchase", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to delete purchase"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error deleting purchase"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error deleting purchase"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -378,10 +379,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load purchase payments"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load purchase payments"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading payments"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading payments"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -399,10 +400,10 @@ class TransactionsRepositoryImpl @Inject constructor(
                 }
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to record purchase settlement", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to record purchase settlement"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error recording payment"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error recording payment"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -413,10 +414,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load expenses"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load expenses"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading expenses"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading expenses"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -436,10 +437,10 @@ class TransactionsRepositoryImpl @Inject constructor(
                 }
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to record expense", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to record expense"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error recording expense"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error recording expense"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -450,10 +451,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load cash transactions"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load cash transactions"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading cash transactions"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading cash transactions"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -464,10 +465,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load billing history"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load billing history"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading billing history"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading billing history"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -478,10 +479,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load customers"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load customers"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading customers"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -492,10 +493,10 @@ class TransactionsRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load employees"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load employees"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading employees"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading employees"))
         }
     }.flowOn(Dispatchers.IO)
 }

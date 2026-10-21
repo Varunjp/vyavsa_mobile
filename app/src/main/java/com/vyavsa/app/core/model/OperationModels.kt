@@ -57,6 +57,8 @@ data class LineSale(
     val id: String = "",
     @SerialName("customer_id") val customerId: String = "",
     @SerialName("customer_name") val customerName: String = "",
+    @SerialName("customer_phone") val customerPhone: String? = null,
+    @SerialName("invoice_number") val invoiceNumber: String? = null,
     val route: String? = null,
     val salesman: String? = null,
     val note: String? = null,
@@ -138,6 +140,7 @@ data class CounterSalePayment(
 @Serializable
 data class CounterSale(
     val id: String = "",
+    @SerialName("invoice_number") val invoiceNumber: String? = null,
     val item: String = "",
     val price: String = "0.00",
     val subtotal: String = "0.00",
@@ -524,6 +527,28 @@ data class UpdateAttendanceRequest(
     val ot: String? = null,
     @SerialName("ot_amount") val otAmount: String? = null,
     val advance: String? = null
+)
+
+@Serializable
+data class RecordAdvanceRequest(
+    @SerialName("employee_id") val employeeId: String,
+    val date: String? = null,
+    val amount: String,
+    @SerialName("payment_method") val paymentMethod: String = "cash",
+    @SerialName("bank_id") val bankId: String? = null,
+    @SerialName("bank_name") val bankName: String? = null,
+    @SerialName("reference_id") val referenceId: String? = null,
+    val note: String? = null
+)
+
+@Serializable
+data class RecordOvertimeRequest(
+    @SerialName("employee_id") val employeeId: String,
+    val date: String? = null,
+    val amount: String = "0.00",
+    val ot: String? = null,
+    @SerialName("reference_id") val referenceId: String? = null,
+    val note: String? = null
 )
 
 @Immutable

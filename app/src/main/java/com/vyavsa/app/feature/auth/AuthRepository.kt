@@ -9,6 +9,7 @@ import com.vyavsa.app.core.model.TenantProfile
 import com.vyavsa.app.core.model.TenantRegisterRequest
 import com.vyavsa.app.core.model.TokenResponse
 import com.vyavsa.app.core.model.VerifyResetOtpRequest
+import com.vyavsa.app.core.network.ApiErrorParser
 import com.vyavsa.app.core.network.VyavsaApiService
 import com.vyavsa.app.core.security.TokenManager
 import kotlinx.coroutines.Dispatchers
@@ -49,10 +50,10 @@ class AuthRepositoryImpl @Inject constructor(
                 tokenManager.saveSession(response.data)
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Authentication failed", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Authentication failed"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error during login"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error during login"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -78,10 +79,10 @@ class AuthRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Registration failed", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Registration failed"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error during registration"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error during registration"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -92,10 +93,10 @@ class AuthRepositoryImpl @Inject constructor(
             if (response.success) {
                 emit(Resource.Success("OTP has been sent to your email", response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to send reset OTP", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to send reset OTP"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error requesting password reset"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -106,10 +107,10 @@ class AuthRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data.resetToken, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Invalid or expired OTP", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Invalid or expired OTP"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error verifying OTP"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -120,10 +121,10 @@ class AuthRepositoryImpl @Inject constructor(
             if (response.success) {
                 emit(Resource.Success(Unit, response.message))
             } else {
-                emit(Resource.Error(response.error?.message ?: response.message ?: "Failed to reset password", response.error?.code))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to reset password"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error resetting password"))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -147,10 +148,10 @@ class AuthRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
-                emit(Resource.Error(response.error?.message ?: "Failed to load plans"))
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load plans"))
             }
-        } catch (e: Exception) {
-            emit(Resource.Error(e.message ?: "Network error loading plans"))
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading plans"))
         }
     }.flowOn(Dispatchers.IO)
 }

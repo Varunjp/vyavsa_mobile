@@ -8,14 +8,53 @@ import androidx.compose.runtime.Immutable
  */
 enum class PaperWidth(val widthMm: Int, val charsPerLine: Int, val label: String) {
     WIDTH_58MM(58, 32, "58 mm (Standard)"),
-    WIDTH_80MM(80, 48, "80 mm (Wide POS)");
+    WIDTH_80MM(80, 48, "80 mm (Wide POS)"),
+    WIDTH_A4(210, 72, "A4 (Sheet)");
 
     companion object {
         fun fromWidthMm(mm: Int): PaperWidth {
-            return if (mm >= 80) WIDTH_80MM else WIDTH_58MM
+            return when {
+                mm >= 150 -> WIDTH_A4
+                mm >= 80 -> WIDTH_80MM
+                else -> WIDTH_58MM
+            }
         }
     }
 }
+
+/**
+ * Built-in invoice themes suitable for thermal and standard POS receipts.
+ */
+enum class InvoiceTheme(val title: String, val description: String) {
+    CLASSIC("Classic Retail", "Centered business header, clear bordered dividers, and classic receipt totals."),
+    MODERN_MINIMAL("Modern Minimal", "Clean left-aligned typography, subtle divider lines, and uncluttered compact layout."),
+    DETAILED_GST("Detailed GST", "Tax invoice layout with tax identification box, customer details, and terms/signature block.")
+}
+
+/**
+ * Font sizing / density for invoice printing.
+ */
+enum class PrintTypography(val label: String, val scaleFactor: Float) {
+    STANDARD("Standard (Normal)", 1.0f),
+    COMPACT("Compact (Dense)", 0.85f),
+    LARGE("Large (Readable)", 1.15f)
+}
+
+/**
+ * Content visibility switches for invoices.
+ */
+@Immutable
+data class InvoiceContentSettings(
+    val showBusinessAddress: Boolean = true,
+    val showBusinessPhone: Boolean = true,
+    val showBusinessEmail: Boolean = true,
+    val showTaxId: Boolean = true,
+    val showCustomerDetails: Boolean = true,
+    val showNotes: Boolean = true,
+    val showPaymentInfo: Boolean = true,
+    val showFooterNote: Boolean = true,
+    val showLogo: Boolean = true
+)
 
 /**
  * Physical or network transport for thermal receipt printers.
@@ -96,8 +135,16 @@ data class InvoicePrintData(
     val amountPaid: Double,
     val balanceDue: Double = 0.0,
     val paymentSummary: String,
-    val note: String? = null
+    val note: String? = null,
+    val footerHeading: String? = null,
+    val footerParagraph: String? = null
 ) {
     val hasLogo: Boolean
         get() = logoBitmap != null || !logoUrl.isNullOrBlank()
+
+    val effectiveFooterHeading: String
+        get() = footerHeading?.trim()?.ifBlank { null } ?: "Thank you for your business!"
+
+    val effectiveFooterParagraph: String
+        get() = footerParagraph?.trim()?.ifBlank { null } ?: "Generated via Vyavsa Bill Book"
 }

@@ -331,6 +331,80 @@ class StaffViewModel @Inject constructor(
         }
     }
 
+    fun recordStandaloneAdvance(
+        employeeId: String,
+        amount: String,
+        date: String = FormatUtils.todayDateString(),
+        paymentMethod: String = "cash",
+        note: String? = null
+    ) {
+        val trimmedAmount = amount.trim()
+        val parsed = trimmedAmount.toDoubleOrNull()
+        if (parsed == null || parsed <= 0.0) {
+            _actionState.value = UiState.Error("Advance amount must be greater than zero")
+            return
+        }
+
+        viewModelScope.launch {
+            repository.recordAdvance(
+                employeeId = employeeId,
+                amount = trimmedAmount,
+                date = date,
+                paymentMethod = paymentMethod,
+                note = note?.trim()?.ifBlank { null }
+            ).collect { res ->
+                _actionState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> {
+                        refreshCoordinator.notifyMutation(DataMutation.STAFF)
+                        loadAttendance()
+                        if (isAdmin) {
+                            loadSalaries()
+                        }
+                        UiState.Success(Unit)
+                    }
+                    is Resource.Error -> UiState.Error(res.message)
+                }
+            }
+        }
+    }
+
+    fun recordStandaloneOvertime(
+        employeeId: String,
+        amount: String,
+        date: String = FormatUtils.todayDateString(),
+        note: String? = null
+    ) {
+        val trimmedAmount = amount.trim()
+        val parsed = trimmedAmount.toDoubleOrNull()
+        if (parsed == null || parsed <= 0.0) {
+            _actionState.value = UiState.Error("Overtime amount must be greater than zero")
+            return
+        }
+
+        viewModelScope.launch {
+            repository.recordOvertime(
+                employeeId = employeeId,
+                amount = trimmedAmount,
+                date = date,
+                note = note?.trim()?.ifBlank { null }
+            ).collect { res ->
+                _actionState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> {
+                        refreshCoordinator.notifyMutation(DataMutation.STAFF)
+                        loadAttendance()
+                        if (isAdmin) {
+                            loadSalaries()
+                        }
+                        UiState.Success(Unit)
+                    }
+                    is Resource.Error -> UiState.Error(res.message)
+                }
+            }
+        }
+    }
+
     fun resetActionState() {
         _actionState.value = UiState.Idle
     }

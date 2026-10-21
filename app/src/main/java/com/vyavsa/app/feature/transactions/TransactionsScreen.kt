@@ -50,6 +50,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -109,7 +110,6 @@ fun TransactionsScreen(
     val availableTabs = remember(isAdmin) {
         if (isAdmin) {
             listOf(
-                TransactionTab.SALES,
                 TransactionTab.PURCHASES,
                 TransactionTab.EXPENSES,
                 TransactionTab.CASH_BOOK,
@@ -117,11 +117,16 @@ fun TransactionsScreen(
             )
         } else {
             listOf(
-                TransactionTab.SALES,
                 TransactionTab.PURCHASES,
                 TransactionTab.EXPENSES,
                 TransactionTab.CASH_BOOK
             )
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (selectedTab == TransactionTab.SALES) {
+            viewModel.selectTab(TransactionTab.PURCHASES)
         }
     }
 
@@ -139,16 +144,15 @@ fun TransactionsScreen(
 
     val selectedTabIndex = availableTabs.indexOf(selectedTab).coerceAtLeast(0)
     val todayDate = remember { FormatUtils.todayDateString() }
-    val showFab = selectedTab == TransactionTab.SALES ||
-        selectedTab == TransactionTab.PURCHASES ||
+    val showFab = selectedTab == TransactionTab.PURCHASES ||
         selectedTab == TransactionTab.EXPENSES
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             VyavsaTopAppBar(
-                title = "Business Ledger",
-                subtitle = "Complete financial transactions & operational records"
+                title = "Ledger",
+                subtitle = "Purchases, expenses, cash drawer & billing records"
             )
         },
         floatingActionButton = {

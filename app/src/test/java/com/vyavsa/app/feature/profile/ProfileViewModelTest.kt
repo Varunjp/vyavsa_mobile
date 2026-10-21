@@ -92,6 +92,10 @@ class ProfileViewModelTest {
                         """.trimIndent())
                     }
                     request.path == "/api/v1/tenant/profile" && request.method == "PUT" -> {
+                        val body = request.body.clone().readUtf8()
+                        val hasCustomFooter = body.contains("invoice_footer_heading")
+                        val heading = if (hasCustomFooter) "Custom Thank You" else null
+                        val paragraph = if (hasCustomFooter) "Goods once sold cannot be returned." else null
                         MockResponse().setResponseCode(200).setBody("""
                             {
                               "success": true,
@@ -107,6 +111,8 @@ class ProfileViewModelTest {
                                 "state": "Rajasthan",
                                 "postal_code": "302001",
                                 "country": "India",
+                                "invoice_footer_heading": ${if (heading != null) "\"$heading\"" else "null"},
+                                "invoice_footer_paragraph": ${if (paragraph != null) "\"$paragraph\"" else "null"},
                                 "formatted_address": "Shop 4, Main Bazaar, Behind Town Hall, Jaipur, Rajasthan, 302001, India"
                               }
                             }
@@ -242,5 +248,63 @@ class ProfileViewModelTest {
         val updateState = viewModel.updateState.value
         assertTrue("Expected Error state, got $updateState", updateState is UiState.Error)
         assertEquals("Name and email are required", (updateState as UiState.Error).message)
+    }
+
+    @Test
+    fun testUpdateInvoiceFooterValidationHeadingTooLong() = runTest {
+        viewModel.updateInvoiceFooter(
+            heading = "A".repeat(256),
+            paragraph = "Valid footer paragraph"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val footerState = viewModel.footerUpdateState.value
+        assertTrue("Expected Error state, got $footerState", footerState is UiState.Error)
+        assertEquals("Footer heading cannot exceed 255 characters", (footerState as UiState.Error).message)
+    }
+
+    @Test
+    fun testUpdateInvoiceFooterValidationParagraphTooLong() = runTest {
+        viewModel.updateInvoiceFooter(
+            heading = "Valid heading",
+            paragraph = "B".repeat(1001)
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val footerState = viewModel.footerUpdateState.value
+        assertTrue("Expected Error state, got $footerState", footerState is UiState.Error)
+        assertEquals("Footer paragraph cannot exceed 1000 characters", (footerState as UiState.Error).message)
+    }
+
+    @Test
+    fun testUpdateInvoiceFooterSuccess() = runTest {
+        var initAttempts = 0
+        while (viewModel.profileState.value !is UiState.Success && initAttempts < 50) {
+            Thread.sleep(20)
+            testDispatcher.scheduler.advanceUntilIdle()
+            initAttempts++
+        }
+
+        viewModel.updateInvoiceFooter(
+            heading = "Custom Thank You",
+            paragraph = "Goods once sold cannot be returned."
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        var attempts = 0
+        while (viewModel.footerUpdateState.value !is UiState.Success && attempts < 50) {
+            Thread.sleep(20)
+            testDispatcher.scheduler.advanceUntilIdle()
+            attempts++
+        }
+
+        val footerState = viewModel.footerUpdateState.value
+        assertTrue("Expected Success, got $footerState", footerState is UiState.Success)
+
+        val profileState = viewModel.profileState.value
+        assertTrue("Expected Success, got $profileState", profileState is UiState.Success)
+        val profile = (profileState as UiState.Success).data
+        assertEquals("Custom Thank You", profile.getEffectiveFooterHeading())
+        assertEquals("Goods once sold cannot be returned.", profile.getEffectiveFooterParagraph())
     }
 }

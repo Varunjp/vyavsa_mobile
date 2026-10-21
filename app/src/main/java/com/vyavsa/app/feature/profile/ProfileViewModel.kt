@@ -9,6 +9,7 @@ import com.vyavsa.app.core.model.SubscriptionPlan
 import com.vyavsa.app.core.model.TenantProfile
 import com.vyavsa.app.core.model.TenantSubscription
 import com.vyavsa.app.core.model.UpdateTenantProfileRequest
+import com.vyavsa.app.core.network.ApiErrorParser
 import com.vyavsa.app.core.network.VyavsaApiService
 import com.vyavsa.app.core.security.TokenManager
 import com.vyavsa.app.core.sync.DataMutation
@@ -50,6 +51,13 @@ class ProfileViewModel @Inject constructor(
     private val _updateState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val updateState: StateFlow<UiState<Unit>> = _updateState.asStateFlow()
 
+    private val _footerUpdateState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val footerUpdateState: StateFlow<UiState<Unit>> = _footerUpdateState.asStateFlow()
+
+    fun resetFooterUpdateState() {
+        _footerUpdateState.value = UiState.Idle
+    }
+
     val sessionState: StateFlow<com.vyavsa.app.core.security.SessionState> =
         tokenManager?.sessionState ?: MutableStateFlow(com.vyavsa.app.core.security.SessionState.Unauthenticated)
 
@@ -72,7 +80,7 @@ class ProfileViewModel @Inject constructor(
                     _profileState.value = UiState.Error(res.error?.message ?: "Failed to load profile")
                 }
             } catch (e: Exception) {
-                _profileState.value = UiState.Error(e.message ?: "Network error")
+                _profileState.value = UiState.Error(ApiErrorParser.parseException(e).message)
             }
         }
 
@@ -85,7 +93,7 @@ class ProfileViewModel @Inject constructor(
                     _subscriptionState.value = UiState.Error(res.error?.message ?: "Failed to load subscription")
                 }
             } catch (e: Exception) {
-                _subscriptionState.value = UiState.Error(e.message ?: "Network error")
+                _subscriptionState.value = UiState.Error(ApiErrorParser.parseException(e).message)
             }
         }
 
@@ -141,6 +149,7 @@ class ProfileViewModel @Inject constructor(
             return
         }
 
+        val currentProfile = (_profileState.value as? UiState.Success)?.data
         viewModelScope.launch {
             _updateState.value = UiState.Loading
             try {
@@ -148,12 +157,15 @@ class ProfileViewModel @Inject constructor(
                     name = name.trim(),
                     email = email.trim(),
                     phone = phone?.trim()?.ifBlank { null },
+                    logoUrl = currentProfile?.logoUrl,
                     addressLine1 = addressLine1?.trim()?.ifBlank { null },
                     addressLine2 = addressLine2?.trim()?.ifBlank { null },
                     city = city?.trim()?.ifBlank { null },
                     state = state?.trim()?.ifBlank { null },
                     postalCode = postalCode?.trim()?.ifBlank { null },
-                    country = country?.trim()?.ifBlank { null }
+                    country = country?.trim()?.ifBlank { null },
+                    invoiceFooterHeading = currentProfile?.invoiceFooterHeading,
+                    invoiceFooterParagraph = currentProfile?.invoiceFooterParagraph
                 )
                 val res = apiService.updateProfile(req)
                 if (res.success && res.data != null) {
@@ -164,7 +176,57 @@ class ProfileViewModel @Inject constructor(
                     _updateState.value = UiState.Error(res.error?.message ?: "Update failed")
                 }
             } catch (e: Exception) {
-                _updateState.value = UiState.Error(e.message ?: "Network error updating profile")
+                _updateState.value = UiState.Error(ApiErrorParser.parseException(e).message)
+            }
+        }
+    }
+
+    fun updateInvoiceFooter(heading: String, paragraph: String) {
+        val trimmedHeading = heading.trim()
+        val trimmedParagraph = paragraph.trim()
+
+        if (trimmedHeading.length > 255) {
+            _footerUpdateState.value = UiState.Error("Footer heading cannot exceed 255 characters")
+            return
+        }
+        if (trimmedParagraph.length > 1000) {
+            _footerUpdateState.value = UiState.Error("Footer paragraph cannot exceed 1000 characters")
+            return
+        }
+
+        val currentProfile = (_profileState.value as? UiState.Success)?.data
+        if (currentProfile == null) {
+            _footerUpdateState.value = UiState.Error("Profile data not loaded yet")
+            return
+        }
+
+        viewModelScope.launch {
+            _footerUpdateState.value = UiState.Loading
+            try {
+                val req = UpdateTenantProfileRequest(
+                    name = currentProfile.name,
+                    email = currentProfile.email,
+                    phone = currentProfile.phone,
+                    logoUrl = currentProfile.logoUrl,
+                    addressLine1 = currentProfile.addressLine1,
+                    addressLine2 = currentProfile.addressLine2,
+                    city = currentProfile.city,
+                    state = currentProfile.state,
+                    postalCode = currentProfile.postalCode,
+                    country = currentProfile.country,
+                    invoiceFooterHeading = trimmedHeading.ifBlank { null },
+                    invoiceFooterParagraph = trimmedParagraph.ifBlank { null }
+                )
+                val res = apiService.updateProfile(req)
+                if (res.success && res.data != null) {
+                    _profileState.value = UiState.Success(res.data)
+                    _footerUpdateState.value = UiState.Success(Unit)
+                    refreshCoordinator.notifyMutation(DataMutation.PROFILE)
+                } else {
+                    _footerUpdateState.value = UiState.Error(res.error?.message ?: "Failed to update invoice footer")
+                }
+            } catch (e: Exception) {
+                _footerUpdateState.value = UiState.Error(ApiErrorParser.parseException(e).message)
             }
         }
     }
@@ -187,7 +249,7 @@ class ProfileViewModel @Inject constructor(
                     _logoState.value = UiState.Error(res.error?.message ?: "Failed to load logo")
                 }
             } catch (e: Exception) {
-                _logoState.value = UiState.Error(e.message ?: "Network error loading logo")
+                _logoState.value = UiState.Error(ApiErrorParser.parseException(e).message)
             }
         }
     }
@@ -224,7 +286,7 @@ class ProfileViewModel @Inject constructor(
                     _logoActionState.value = UiState.Error(res.error?.message ?: "Failed to upload logo")
                 }
             } catch (e: Exception) {
-                _logoActionState.value = UiState.Error(e.message ?: "Network error uploading logo")
+                _logoActionState.value = UiState.Error(ApiErrorParser.parseException(e).message)
             }
         }
     }
@@ -244,7 +306,7 @@ class ProfileViewModel @Inject constructor(
                     _logoActionState.value = UiState.Error(res.error?.message ?: "Failed to remove logo")
                 }
             } catch (e: Exception) {
-                _logoActionState.value = UiState.Error(e.message ?: "Network error removing logo")
+                _logoActionState.value = UiState.Error(ApiErrorParser.parseException(e).message)
             }
         }
     }

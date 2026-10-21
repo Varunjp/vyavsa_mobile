@@ -183,10 +183,19 @@ class ThermalInvoiceFormatterTest {
     }
 
     @Test
-    fun testLogoPlaintextIndicatorWhenLogoPresent() {
-        val withLogoData = sampleData.copy(logoUrl = "/uploads/logos/store.png")
+    fun testLogoPlaintextNoPlaceholderAndCustomFooter() {
+        val withLogoData = sampleData.copy(
+            logoUrl = "/uploads/logos/store.png",
+            footerHeading = "Custom Business Thanks!",
+            footerParagraph = "Goods once sold can be returned within 7 days."
+        )
+        assertTrue(withLogoData.hasLogo)
         val receipt = ThermalInvoiceFormatter.formatPlainTextReceipt(withLogoData, PaperWidth.WIDTH_58MM)
-        assertTrue(receipt.contains("[ COMPANY LOGO ]"))
+        // Ensure bracketed placeholder text is never rendered in output
+        assertFalse(receipt.contains("[ COMPANY LOGO ]"))
+        // Verify custom footer is correctly rendered
+        assertTrue(receipt.contains("Custom Business Thanks!"))
+        assertTrue(receipt.contains("Goods once sold can be returned"))
     }
 
     @Test

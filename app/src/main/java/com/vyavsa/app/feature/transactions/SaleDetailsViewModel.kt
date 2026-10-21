@@ -26,11 +26,15 @@ import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import com.vyavsa.app.core.designsystem.LogoMemoryCache
+import com.vyavsa.app.core.printer.InvoiceContentSettings
+import com.vyavsa.app.core.printer.InvoiceDataMapper
 import com.vyavsa.app.core.printer.InvoicePrintData
+import com.vyavsa.app.core.printer.InvoiceTheme
 import com.vyavsa.app.core.printer.PaperWidth
 import com.vyavsa.app.core.printer.PrintItem
 import com.vyavsa.app.core.printer.PrintJobState
 import com.vyavsa.app.core.printer.PrintJobStatus
+import com.vyavsa.app.core.printer.PrintTypography
 import com.vyavsa.app.core.printer.PrinterConnectionType
 import com.vyavsa.app.core.printer.PrinterDevice
 import com.vyavsa.app.core.printer.PrinterPreferences
@@ -54,6 +58,7 @@ class SaleDetailsViewModel @Inject constructor(
     private val dashboardRepository: DashboardRepository? = null,
     val printerManager: ThermalPrinterManager? = null,
     val printerPreferences: PrinterPreferences? = null,
+    val settingsPreferences: com.vyavsa.app.core.settings.SettingsPreferences? = null,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -61,8 +66,18 @@ class SaleDetailsViewModel @Inject constructor(
         repository: TransactionsRepository,
         bankRepository: BankRepository,
         refreshCoordinator: DataRefreshCoordinator,
+        dashboardRepository: DashboardRepository?,
+        printerManager: ThermalPrinterManager?,
+        printerPreferences: PrinterPreferences?,
         savedStateHandle: SavedStateHandle
-    ) : this(repository, bankRepository, refreshCoordinator, null, null, null, savedStateHandle)
+    ) : this(repository, bankRepository, refreshCoordinator, dashboardRepository, printerManager, printerPreferences, null, savedStateHandle)
+
+    constructor(
+        repository: TransactionsRepository,
+        bankRepository: BankRepository,
+        refreshCoordinator: DataRefreshCoordinator,
+        savedStateHandle: SavedStateHandle
+    ) : this(repository, bankRepository, refreshCoordinator, null, null, null, null, savedStateHandle)
 
     val saleType: String = savedStateHandle["saleType"] ?: "line"
     val saleId: String = savedStateHandle["saleId"] ?: ""
@@ -308,11 +323,14 @@ class SaleDetailsViewModel @Inject constructor(
         val printers = printerManager?.getPairedPrinters() ?: emptyList()
         _pairedPrinters.value = printers
         if (_selectedConnectionType.value == PrinterConnectionType.BLUETOOTH) {
-            if (_selectedPrinter.value == null && printers.isNotEmpty()) {
-                val savedAddr = printerPreferences?.selectedPrinterAddress?.value
-                val matching = printers.firstOrNull { it.address == savedAddr } ?: printers.first()
-                _selectedPrinter.value = matching
-                printerPreferences?.saveSelectedPrinter(matching)
+            val savedAddr = printerPreferences?.selectedPrinterAddress?.value
+            if (!savedAddr.isNullOrBlank()) {
+                val matching = printers.firstOrNull { it.address == savedAddr }
+                if (matching != null) {
+                    _selectedPrinter.value = matching
+                }
+            } else if (_selectedPrinter.value == null && printers.isNotEmpty()) {
+                _selectedPrinter.value = printers.first()
             }
         }
     }
@@ -321,12 +339,15 @@ class SaleDetailsViewModel @Inject constructor(
         val usbList = printerManager?.getConnectedUsbPrinters() ?: emptyList()
         _usbPrinters.value = usbList
         if (_selectedConnectionType.value == PrinterConnectionType.USB) {
-            if (usbList.isNotEmpty()) {
-                val savedAddr = printerPreferences?.selectedPrinterAddress?.value
-                val matching = usbList.firstOrNull { it.address == savedAddr } ?: usbList.first()
-                _selectedPrinter.value = matching
-                printerPreferences?.saveSelectedPrinter(matching)
-            } else if (_selectedPrinter.value?.connectionType == PrinterConnectionType.USB) {
+            val savedAddr = printerPreferences?.selectedPrinterAddress?.value
+            if (!savedAddr.isNullOrBlank()) {
+                val matching = usbList.firstOrNull { it.address == savedAddr }
+                if (matching != null) {
+                    _selectedPrinter.value = matching
+                }
+            } else if (_selectedPrinter.value == null && usbList.isNotEmpty()) {
+                _selectedPrinter.value = usbList.first()
+            } else if (usbList.isEmpty() && _selectedPrinter.value?.connectionType == PrinterConnectionType.USB) {
                 _selectedPrinter.value = null
             }
         }
@@ -380,7 +401,7 @@ class SaleDetailsViewModel @Inject constructor(
         }
     }
 
-    fun selectPrinter(printer: PrinterDevice) {
+    fun selectPrinter(printer: PrinterDevice?) {
         _selectedPrinter.value = printer
         printerPreferences?.saveSelectedPrinter(printer)
     }
@@ -398,161 +419,147 @@ class SaleDetailsViewModel @Inject constructor(
         val state = _detailState.value
         if (state !is UiState.Success) return null
         val profile = _companyProfile.value
-        val busName = profile?.name?.ifBlank { "Vyavsa Business" } ?: "Vyavsa Business"
-        val busAddr = profile?.getEffectiveAddress()
-        val busPhone = profile?.phone
-        val busEmail = profile?.email
-
         return when (val data = state.data) {
-            is SaleDetailData.Line -> {
-                val sale = data.sale
-                val disc = sale.discount.toDoubleOrNull() ?: 0.0
-                val sub = sale.subtotal.toDoubleOrNull() ?: (sale.totalAmount.toDoubleOrNull() ?: 0.0)
-                val effectiveSub = if (sub > 0.0) sub else (sale.totalAmount.toDoubleOrNull() ?: 0.0) + disc
-                val tot = sale.totalAmount.toDoubleOrNull() ?: 0.0
-                val cash = sale.totalCashIn.toDoubleOrNull() ?: 0.0
-                val bank = sale.bankAmount.toDoubleOrNull() ?: 0.0
-                val paid = sale.collectedAmount.toDoubleOrNull() ?: (cash + bank)
-                val due = sale.balance.toDoubleOrNull() ?: 0.0
-
-                InvoicePrintData(
-                    businessName = busName,
-                    businessAddress = busAddr,
-                    businessPhone = busPhone,
-                    businessEmail = busEmail,
-                    logoUrl = profile?.logoUrl,
-                    logoBitmap = cachedLogoBitmap,
-                    invoiceTitle = "Line Sale Invoice",
-                    invoiceNumber = sale.id,
-                    invoiceDate = FormatUtils.formatDateTimeForDisplay(sale.createdAt),
-                    customerName = sale.customerName.ifBlank { "Line Customer" },
-                    route = sale.route?.ifBlank { null },
-                    salesman = sale.salesman?.ifBlank { null },
-                    items = sale.items.map {
-                        PrintItem(
-                            name = it.productNameSnapshot,
-                            quantity = it.quantity,
-                            unitPrice = it.unitPrice,
-                            lineTotal = it.lineTotal
-                        )
-                    },
-                    subtotal = effectiveSub,
-                    discount = disc,
-                    totalAmount = tot,
-                    amountPaid = paid,
-                    balanceDue = due,
-                    paymentSummary = "Cash: ${FormatUtils.formatCurrency(sale.totalCashIn)} | Bank: ${FormatUtils.formatCurrency(sale.bankAmount)}",
-                    note = sale.note
-                )
-            }
-            is SaleDetailData.Counter -> {
-                val sale = data.sale
-                val disc = sale.discount.toDoubleOrNull() ?: 0.0
-                val sub = sale.subtotal.toDoubleOrNull() ?: (sale.price.toDoubleOrNull() ?: (sale.totalAmount.toDoubleOrNull() ?: 0.0))
-                val effectiveSub = if (sub > 0.0) sub else (sale.totalAmount.toDoubleOrNull() ?: 0.0) + disc
-                val tot = sale.totalAmount.toDoubleOrNull() ?: 0.0
-
-                InvoicePrintData(
-                    businessName = busName,
-                    businessAddress = busAddr,
-                    businessPhone = busPhone,
-                    businessEmail = busEmail,
-                    logoUrl = profile?.logoUrl,
-                    logoBitmap = cachedLogoBitmap,
-                    invoiceTitle = "Counter POS Receipt",
-                    invoiceNumber = sale.id,
-                    invoiceDate = FormatUtils.formatDateTimeForDisplay(sale.createdAt),
-                    customerName = "Walk-in Counter Customer",
-                    items = sale.items.map {
-                        PrintItem(
-                            name = it.productNameSnapshot,
-                            quantity = it.quantity,
-                            unitPrice = it.unitPrice,
-                            lineTotal = it.lineTotal
-                        )
-                    },
-                    singleItemName = if (sale.items.isEmpty()) sale.item.ifBlank { "Counter Item" } else null,
-                    subtotal = effectiveSub,
-                    discount = disc,
-                    totalAmount = tot,
-                    amountPaid = tot,
-                    balanceDue = 0.0,
-                    paymentSummary = "Method: ${sale.paymentMethod.uppercase(Locale.US)} | Cash: ${FormatUtils.formatCurrency(sale.cash)} | Bank: ${FormatUtils.formatCurrency(sale.bankAmount.ifBlank { sale.account })}"
-                )
-            }
+            is SaleDetailData.Line -> InvoiceDataMapper.fromLineSale(data.sale, profile, cachedLogoBitmap)
+            is SaleDetailData.Counter -> InvoiceDataMapper.fromCounterSale(data.sale, profile, cachedLogoBitmap)
         }
     }
 
+    fun getCachedLogoBitmap(): Bitmap? = cachedLogoBitmap
+
     fun getReceiptPreviewText(): String {
         val printData = getInvoicePrintData() ?: return "No invoice data available"
-        return ThermalInvoiceFormatter.formatPlainTextReceipt(printData, _paperWidth.value)
+        val theme = settingsPreferences?.invoiceTheme?.value ?: InvoiceTheme.CLASSIC
+        val content = settingsPreferences?.contentSettings?.value ?: InvoiceContentSettings()
+        val typo = settingsPreferences?.typography?.value ?: PrintTypography.STANDARD
+        return ThermalInvoiceFormatter.formatPlainTextReceipt(
+            data = printData,
+            paperWidth = _paperWidth.value,
+            theme = theme,
+            contentSettings = content,
+            typography = typo
+        )
     }
 
-    fun printInvoice() {
+    fun printInvoice(onPermissionRequired: ((Array<String>) -> Unit)? = null) {
+        if (_printJobState.value.status == PrintJobStatus.CONNECTING || _printJobState.value.status == PrintJobStatus.PRINTING) {
+            return
+        }
+
+        // Re-read latest saved printer settings
+        loadPrinterSettings()
+
         val printer = _selectedPrinter.value
         if (printer == null) {
-            _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "Please select a thermal printer")
+            _printJobState.value = PrintJobState(
+                status = PrintJobStatus.ERROR,
+                message = "No printer configured. Please configure your default printer in Settings."
+            )
             return
         }
 
         val manager = printerManager
         if (manager == null) {
-            _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "Printer service not available")
+            _printJobState.value = PrintJobState(
+                status = PrintJobStatus.ERROR,
+                message = "Printer service is unavailable on this device."
+            )
             return
         }
 
         when (printer.connectionType) {
             PrinterConnectionType.BLUETOOTH -> {
                 if (!manager.isBluetoothSupported()) {
-                    _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "Bluetooth is not supported on this device")
+                    _printJobState.value = PrintJobState(
+                        status = PrintJobStatus.ERROR,
+                        message = "Bluetooth is not supported on this device."
+                    )
                     return
                 }
                 if (!manager.isBluetoothEnabled()) {
-                    _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "Bluetooth is disabled. Please turn on Bluetooth.")
+                    _printJobState.value = PrintJobState(
+                        status = PrintJobStatus.ERROR,
+                        message = "Bluetooth is disabled. Please turn on Bluetooth in settings."
+                    )
                     return
                 }
                 if (!manager.hasBluetoothPermission()) {
-                    _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "Bluetooth permission is required to connect to the printer")
+                    _printJobState.value = PrintJobState(
+                        status = PrintJobStatus.ERROR,
+                        message = "Bluetooth permission is required to connect to ${printer.name}."
+                    )
+                    onPermissionRequired?.invoke(com.vyavsa.app.core.printer.BluetoothPermissionHelper.getRequiredPermissions())
                     return
                 }
             }
             PrinterConnectionType.USB -> {
                 if (printer.address.isBlank()) {
-                    _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "USB printer address is invalid or disconnected")
+                    _printJobState.value = PrintJobState(
+                        status = PrintJobStatus.ERROR,
+                        message = "USB printer address is invalid or disconnected."
+                    )
                     return
                 }
             }
             PrinterConnectionType.NETWORK -> {
                 if (printer.address.isBlank()) {
-                    _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "Please enter a valid IP address for the network printer")
+                    _printJobState.value = PrintJobState(
+                        status = PrintJobStatus.ERROR,
+                        message = "Please enter a valid IP address for the network printer"
+                    )
                     return
                 }
             }
         }
 
-        viewModelScope.launch {
-            _printJobState.value = PrintJobState(status = PrintJobStatus.CONNECTING, message = "Connecting to ${printer.name}...")
+        _printJobState.value = PrintJobState(
+            status = PrintJobStatus.CONNECTING,
+            message = "Connecting to ${printer.name}..."
+        )
 
+        viewModelScope.launch {
             // Ensure company logo bitmap is loaded before generating ESC/POS raster commands
             ensureLogoBitmapLoaded()
 
             val printData = getInvoicePrintData()
             if (printData == null) {
-                _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "Sale details not loaded")
+                _printJobState.value = PrintJobState(
+                    status = PrintJobStatus.ERROR,
+                    message = "Invoice details could not be loaded."
+                )
                 return@launch
             }
 
-            val rawBytes = ThermalInvoiceFormatter.formatEscPosReceipt(printData, _paperWidth.value)
+            val theme = settingsPreferences?.invoiceTheme?.value ?: InvoiceTheme.CLASSIC
+            val content = settingsPreferences?.contentSettings?.value ?: InvoiceContentSettings()
+            val typo = settingsPreferences?.typography?.value ?: PrintTypography.STANDARD
 
-            _printJobState.value = PrintJobState(status = PrintJobStatus.PRINTING, message = "Sending print data...")
+            val rawBytes = ThermalInvoiceFormatter.formatEscPosReceipt(
+                data = printData,
+                paperWidth = _paperWidth.value,
+                theme = theme,
+                contentSettings = content,
+                typography = typo
+            )
+
+            _printJobState.value = PrintJobState(
+                status = PrintJobStatus.PRINTING,
+                message = "Printing invoice on ${printer.name}..."
+            )
             val result = manager.printReceipt(printer, rawBytes)
 
             result.fold(
                 onSuccess = {
-                    _printJobState.value = PrintJobState(status = PrintJobStatus.SUCCESS, message = "Invoice printed successfully!")
+                    _printJobState.value = PrintJobState(
+                        status = PrintJobStatus.SUCCESS,
+                        message = "Invoice printed successfully on ${printer.name}!"
+                    )
                 },
                 onFailure = { err ->
-                    _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = err.message ?: "Printing failed")
+                    _printJobState.value = PrintJobState(
+                        status = PrintJobStatus.ERROR,
+                        message = err.message ?: "Printing failed. Please check printer connection."
+                    )
                 }
             )
         }

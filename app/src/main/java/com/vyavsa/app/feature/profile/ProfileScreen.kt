@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CardMembership
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Inventory2
@@ -90,6 +91,9 @@ import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.designsystem.vyavsaClickable
 
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.IconButton
+
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
@@ -99,6 +103,7 @@ fun ProfileScreen(
     onNavigateToTenantUsers: () -> Unit = {},
     onNavigateToProducts: () -> Unit = {},
     onNavigateToProductAnalytics: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val profileState by viewModel.profileState.collectAsState()
@@ -110,6 +115,7 @@ fun ProfileScreen(
     val userProfile = remember(sessionState) { viewModel.getUserProfile() }
     val isAdmin = remember(sessionState) { viewModel.isTenantAdmin() }
     val context = LocalContext.current
+    val tenantProfile = (profileState as? UiState.Success)?.data
 
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showLogoutConfirmDialog by remember { mutableStateOf(false) }
@@ -172,7 +178,16 @@ fun ProfileScreen(
         topBar = {
             VyavsaTopAppBar(
                 title = "Business Profile & Settings",
-                subtitle = "Organization details, subscription & system info"
+                subtitle = "Organization details, subscription & system info",
+                actions = {
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Open Settings",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             )
         },
         modifier = modifier
@@ -202,11 +217,7 @@ fun ProfileScreen(
                 )
             }
 
-            if (updateState is UiState.Error) {
-                ErrorBanner(
-                    message = (updateState as UiState.Error).message
-                )
-            } else if (updateState is UiState.Success) {
+            if (updateState is UiState.Success) {
                 Surface(
                     shape = RoundedCornerShape(14.dp),
                     color = Emerald50,
@@ -225,7 +236,6 @@ fun ProfileScreen(
                 }
             }
 
-            val tenantProfile = (profileState as? UiState.Success)?.data
             val tenantName = tenantProfile?.name ?: "Business Organization"
             val currentLogo = (logoState as? UiState.Success)?.data ?: tenantProfile?.logoUrl
 
@@ -615,6 +625,63 @@ fun ProfileScreen(
                             }
                         }
                     }
+                }
+            }
+
+
+            // Settings & Hardware Configuration Navigation Card
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .vyavsaClickable { onNavigateToSettings() }
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Emerald50)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = null,
+                                tint = Emerald600,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column {
+                            Text(
+                                text = "Settings & Printing Setup",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Theme, fonts, quick actions, invoice & printer setup",
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                        contentDescription = "Navigate to Settings",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
 
@@ -1058,6 +1125,7 @@ fun ProfileScreen(
             showEditProfileDialog = false
         }
     }
+
     if (showDeleteLogoConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteLogoConfirmDialog = false },
@@ -1331,3 +1399,90 @@ fun EditProfileDialog(
         }
     )
 }
+
+@Composable
+fun EditInvoiceFooterDialog(
+    initialHeading: String,
+    initialParagraph: String,
+    isSaving: Boolean = false,
+    errorMessage: String? = null,
+    onDismiss: () -> Unit,
+    onConfirm: (heading: String, paragraph: String) -> Unit
+) {
+    var heading by remember { mutableStateOf(initialHeading) }
+    var paragraph by remember { mutableStateOf(initialParagraph) }
+
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Edit Invoice Footer", fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                if (!errorMessage.isNullOrBlank()) {
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodySmall.copy(color = Crimson600, fontWeight = FontWeight.Bold)
+                    )
+                }
+
+                Text(
+                    text = "Configure the custom closing note and terms printed at the bottom of all customer invoices, PDF shares, and receipts.",
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                )
+
+                VyavsaTextField(
+                    value = heading,
+                    onValueChange = { if (it.length <= 255) heading = it },
+                    label = "Footer Heading (max 255)",
+                    placeholder = "e.g. Thank You for Your Business!"
+                )
+                Text(
+                    text = "${heading.length} / 255 characters",
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+
+                VyavsaTextField(
+                    value = paragraph,
+                    onValueChange = { if (it.length <= 1000) paragraph = it },
+                    label = "Footer Paragraph / Note (max 1000)",
+                    placeholder = "e.g. Thank you for choosing us. Goods once sold will not be taken back.",
+                    minLines = 3,
+                    maxLines = 6
+                )
+                Text(
+                    text = "${paragraph.length} / 1000 characters",
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(heading, paragraph) },
+                enabled = !isSaving
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Save Footer", fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isSaving
+            ) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+

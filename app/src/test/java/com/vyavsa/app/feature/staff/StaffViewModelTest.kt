@@ -4,8 +4,12 @@ import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.AttendanceRecord
 import com.vyavsa.app.core.model.Employee
+import com.vyavsa.app.core.model.EmployeeAdvance
+import com.vyavsa.app.core.model.EmployeeOvertime
 import com.vyavsa.app.core.model.EmployeeSalary
 import com.vyavsa.app.core.model.EmployeeSalaryStatement
+import com.vyavsa.app.core.model.RecordAdvanceRequest
+import com.vyavsa.app.core.model.RecordOvertimeRequest
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -264,6 +268,34 @@ class StaffViewModelTest {
         assertEquals(null, cleared?.dailySalary)
         assertEquals("pending", cleared?.salarySource)
     }
+
+    @Test
+    fun testRecordStandaloneAdvance() = runTest {
+        viewModel.recordStandaloneAdvance(
+            employeeId = "emp-1",
+            amount = "1500.00",
+            date = "2026-01-20",
+            note = "Emergency advance"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success for advance, got $actionState", actionState is UiState.Success)
+    }
+
+    @Test
+    fun testRecordStandaloneOvertime() = runTest {
+        viewModel.recordStandaloneOvertime(
+            employeeId = "emp-1",
+            amount = "175.00",
+            date = "2026-01-20",
+            note = "Extra night shift"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success for overtime, got $actionState", actionState is UiState.Success)
+    }
 }
 
 class FakeStaffRepository : StaffRepository {
@@ -456,5 +488,75 @@ class FakeStaffRepository : StaffRepository {
     ): Flow<Resource<Unit>> = flow {
         emit(Resource.Loading)
         emit(Resource.Success(Unit))
+    }
+
+    override fun recordAdvance(
+        employeeId: String,
+        amount: String,
+        date: String?,
+        paymentMethod: String,
+        bankId: String?,
+        bankName: String?,
+        referenceId: String?,
+        note: String?
+    ): Flow<Resource<AttendanceRecord>> = flow {
+        emit(Resource.Loading)
+        val rec = AttendanceRecord(
+            id = "att-adv-${attendances.size + 1}",
+            employeeId = employeeId,
+            employeeName = "Ramesh Singh",
+            date = date ?: "2026-01-20",
+            status = "present",
+            dailySalary = "700.00",
+            salarySource = "default",
+            otAmount = "0.00",
+            advance = amount
+        )
+        attendances.add(rec)
+        emit(Resource.Success(rec))
+    }
+
+    override fun recordOvertime(
+        employeeId: String,
+        amount: String,
+        date: String?,
+        ot: String?,
+        referenceId: String?,
+        note: String?
+    ): Flow<Resource<AttendanceRecord>> = flow {
+        emit(Resource.Loading)
+        val rec = AttendanceRecord(
+            id = "att-ot-${attendances.size + 1}",
+            employeeId = employeeId,
+            employeeName = "Ramesh Singh",
+            date = date ?: "2026-01-20",
+            status = "present",
+            dailySalary = "700.00",
+            salarySource = "default",
+            otAmount = amount,
+            advance = "0.00"
+        )
+        attendances.add(rec)
+        emit(Resource.Success(rec))
+    }
+
+    override fun listAdvances(
+        page: Int,
+        pageSize: Int,
+        date: String?,
+        employeeId: String?
+    ): Flow<Resource<List<EmployeeAdvance>>> = flow {
+        emit(Resource.Loading)
+        emit(Resource.Success(emptyList()))
+    }
+
+    override fun listOvertime(
+        page: Int,
+        pageSize: Int,
+        date: String?,
+        employeeId: String?
+    ): Flow<Resource<List<EmployeeOvertime>>> = flow {
+        emit(Resource.Loading)
+        emit(Resource.Success(emptyList()))
     }
 }

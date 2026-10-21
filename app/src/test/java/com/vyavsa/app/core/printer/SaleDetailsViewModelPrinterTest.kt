@@ -5,6 +5,8 @@ import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.FinancialMetrics
 import com.vyavsa.app.core.model.LineSale
+import com.vyavsa.app.core.model.OfficeDashboardResponse
+import com.vyavsa.app.core.model.SalesDashboardResponse
 import com.vyavsa.app.core.model.TenantProfile
 import com.vyavsa.app.core.model.TenantSubscription
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
@@ -22,6 +24,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -41,10 +44,12 @@ class FakeThermalPrinterManager(
     override fun isBluetoothEnabled(): Boolean = isEnabled
     override fun hasBluetoothPermission(): Boolean = hasPermission
 
-    override fun getPairedPrinters(): List<PrinterDevice> = listOf(
+    var pairedPrintersList: List<PrinterDevice> = listOf(
         PrinterDevice(name = "POS-58-Thermal", address = "00:11:22:33:44:55", connectionType = PrinterConnectionType.BLUETOOTH),
         PrinterDevice(name = "Epson-TM-T88", address = "AA:BB:CC:DD:EE:FF", connectionType = PrinterConnectionType.BLUETOOTH)
     )
+
+    override fun getPairedPrinters(): List<PrinterDevice> = pairedPrintersList
 
     override fun getConnectedUsbPrinters(): List<PrinterDevice> = listOf(
         PrinterDevice(name = "USB-POS-Thermal", address = "/dev/bus/usb/001/002", connectionType = PrinterConnectionType.USB)
@@ -70,6 +75,8 @@ class FakeDashboardRepository(
     var profile: TenantProfile? = null
 ) : com.vyavsa.app.feature.dashboard.DashboardRepository {
     override fun getDashboardMetrics(): Flow<Resource<FinancialMetrics>> = flow {}
+    override fun getSalesDashboard(date: String?): Flow<Resource<SalesDashboardResponse>> = flow {}
+    override fun getOfficeDashboard(date: String?): Flow<Resource<OfficeDashboardResponse>> = flow {}
     override fun getProfile(): Flow<Resource<TenantProfile>> = flow {
         val p = profile
         if (p != null) {
@@ -365,6 +372,120 @@ class SaleDetailsViewModelPrinterTest {
         assertEquals("/uploads/logos/store_logo.png", printData?.logoUrl)
 
         val preview = viewModel.getReceiptPreviewText()
-        assertTrue(preview.contains("[ COMPANY LOGO ]"))
+        assertFalse(preview.contains("[ COMPANY LOGO ]"))
+        assertTrue(preview.contains("RAMESH GENERAL STORE"))
+    }
+
+    @Test
+    fun testPrintInvoicePermissionCallbackInvoked() = runTest {
+        fakePrinterManager.hasPermission = false
+
+        val handle = SavedStateHandle(mapOf("saleType" to "line", "saleId" to "sale-1"))
+        val viewModel = SaleDetailsViewModel(
+            repository = fakeRepo,
+            bankRepository = fakeBankRepo,
+            refreshCoordinator = refreshCoordinator,
+            dashboardRepository = null,
+            printerManager = fakePrinterManager,
+            printerPreferences = null,
+            savedStateHandle = handle
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.selectPrinter(PrinterDevice("POS-Printer", "00:11:22:33:44:55"))
+
+        var permissionRequested = false
+        var requestedPermissionsArray: Array<String>? = null
+        viewModel.printInvoice(onPermissionRequired = { perms ->
+            permissionRequested = true
+            requestedPermissionsArray = perms
+        })
+
+        assertTrue(permissionRequested)
+        assertNotNull(requestedPermissionsArray)
+        assertEquals(PrintJobStatus.ERROR, viewModel.printJobState.value.status)
+        assertTrue(viewModel.printJobState.value.message?.contains("permission is required") == true)
+    }
+
+    @Test
+    fun testDuplicatePrintJobPreventedWhenAlreadyConnecting() = runTest {
+        val handle = SavedStateHandle(mapOf("saleType" to "line", "saleId" to "sale-1"))
+        val viewModel = SaleDetailsViewModel(
+            repository = fakeRepo,
+            bankRepository = fakeBankRepo,
+            refreshCoordinator = refreshCoordinator,
+            dashboardRepository = null,
+            printerManager = fakePrinterManager,
+            printerPreferences = null,
+            savedStateHandle = handle
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.selectPrinter(PrinterDevice("POS-Printer", "00:11:22:33:44:55"))
+
+        // Trigger first print
+        viewModel.printInvoice()
+        // Without advancing dispatcher, job is in CONNECTING state
+        assertEquals(PrintJobStatus.CONNECTING, viewModel.printJobState.value.status)
+
+        // Attempt second print call while still CONNECTING
+        viewModel.printInvoice()
+
+        // Complete execution
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Exactly one print payload should be emitted
+        assertEquals(PrintJobStatus.SUCCESS, viewModel.printJobState.value.status)
+        assertEquals(1, fakePrinterManager.printedPayloads.size)
+    }
+
+    @Test
+    fun testPrintInvoiceFailsWhenNoPrinterConfigured() = runTest {
+        fakePrinterManager.pairedPrintersList = emptyList()
+
+        val handle = SavedStateHandle(mapOf("saleType" to "line", "saleId" to "sale-1"))
+        val viewModel = SaleDetailsViewModel(
+            repository = fakeRepo,
+            bankRepository = fakeBankRepo,
+            refreshCoordinator = refreshCoordinator,
+            dashboardRepository = null,
+            printerManager = fakePrinterManager,
+            printerPreferences = null,
+            savedStateHandle = handle
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Ensure no printer is selected
+        viewModel.selectPrinter(null)
+
+        viewModel.printInvoice()
+
+        assertEquals(PrintJobStatus.ERROR, viewModel.printJobState.value.status)
+        assertTrue(viewModel.printJobState.value.message?.contains("No printer configured") == true)
+        assertEquals(0, fakePrinterManager.printedPayloads.size)
+    }
+
+    @Test
+    fun testPrintInvoiceFailsWhenBluetoothDisabled() = runTest {
+        fakePrinterManager.isEnabled = false
+
+        val handle = SavedStateHandle(mapOf("saleType" to "line", "saleId" to "sale-1"))
+        val viewModel = SaleDetailsViewModel(
+            repository = fakeRepo,
+            bankRepository = fakeBankRepo,
+            refreshCoordinator = refreshCoordinator,
+            dashboardRepository = null,
+            printerManager = fakePrinterManager,
+            printerPreferences = null,
+            savedStateHandle = handle
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.selectPrinter(PrinterDevice("POS-Printer", "00:11:22:33:44:55"))
+        viewModel.printInvoice()
+
+        assertEquals(PrintJobStatus.ERROR, viewModel.printJobState.value.status)
+        assertTrue(viewModel.printJobState.value.message?.contains("Bluetooth is disabled") == true)
+        assertEquals(0, fakePrinterManager.printedPayloads.size)
     }
 }

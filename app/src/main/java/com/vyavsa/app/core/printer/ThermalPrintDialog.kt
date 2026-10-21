@@ -1,10 +1,12 @@
 package com.vyavsa.app.core.printer
 
 import android.Manifest
+import android.graphics.Bitmap
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import com.vyavsa.app.core.designsystem.CompanyLogoImage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,12 +18,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -84,6 +88,9 @@ fun ThermalPrintDialog(
     paperWidth: PaperWidth,
     hasCompanyLogo: Boolean = false,
     receiptPreviewText: String,
+    logoUrl: String? = null,
+    businessName: String? = null,
+    logoBitmap: Bitmap? = null,
     onSelectConnectionType: (PrinterConnectionType) -> Unit = {},
     onSetNetworkPrinterIp: (String) -> Unit = {},
     onSelectPrinter: (PrinterDevice) -> Unit,
@@ -541,28 +548,49 @@ fun ThermalPrintDialog(
                 }
 
                 AnimatedVisibility(visible = showPreview) {
-                    Column {
-                        Spacer(modifier = Modifier.height(8.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        val simulatedPaperWidth = if (paperWidth == PaperWidth.WIDTH_58MM) 240.dp else 320.dp
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.White,
+                            shadowElevation = 2.dp,
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
                                 MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                             ),
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp)
-                                .horizontalScroll(rememberScrollState())
+                                .width(simulatedPaperWidth)
+                                .heightIn(min = 200.dp, max = 320.dp)
                                 .verticalScroll(rememberScrollState())
-                                .padding(10.dp)
+                                .padding(horizontal = 10.dp, vertical = 14.dp)
                         ) {
-                            Text(
-                                text = receiptPreviewText,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp,
-                                lineHeight = 14.sp
-                            )
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                if (hasCompanyLogo || !logoUrl.isNullOrBlank() || logoBitmap != null) {
+                                    CompanyLogoImage(
+                                        logoUrl = logoUrl,
+                                        previewBitmap = logoBitmap,
+                                        companyName = businessName ?: "Vyavsa Business",
+                                        size = if (paperWidth == PaperWidth.WIDTH_58MM) 40.dp else 48.dp
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                                Text(
+                                    text = receiptPreviewText,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = if (paperWidth == PaperWidth.WIDTH_58MM) 10.sp else 8.5.sp,
+                                    lineHeight = if (paperWidth == PaperWidth.WIDTH_58MM) 13.sp else 11.5.sp,
+                                    color = Color.Black,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
                 }
