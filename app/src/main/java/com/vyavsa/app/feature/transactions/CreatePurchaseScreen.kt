@@ -80,6 +80,7 @@ import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.BankPaymentSplit
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.Supplier
 import com.vyavsa.app.core.model.TenantBank
 
 data class BankPaymentRowState(
@@ -96,12 +97,12 @@ fun CreatePurchaseScreen(
     modifier: Modifier = Modifier
 ) {
     val createActionState by viewModel.createActionState.collectAsState()
-    val customersState by viewModel.customersState.collectAsState()
+    val suppliersState by viewModel.suppliersState.collectAsState()
     val banksState by viewModel.banksState.collectAsState()
     val focusManager = LocalFocusManager.current
 
-    var selectedCustomer by remember { mutableStateOf<Customer?>(null) }
-    var customerDropdownExpanded by remember { mutableStateOf(false) }
+    var selectedSupplier by remember { mutableStateOf<Supplier?>(null) }
+    var supplierDropdownExpanded by remember { mutableStateOf(false) }
 
     var item by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("1") }
@@ -111,8 +112,12 @@ fun CreatePurchaseScreen(
     var cashAmount by remember { mutableStateOf("0.00") }
     val bankRows = remember { mutableStateListOf<BankPaymentRowState>() }
 
-    val customers = (customersState as? UiState.Success)?.data ?: emptyList()
+    val suppliers = (suppliersState as? UiState.Success)?.data ?: emptyList()
     val banks = (banksState as? UiState.Success)?.data ?: emptyList()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadSuppliers()
+    }
 
     LaunchedEffect(createActionState) {
         if (createActionState is UiState.Success) {
@@ -210,16 +215,16 @@ fun CreatePurchaseScreen(
 
                         // Supplier Dropdown (Naturally aligned with floating label matching VyavsaTextField)
                         ExposedDropdownMenuBox(
-                            expanded = customerDropdownExpanded,
-                            onExpandedChange = { customerDropdownExpanded = !customerDropdownExpanded },
+                            expanded = supplierDropdownExpanded,
+                            onExpandedChange = { supplierDropdownExpanded = !supplierDropdownExpanded },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             OutlinedTextField(
-                                value = selectedCustomer?.customerName ?: "Walk-in Supplier / Direct Vendor",
+                                value = selectedSupplier?.displayName ?: "Walk-in Supplier / Direct Vendor",
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("Supplier / Vendor") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = customerDropdownExpanded) },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = supplierDropdownExpanded) },
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Default.Person,
@@ -241,32 +246,32 @@ fun CreatePurchaseScreen(
                             )
 
                             ExposedDropdownMenu(
-                                expanded = customerDropdownExpanded,
-                                onDismissRequest = { customerDropdownExpanded = false }
+                                expanded = supplierDropdownExpanded,
+                                onDismissRequest = { supplierDropdownExpanded = false }
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("Walk-in Supplier / Direct Vendor (No Account)") },
                                     onClick = {
-                                        selectedCustomer = null
-                                        customerDropdownExpanded = false
+                                        selectedSupplier = null
+                                        supplierDropdownExpanded = false
                                     }
                                 )
-                                customers.forEach { cust ->
+                                for (supp in suppliers) {
                                     DropdownMenuItem(
                                         text = {
                                             Column {
-                                                Text(cust.customerName, fontWeight = FontWeight.Bold)
-                                                if (cust.outstandingPayable != "0.00") {
+                                                Text(supp.displayName, fontWeight = FontWeight.Bold)
+                                                if (supp.outstandingPayable != "0.00") {
                                                     Text(
-                                                        "Payable: ${FormatUtils.formatCurrency(cust.outstandingPayable)}",
+                                                        "Payable: ${FormatUtils.formatCurrency(supp.outstandingPayable)}",
                                                         style = MaterialTheme.typography.labelSmall.copy(color = Crimson600)
                                                     )
                                                 }
                                             }
                                         },
                                         onClick = {
-                                            selectedCustomer = cust
-                                            customerDropdownExpanded = false
+                                            selectedSupplier = supp
+                                            supplierDropdownExpanded = false
                                         }
                                     )
                                 }
@@ -274,7 +279,7 @@ fun CreatePurchaseScreen(
                         }
 
                         AnimatedVisibility(
-                            visible = selectedCustomer != null,
+                            visible = selectedSupplier != null,
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut()
                         ) {
@@ -295,7 +300,7 @@ fun CreatePurchaseScreen(
                                             style = MaterialTheme.typography.bodySmall.copy(color = Blue600, fontWeight = FontWeight.Medium)
                                         )
                                         Text(
-                                            text = FormatUtils.formatCurrency(selectedCustomer?.outstandingPayable ?: "0.00"),
+                                            text = FormatUtils.formatCurrency(selectedSupplier?.outstandingPayable ?: "0.00"),
                                             style = MaterialTheme.typography.bodySmall.copy(color = Blue600, fontWeight = FontWeight.ExtraBold)
                                         )
                                     }
@@ -482,7 +487,7 @@ fun CreatePurchaseScreen(
                                     )
                                 }
                                 viewModel.createPurchase(
-                                    customerId = selectedCustomer?.id,
+                                    supplierId = selectedSupplier?.id,
                                     item = item,
                                     quantity = quantity,
                                     totalAmount = totalAmount,

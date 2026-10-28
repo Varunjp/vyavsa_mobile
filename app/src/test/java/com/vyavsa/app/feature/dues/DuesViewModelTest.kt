@@ -5,9 +5,15 @@ import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.CustomerBalance
 import com.vyavsa.app.core.model.CustomerBalanceAdjustment
+import com.vyavsa.app.core.model.CustomerPaymentResponse
 import com.vyavsa.app.core.model.CustomerStatement
 import com.vyavsa.app.core.model.LineSale
+import com.vyavsa.app.core.model.Supplier
+import com.vyavsa.app.core.model.SupplierBalance
+import com.vyavsa.app.core.model.SupplierPaymentResponse
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
+import com.vyavsa.app.feature.bank.FakeBankRepository
+import com.vyavsa.app.feature.supplier.SupplierRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -27,6 +33,8 @@ class DuesViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var fakeRepository: FakeDuesRepository
+    private lateinit var fakeSupplierRepository: FakeSupplierRepository
+    private lateinit var fakeBankRepository: FakeBankRepository
     private lateinit var refreshCoordinator: DataRefreshCoordinator
     private lateinit var viewModel: DuesViewModel
 
@@ -34,8 +42,15 @@ class DuesViewModelTest {
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         fakeRepository = FakeDuesRepository()
+        fakeSupplierRepository = FakeSupplierRepository()
+        fakeBankRepository = FakeBankRepository()
         refreshCoordinator = DataRefreshCoordinator()
-        viewModel = DuesViewModel(fakeRepository, refreshCoordinator)
+        viewModel = DuesViewModel(
+            repository = fakeRepository,
+            supplierRepository = fakeSupplierRepository,
+            bankRepository = fakeBankRepository,
+            refreshCoordinator = refreshCoordinator
+        )
     }
 
     @After
@@ -190,6 +205,158 @@ class DuesViewModelTest {
             "Forbidden: Administrator privileges required",
             (actionState as UiState.Error).message
         )
+    }
+
+    @Test
+    fun testCollectCustomerPaymentCashSuccess() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        var callbackCalled = false
+        viewModel.collectCustomerPayment(
+            customerId = "cust-1",
+            amount = "200.00",
+            paymentMethod = "cash",
+            note = "Partial balance collection",
+            onSuccess = { callbackCalled = true }
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success on collect payment, got $actionState", actionState is UiState.Success)
+        assertTrue(callbackCalled)
+        assertEquals(1, fakeRepository.customerCollections.size)
+        assertEquals("200.00", fakeRepository.customerCollections[0].amount)
+        assertEquals("cash", fakeRepository.customerCollections[0].paymentMethod)
+        assertEquals("300.00", fakeRepository.customers.find { it.id == "cust-1" }?.currentBalance)
+    }
+
+    @Test
+    fun testCollectCustomerPaymentBankSuccess() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.collectCustomerPayment(
+            customerId = "cust-1",
+            amount = "300.00",
+            paymentMethod = "bank",
+            bankId = "bank-1",
+            bankName = "HDFC Bank",
+            referenceId = "UPI-REF-12345",
+            note = "UPI transfer"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success on bank collect payment, got $actionState", actionState is UiState.Success)
+        assertEquals(1, fakeRepository.customerCollections.size)
+        assertEquals("bank", fakeRepository.customerCollections[0].paymentMethod)
+        assertEquals("UPI-REF-12345", fakeRepository.customerCollections[0].referenceId)
+    }
+
+    @Test
+    fun testCollectCustomerPaymentBankWithoutBankIdFails() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.collectCustomerPayment(
+            customerId = "cust-1",
+            amount = "100.00",
+            paymentMethod = "bank",
+            bankId = null
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Error when bank is missing, got $actionState", actionState is UiState.Error)
+        assertEquals("Please select a bank account for bank collection", (actionState as UiState.Error).message)
+        assertEquals(0, fakeRepository.customerCollections.size)
+    }
+
+    @Test
+    fun testCollectCustomerPaymentExceedingBalanceFails() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.collectCustomerPayment(
+            customerId = "cust-1",
+            amount = "9999.00",
+            paymentMethod = "cash"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Error when amount exceeds balance, got $actionState", actionState is UiState.Error)
+        assertTrue((actionState as UiState.Error).message.contains("cannot exceed customer's outstanding balance"))
+        assertEquals(0, fakeRepository.customerCollections.size)
+    }
+
+    @Test
+    fun testSelectTabSwitchesToSuppliers() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.selectTab(DuesTab.SUPPLIERS)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DuesTab.SUPPLIERS, viewModel.selectedTab.value)
+        val state = viewModel.suppliersState.value
+        assertTrue("Expected Success state for suppliers, got $state", state is UiState.Success)
+        val suppliers = (state as UiState.Success).data
+        assertEquals(2, suppliers.size)
+        assertEquals("Vendor Alpha", suppliers[0].displayName)
+    }
+
+    @Test
+    fun testCreateSupplierSuccess() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        var callbackCalled = false
+        viewModel.createSupplier(
+            name = "Vendor Gamma",
+            phone = "9876543299",
+            onSuccess = { callbackCalled = true }
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success on creating supplier, got $actionState", actionState is UiState.Success)
+        assertTrue(callbackCalled)
+        assertEquals(3, fakeSupplierRepository.suppliers.size)
+    }
+
+    @Test
+    fun testRecordSupplierPaymentCashSuccess() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        var callbackCalled = false
+        viewModel.recordSupplierPayment(
+            supplierId = "supp-1",
+            amount = "500.00",
+            paymentMethod = "cash",
+            note = "Cash payout",
+            onSuccess = { callbackCalled = true }
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success on recording supplier payment, got $actionState", actionState is UiState.Success)
+        assertTrue(callbackCalled)
+        assertEquals(1, fakeSupplierRepository.recordedPayments.size)
+        assertEquals("1000.00", fakeSupplierRepository.suppliers.find { it.id == "supp-1" }?.outstandingPayable)
+    }
+
+    @Test
+    fun testRecordSupplierPaymentBankRequiresBankId() = runTest {
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.recordSupplierPayment(
+            supplierId = "supp-1",
+            amount = "500.00",
+            paymentMethod = "bank",
+            bankId = null
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Error on missing bankId for bank payment, got $actionState", actionState is UiState.Error)
+        assertEquals("Please select a bank account for bank payout", (actionState as UiState.Error).message)
+        assertEquals(0, fakeSupplierRepository.recordedPayments.size)
     }
 }
 
@@ -364,5 +531,165 @@ class FakeDuesRepository : DuesRepository {
     ): Flow<Resource<Unit>> = flow {
         emit(Resource.Loading)
         emit(Resource.Success(Unit))
+    }
+
+    val customerCollections = mutableListOf<CustomerPaymentResponse>()
+
+    override fun collectCustomerPayment(
+        id: String,
+        amount: String,
+        paymentMethod: String,
+        bankId: String?,
+        bankName: String?,
+        date: String?,
+        referenceId: String?,
+        note: String?
+    ): Flow<Resource<CustomerPaymentResponse>> = flow {
+        emit(Resource.Loading)
+        val customer = customers.find { it.id == id }
+        val prevBal = customer?.currentBalance?.toDoubleOrNull() ?: 0.0
+        val collAmt = amount.toDoubleOrNull() ?: 0.0
+        val newBal = (prevBal - collAmt).coerceAtLeast(0.0)
+        if (customer != null) {
+            val idx = customers.indexOf(customer)
+            customers[idx] = customer.copy(currentBalance = "%.2f".format(newBal))
+        }
+        val response = CustomerPaymentResponse(
+            id = "coll-${customerCollections.size + 1}",
+            customerId = id,
+            customerName = customer?.customerName ?: "Customer",
+            amount = amount,
+            paymentMethod = paymentMethod,
+            previousBalance = "%.2f".format(prevBal),
+            customerBalance = "%.2f".format(newBal),
+            referenceId = referenceId,
+            note = note,
+            paymentDate = date ?: "2026-10-28"
+        )
+        customerCollections.add(response)
+        emit(Resource.Success(response))
+    }
+
+    override fun listCustomerCollections(id: String): Flow<Resource<List<CustomerPaymentResponse>>> = flow {
+        emit(Resource.Loading)
+        emit(Resource.Success(customerCollections.filter { it.customerId == id }))
+    }
+}
+
+class FakeSupplierRepository : SupplierRepository {
+    val suppliers = mutableListOf(
+        Supplier(
+            id = "supp-1",
+            supplierName = "Vendor Alpha",
+            phone = "9876543210",
+            outstandingPayable = "1500.00",
+            status = "active"
+        ),
+        Supplier(
+            id = "supp-2",
+            supplierName = "Vendor Beta",
+            phone = "9876543211",
+            outstandingPayable = "800.00",
+            status = "active"
+        )
+    )
+
+    val recordedPayments = mutableListOf<SupplierPaymentResponse>()
+
+    override fun listSuppliers(search: String?, status: String?): Flow<Resource<List<Supplier>>> = flow {
+        emit(Resource.Loading)
+        val filtered = suppliers.filter {
+            val phone = it.phone
+            (search == null || it.supplierName.contains(search, ignoreCase = true) || (phone != null && phone.contains(search))) &&
+            (status == null || it.status.equals(status, ignoreCase = true))
+        }
+        emit(Resource.Success(filtered))
+    }
+
+    override fun createSupplier(name: String, phone: String?, status: String): Flow<Resource<Supplier>> = flow {
+        emit(Resource.Loading)
+        val supplier = Supplier(
+            id = "supp-${suppliers.size + 1}",
+            supplierName = name,
+            phone = phone,
+            outstandingPayable = "0.00",
+            status = status
+        )
+        suppliers.add(supplier)
+        emit(Resource.Success(supplier))
+    }
+
+    override fun getSupplierById(id: String): Flow<Resource<Supplier>> = flow {
+        emit(Resource.Loading)
+        val supplier = suppliers.find { it.id == id }
+        if (supplier != null) emit(Resource.Success(supplier)) else emit(Resource.Error("Supplier not found"))
+    }
+
+    override fun updateSupplier(id: String, name: String?, phone: String?, status: String?): Flow<Resource<Supplier>> = flow {
+        emit(Resource.Loading)
+        val idx = suppliers.indexOfFirst { it.id == id }
+        if (idx >= 0) {
+            val old = suppliers[idx]
+            val updated = old.copy(
+                supplierName = name ?: old.supplierName,
+                phone = phone ?: old.phone,
+                status = status ?: old.status
+            )
+            suppliers[idx] = updated
+            emit(Resource.Success(updated))
+        } else {
+            emit(Resource.Error("Supplier not found"))
+        }
+    }
+
+    override fun deleteSupplier(id: String): Flow<Resource<Unit>> = flow {
+        emit(Resource.Loading)
+        suppliers.removeAll { it.id == id }
+        emit(Resource.Success(Unit))
+    }
+
+    override fun getSupplierBalance(id: String): Flow<Resource<SupplierBalance>> = flow {
+        emit(Resource.Loading)
+        val supplier = suppliers.find { it.id == id }
+        if (supplier != null) {
+            emit(Resource.Success(SupplierBalance(
+                supplierId = id,
+                supplierName = supplier.supplierName,
+                outstandingPayable = supplier.outstandingPayable
+            )))
+        } else {
+            emit(Resource.Error("Supplier not found"))
+        }
+    }
+
+    override fun recordSupplierPayment(
+        supplierId: String,
+        amount: String,
+        paymentMethod: String,
+        bankId: String?,
+        paymentDate: String?,
+        referenceId: String?,
+        note: String?,
+        purchaseId: String?
+    ): Flow<Resource<SupplierPaymentResponse>> = flow {
+        emit(Resource.Loading)
+        val supp = suppliers.find { it.id == supplierId }
+        val prevPayable = supp?.outstandingPayable?.toDoubleOrNull() ?: 0.0
+        val pmtAmt = amount.toDoubleOrNull() ?: 0.0
+        val newPayable = (prevPayable - pmtAmt).coerceAtLeast(0.0)
+        if (supp != null) {
+            val idx = suppliers.indexOf(supp)
+            suppliers[idx] = supp.copy(outstandingPayable = "%.2f".format(newPayable))
+        }
+        val resp = SupplierPaymentResponse(
+            paymentId = "pay-${recordedPayments.size + 1}",
+            amount = amount,
+            paymentMethod = paymentMethod,
+            referenceId = referenceId,
+            note = note,
+            paymentDate = paymentDate ?: "2026-10-28"
+        )
+        recordedPayments.add(resp)
+        emit(Resource.Success(resp))
     }
 }

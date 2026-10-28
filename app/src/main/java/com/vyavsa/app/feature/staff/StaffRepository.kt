@@ -51,7 +51,16 @@ interface StaffRepository {
         advance: String?
     ): Flow<Resource<AttendanceRecord>>
     fun listPendingSalaries(): Flow<Resource<List<EmployeeSalary>>>
-    fun paySalary(employeeId: String, amount: String, paymentMethod: String, date: String?, note: String?): Flow<Resource<Unit>>
+    fun paySalary(
+        employeeId: String,
+        amount: String,
+        paymentMethod: String,
+        bankId: String? = null,
+        bankName: String? = null,
+        date: String? = null,
+        referenceId: String? = null,
+        note: String? = null
+    ): Flow<Resource<Unit>>
     fun recordAdvance(
         employeeId: String,
         amount: String,
@@ -212,16 +221,22 @@ class StaffRepositoryImpl @Inject constructor(
         employeeId: String,
         amount: String,
         paymentMethod: String,
+        bankId: String?,
+        bankName: String?,
         date: String?,
+        referenceId: String?,
         note: String?
     ): Flow<Resource<Unit>> = flow {
         emit(Resource.Loading)
         try {
             val req = PaySalaryRequest(
                 paymentMethod = paymentMethod,
+                bankId = if (paymentMethod == "bank") bankId?.trim()?.ifBlank { null } else null,
+                bankName = if (paymentMethod == "bank") bankName?.trim()?.ifBlank { null } else null,
                 amount = amount.trim(),
                 paymentDate = date,
-                note = note
+                referenceId = referenceId?.trim()?.ifBlank { null },
+                note = note?.trim()?.ifBlank { null }
             )
             val response = apiService.paySalary(employeeId, req)
             if (response.success) {

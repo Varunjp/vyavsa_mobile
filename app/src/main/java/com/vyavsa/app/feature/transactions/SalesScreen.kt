@@ -25,16 +25,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CallReceived
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -47,14 +52,18 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.style.TextAlign
+import com.vyavsa.app.core.common.MessageType
+import com.vyavsa.app.core.common.ObserveAsEvents
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -91,7 +100,6 @@ fun SalesScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -110,18 +118,10 @@ fun SalesScreen(
 
     val activePrintingSaleId by viewModel.activePrintingSaleId.collectAsState()
     val activeSharingSaleId by viewModel.activeSharingSaleId.collectAsState()
-    val printJobState by viewModel.printJobState.collectAsState()
 
-    LaunchedEffect(printJobState) {
-        when (printJobState.status) {
-            PrintJobStatus.SUCCESS -> {
-                snackbarHostState.showSnackbar(printJobState.message ?: "Receipt printed successfully")
-            }
-            PrintJobStatus.ERROR -> {
-                snackbarHostState.showSnackbar(printJobState.message ?: "Print failed. Check printer connection.")
-            }
-            else -> {}
-        }
+    // Consume one-time transient messages safely without replaying on tab restoration
+    ObserveAsEvents(viewModel.uiEvents) { event ->
+        snackbarHostState.showSnackbar(event.text)
     }
 
     val isSalesRole = viewModel.tokenManager?.isSales() == true
@@ -138,6 +138,36 @@ fun SalesScreen(
 
     val todayDate = remember {
         SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+    }
+
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                            val chosenDate = sdf.format(Date(millis))
+                            viewModel.setDateFilter(chosenDate)
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("Select", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
     }
 
     val screenTitle = when {
@@ -213,40 +243,61 @@ fun SalesScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                     }
 
-                    FilterChip(
-                        selected = dateFilter == todayDate,
-                        onClick = {
-                            if (dateFilter == todayDate) {
-                                viewModel.setDateFilter(null)
-                            } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = dateFilter == todayDate,
+                            onClick = {
                                 viewModel.setDateFilter(todayDate)
-                            }
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.CalendarToday,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp)
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarToday,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = "Today",
+                                    fontWeight = if (dateFilter == todayDate) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                             )
-                        },
-                        label = {
-                            Text(
-                                text = "Today",
-                                fontWeight = if (dateFilter == todayDate) FontWeight.Bold else FontWeight.Medium
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                         )
-                    )
+
+                        val isCustomDate = dateFilter != null && dateFilter != todayDate
+                        FilterChip(
+                            selected = isCustomDate,
+                            onClick = { showDatePicker = true },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = "Pick Date",
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = if (isCustomDate && dateFilter != null) FormatUtils.formatDateForDisplay(dateFilter!!) else "Pick Date",
+                                    fontWeight = if (isCustomDate) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        )
+                    }
                 }
             }
 
             // Sales List
-            val lineSales = (lineSalesState as? UiState.Success)?.data ?: emptyList()
-            val counterSales = (counterSalesState as? UiState.Success)?.data ?: emptyList()
-
             val showLine = when {
                 isSalesRole -> true
                 isOfficeRole -> false
@@ -258,25 +309,63 @@ fun SalesScreen(
                 else -> selectedSaleFilterIndex == 0 || selectedSaleFilterIndex == 2
             }
 
-            val filteredLineSales = if (showLine) lineSales else emptyList()
-            val filteredCounterSales = if (showCounter) counterSales else emptyList()
+            val isLineLoading = showLine && lineSalesState is UiState.Loading
+            val isCounterLoading = showCounter && counterSalesState is UiState.Loading
+            val isLoading = isLineLoading || isCounterLoading
 
-            val isLoading = (lineSalesState is UiState.Loading && counterSalesState is UiState.Loading)
+            val lineError = if (showLine && lineSalesState is UiState.Error) (lineSalesState as UiState.Error).message else null
+            val counterError = if (showCounter && counterSalesState is UiState.Error) (counterSalesState as UiState.Error).message else null
+            val activeError = lineError ?: counterError
 
-            if (isLoading) {
+            val filteredLineSales = if (showLine) (lineSalesState as? UiState.Success)?.data ?: emptyList() else emptyList()
+            val filteredCounterSales = if (showCounter) (counterSalesState as? UiState.Success)?.data ?: emptyList() else emptyList()
+
+            if (isLoading && filteredLineSales.isEmpty() && filteredCounterSales.isEmpty()) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.fillMaxSize()
                 ) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
+            } else if (activeError != null && filteredLineSales.isEmpty() && filteredCounterSales.isEmpty()) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ErrorOutline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Text(
+                            text = activeError,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = { viewModel.loadFilterableData(activeTabOnly = true) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text("Retry")
+                        }
+                    }
+                }
             } else if (filteredLineSales.isEmpty() && filteredCounterSales.isEmpty()) {
+                val dateLabel = if (dateFilter == todayDate) "today" else if (dateFilter != null) FormatUtils.formatDateForDisplay(dateFilter!!) else "this date"
                 EmptyStateView(
                     title = "No Sales Found",
-                    description = if (searchQuery.isNotBlank() || dateFilter != null) {
-                        "No sales matched the specified filters"
+                    description = if (searchQuery.isNotBlank()) {
+                        "No sales matched your search criteria"
                     } else {
-                        "Record your first line or counter sale to generate receipts and invoices"
+                        "No sales recorded for $dateLabel"
                     },
                     icon = Icons.Default.ReceiptLong,
                     actionText = "Record Sale",
@@ -314,9 +403,7 @@ fun SalesScreen(
                                 onShareClick = {
                                     viewModel.shareLineSalePdf(context, sale) { success, err ->
                                         if (!success && err != null) {
-                                            coroutineScope.launch {
-                                                snackbarHostState.showSnackbar(err)
-                                            }
+                                            viewModel.sendUiMessage(err, MessageType.ERROR)
                                         }
                                     }
                                 }
@@ -349,9 +436,7 @@ fun SalesScreen(
                                 onShareClick = {
                                     viewModel.shareCounterSalePdf(context, sale) { success, err ->
                                         if (!success && err != null) {
-                                            coroutineScope.launch {
-                                                snackbarHostState.showSnackbar(err)
-                                            }
+                                            viewModel.sendUiMessage(err, MessageType.ERROR)
                                         }
                                     }
                                 }

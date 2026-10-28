@@ -10,6 +10,8 @@ import com.vyavsa.app.core.model.SalesDashboardResponse
 import com.vyavsa.app.core.model.TenantProfile
 import com.vyavsa.app.core.model.TenantSubscription
 import com.vyavsa.app.core.security.TokenManager
+import com.vyavsa.app.core.settings.QuickActionItem
+import com.vyavsa.app.core.settings.SettingsPreferences
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,8 +25,15 @@ import javax.inject.Inject
 class DashboardViewModel @Inject constructor(
     private val repository: DashboardRepository,
     private val refreshCoordinator: DataRefreshCoordinator,
-    val tokenManager: TokenManager
+    val tokenManager: TokenManager,
+    val settingsPreferences: SettingsPreferences? = null
 ) : ViewModel() {
+
+    val showQuickActions: StateFlow<Boolean> = settingsPreferences?.showQuickActions
+        ?: MutableStateFlow(true).asStateFlow()
+
+    val enabledQuickActions: StateFlow<Set<String>> = settingsPreferences?.enabledQuickActions
+        ?: MutableStateFlow(QuickActionItem.values().filter { it.defaultEnabled }.map { it.id }.toSet()).asStateFlow()
 
     private val _metricsState = MutableStateFlow<UiState<FinancialMetrics>>(UiState.Loading)
     val metricsState: StateFlow<UiState<FinancialMetrics>> = _metricsState.asStateFlow()

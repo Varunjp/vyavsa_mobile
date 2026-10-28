@@ -112,6 +112,51 @@ data class PurchasePlanRequest(
     @SerialName("payment_method") val paymentMethod: String = "upi"
 )
 
+@Serializable
+data class InitiateCheckoutRequest(
+    @SerialName("plan_id") val planId: String,
+    @SerialName("activation_mode") val activationMode: String? = "instant" // "instant" or "queue"
+)
+
+@Immutable
+@Serializable
+data class CheckoutCustomerInfo(
+    val name: String = "",
+    val email: String = "",
+    val phone: String = ""
+)
+
+@Immutable
+@Serializable
+data class InitiateCheckoutResponse(
+    val provider: String = "razorpay",
+    @SerialName("key_id") val keyId: String = "",
+    @SerialName("subscription_id") val subscriptionId: String = "",
+    @SerialName("plan_id") val planId: String = "",
+    @SerialName("plan_name") val planName: String = "",
+    val amount: String = "0.00",
+    val currency: String = "INR",
+    @SerialName("billing_interval") val billingInterval: String = "monthly",
+    @SerialName("activation_mode") val activationMode: String? = null,
+    val customer: CheckoutCustomerInfo = CheckoutCustomerInfo()
+)
+
+@Serializable
+data class VerifyPaymentRequest(
+    @SerialName("plan_id") val planId: String,
+    @SerialName("razorpay_payment_id") val razorpayPaymentId: String,
+    @SerialName("razorpay_subscription_id") val razorpaySubscriptionId: String,
+    @SerialName("razorpay_signature") val razorpaySignature: String,
+    @SerialName("activation_mode") val activationMode: String? = "instant"
+)
+
+@Immutable
+@Serializable
+data class VerifyPaymentResponse(
+    val subscription: TenantSubscription? = null,
+    val transaction: PlanTransaction? = null
+)
+
 @Immutable
 @Serializable
 data class PlanTransaction(

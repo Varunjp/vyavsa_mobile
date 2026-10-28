@@ -105,6 +105,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Settings
 import androidx.core.app.ActivityCompat
+import com.vyavsa.app.core.common.findActivity
 import com.vyavsa.app.core.printer.BluetoothPermissionHelper
 import com.vyavsa.app.core.printer.PrintJobStatus
 
@@ -142,7 +143,7 @@ fun SaleDetailsScreen(
             viewModel.printInvoice()
         } else {
             val permanentlyDenied = grants.filter { !it.value }.any { (permission, _) ->
-                val activity = context as? Activity
+                val activity = context.findActivity()
                 activity != null && !ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
             }
             if (permanentlyDenied) {
@@ -1439,9 +1440,11 @@ private fun InvoiceReceiptDialog(
                                     style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = FormatUtils.formatCurrency(item.lineTotal),
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                maxLines = 1
                             )
                         }
                     }

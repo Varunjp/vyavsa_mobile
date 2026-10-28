@@ -42,6 +42,8 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -60,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
+import com.vyavsa.app.core.common.ObserveAsEvents
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.AvatarInitialCircle
 import com.vyavsa.app.core.designsystem.Blue600
@@ -91,8 +94,16 @@ fun CustomerDetailsScreen(
     val customerState by viewModel.selectedCustomer.collectAsState()
     val salesState by viewModel.selectedCustomerSales.collectAsState()
     val adjustmentsState by viewModel.adjustmentsState.collectAsState()
+    val banksState by viewModel.banksState.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
     val isAdmin = viewModel.isAdmin
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    ObserveAsEvents(viewModel.uiEvents) { msg ->
+        snackbarHostState.showSnackbar(msg.text)
+    }
+
+    val banks = (banksState as? UiState.Success)?.data ?: emptyList()
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     var showPaymentDialog by remember { mutableStateOf(false) }
@@ -104,10 +115,12 @@ fun CustomerDetailsScreen(
         viewModel.loadCustomerDetails(customerId)
         viewModel.loadCustomerSales(customerId)
         viewModel.loadAdjustments(customerId)
+        viewModel.loadBanks()
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             VyavsaTopAppBar(
                 title = "Customer Details",
@@ -454,14 +467,24 @@ fun CustomerDetailsScreen(
                         }
                     }
 
-                    // Record Payment Dialog
+                    // Collect Payment Dialog
                     if (showPaymentDialog) {
-                        CustomerRecordPaymentDialog(
+                        CollectCustomerPaymentDialog(
                             customer = customer,
+                            banks = banks,
                             onDismiss = { showPaymentDialog = false },
-                            onConfirm = { amount, method, note ->
+                            onConfirm = { amount, method, bankId, bankName, refId, note ->
                                 showPaymentDialog = false
-                                viewModel.recordPayment(customer.id, amount, method, note)
+                                viewModel.collectCustomerPayment(
+                                    customerId = customer.id,
+                                    amount = amount,
+                                    paymentMethod = method,
+                                    bankId = bankId,
+                                    bankName = bankName,
+                                    referenceId = refId,
+                                    note = note,
+                                    maxBalance = customer.currentBalance
+                                )
                             }
                         )
                     }
@@ -634,88 +657,7 @@ private fun CustomerAdjustmentItemCard(
     }
 }
 
-@Composable
-private fun CustomerRecordPaymentDialog(
-    customer: Customer,
-    onDismiss: () -> Unit,
-    onConfirm: (amount: String, method: String, note: String?) -> Unit
-) {
-    var amount by remember { mutableStateOf(customer.currentBalance) }
-    var selectedMethod by remember { mutableStateOf("cash") }
-    var note by remember { mutableStateOf("") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(28.dp),
-        containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text("Receive Payment from ${customer.customerName}", fontWeight = FontWeight.ExtraBold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                VyavsaTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = "Settlement Amount (₹)",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = selectedMethod == "cash",
-                        onClick = { selectedMethod = "cash" },
-                        shape = CircleShape,
-                        label = { Text("Cash Till") },
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Default.Money, contentDescription = null, modifier = Modifier.size(16.dp))
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-
-                    FilterChip(
-                        selected = selectedMethod == "bank",
-                        onClick = { selectedMethod = "bank" },
-                        shape = CircleShape,
-                        label = { Text("Bank Transfer") },
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Default.AccountBalance, contentDescription = null, modifier = Modifier.size(16.dp))
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-                }
-
-                VyavsaTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = "Reference / Note (Optional)"
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (amount.isNotBlank()) {
-                        onConfirm(amount.trim(), selectedMethod, note.trim().ifBlank { null })
-                    }
-                }
-            ) {
-                Text("Confirm Payment", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
 
 @Composable
 private fun EditCustomerDialog(

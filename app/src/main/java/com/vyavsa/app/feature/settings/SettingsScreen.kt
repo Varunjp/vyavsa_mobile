@@ -218,6 +218,7 @@ private fun GeneralSettingsTab(viewModel: SettingsViewModel) {
     val themeMode by viewModel.themeMode.collectAsState()
     val fontSize by viewModel.fontSize.collectAsState()
     val language by viewModel.language.collectAsState()
+    val showQuickActions by viewModel.showQuickActions.collectAsState()
     val enabledQuickActions by viewModel.enabledQuickActions.collectAsState()
     val dockOrder = viewModel.getEffectiveDockOrder()
 
@@ -391,14 +392,29 @@ private fun GeneralSettingsTab(viewModel: SettingsViewModel) {
                     Text("Choose shortcuts displayed on your main dashboard.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    QuickActionItem.values().forEach { action ->
-                        val isEnabled = enabledQuickActions.contains(action.id)
-                        VyavsaSwitchRow(
-                            title = action.title,
-                            subtitle = action.description,
-                            checked = isEnabled,
-                            onCheckedChange = { viewModel.toggleQuickAction(action.id, it) }
-                        )
+                    VyavsaSwitchRow(
+                        title = "Show Quick Actions",
+                        subtitle = "Display quick action shortcuts on the main dashboard screen",
+                        checked = showQuickActions,
+                        onCheckedChange = { viewModel.toggleShowQuickActions(it) }
+                    )
+
+                    AnimatedVisibility(visible = showQuickActions) {
+                        Column {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            )
+                            QuickActionItem.values().forEach { action ->
+                                val isEnabled = enabledQuickActions.contains(action.id)
+                                VyavsaSwitchRow(
+                                    title = action.title,
+                                    subtitle = action.description,
+                                    checked = isEnabled,
+                                    onCheckedChange = { viewModel.toggleQuickAction(action.id, it) }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -479,7 +495,7 @@ private fun InvoicePrintingSettingsTab(viewModel: SettingsViewModel) {
     val paperWidth by viewModel.paperWidth.collectAsState()
     val typography by viewModel.typography.collectAsState()
     val contentSettings by viewModel.contentSettings.collectAsState()
-    val previewText = viewModel.getReceiptPreviewText()
+    val previewText by viewModel.receiptPreviewText.collectAsState()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),

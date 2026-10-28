@@ -21,6 +21,7 @@ import com.vyavsa.app.core.model.PurchasePayment
 import com.vyavsa.app.core.model.RecordSalePaymentRequest
 import com.vyavsa.app.core.model.RecordSupplierPaymentRequest
 import com.vyavsa.app.core.model.SaleItemRequest
+import com.vyavsa.app.core.model.Supplier
 import com.vyavsa.app.core.model.SupplierPaymentResponse
 import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.model.UpdateCounterSaleRequest
@@ -1056,6 +1057,9 @@ class FakeTransactionsRepository : TransactionsRepository {
     val employees = mutableListOf(
         Employee(id = "emp-1", name = "Suresh Kumar", phone = "9876543210")
     )
+    val suppliers = mutableListOf(
+        Supplier(id = "supp-1", supplierName = "Vendor Alpha", phone = "9876543210", outstandingPayable = "1200.00")
+    )
 
     var lastCreateLineSaleRequest: CreateLineSaleRequest? = null
     var lastCreateCounterSaleRequest: CreateCounterSaleRequest? = null
@@ -1258,6 +1262,11 @@ class FakeTransactionsRepository : TransactionsRepository {
     override fun listCustomers(): Flow<Resource<List<Customer>>> = flow {
         emit(Resource.Loading)
         emit(Resource.Success(customers.toList()))
+    }
+
+    override fun listSuppliers(): Flow<Resource<List<Supplier>>> = flow {
+        emit(Resource.Loading)
+        emit(Resource.Success(suppliers.toList()))
     }
 
     override fun listEmployees(): Flow<Resource<List<Employee>>> = flow {

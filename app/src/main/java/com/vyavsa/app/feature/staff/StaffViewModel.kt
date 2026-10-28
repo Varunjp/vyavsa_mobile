@@ -3,18 +3,25 @@ package com.vyavsa.app.feature.staff
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vyavsa.app.core.common.FormatUtils
+import com.vyavsa.app.core.common.MessageType
+import com.vyavsa.app.core.common.OneTimeEventEmitter
 import com.vyavsa.app.core.common.Resource
+import com.vyavsa.app.core.common.UiMessage
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.AttendanceRecord
 import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.EmployeeSalary
+import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.security.TokenManager
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
+import com.vyavsa.app.feature.bank.BankRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -27,9 +34,34 @@ enum class StaffTab {
 @HiltViewModel
 class StaffViewModel @Inject constructor(
     private val repository: StaffRepository,
+    private val bankRepository: BankRepository,
     private val refreshCoordinator: DataRefreshCoordinator,
     val tokenManager: TokenManager? = null
 ) : ViewModel() {
+
+    // Overload for testing or default instances
+    constructor(
+        repository: StaffRepository,
+        refreshCoordinator: DataRefreshCoordinator,
+        tokenManager: TokenManager? = null
+    ) : this(
+        repository = repository,
+        bankRepository = object : BankRepository {
+            override fun listBanks(search: String?, status: String?): Flow<Resource<List<TenantBank>>> = flowOf(Resource.Success(emptyList()))
+            override fun createBank(request: com.vyavsa.app.core.model.CreateBankRequest): Flow<Resource<TenantBank>> = flowOf(Resource.Error("Not implemented"))
+            override fun updateBank(id: String, request: com.vyavsa.app.core.model.UpdateBankRequest): Flow<Resource<TenantBank>> = flowOf(Resource.Error("Not implemented"))
+            override fun deleteBank(id: String): Flow<Resource<Unit>> = flowOf(Resource.Error("Not implemented"))
+        },
+        refreshCoordinator = refreshCoordinator,
+        tokenManager = tokenManager
+    )
+
+    private val eventEmitter = OneTimeEventEmitter()
+    val uiEvents: Flow<UiMessage> = eventEmitter.events
+
+    fun sendUiMessage(text: String, type: MessageType = MessageType.INFO) {
+        eventEmitter.emit(text, type)
+    }
 
     var adminOverrideForTesting: Boolean? = null
 
@@ -48,6 +80,9 @@ class StaffViewModel @Inject constructor(
     private val _salariesState = MutableStateFlow<UiState<List<EmployeeSalary>>>(UiState.Loading)
     val salariesState: StateFlow<UiState<List<EmployeeSalary>>> = _salariesState.asStateFlow()
 
+    private val _banksState = MutableStateFlow<UiState<List<TenantBank>>>(UiState.Loading)
+    val banksState: StateFlow<UiState<List<TenantBank>>> = _banksState.asStateFlow()
+
     private val _actionState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val actionState: StateFlow<UiState<Unit>> = _actionState.asStateFlow()
 
@@ -64,6 +99,9 @@ class StaffViewModel @Inject constructor(
                     DataMutation.ALL -> {
                         loadData()
                     }
+                    DataMutation.BANK -> {
+                        loadBanks()
+                    }
                     else -> Unit
                 }
             }
@@ -77,8 +115,21 @@ class StaffViewModel @Inject constructor(
     fun loadData() {
         loadEmployees()
         loadAttendance()
+        loadBanks()
         if (isAdmin) {
             loadSalaries()
+        }
+    }
+
+    fun loadBanks() {
+        viewModelScope.launch {
+            bankRepository.listBanks().collect { res ->
+                _banksState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Error -> UiState.Error(res.message)
+                }
+            }
         }
     }
 
@@ -232,9 +283,37 @@ class StaffViewModel @Inject constructor(
         }
     }
 
-    fun paySalary(employeeId: String, amount: String, paymentMethod: String, note: String?) {
-        if (amount.isBlank() || amount.toDoubleOrNull() ?: 0.0 <= 0.0) {
-            _actionState.value = UiState.Error("Please enter a valid disbursement amount")
+    fun paySalary(
+        employeeId: String,
+        amount: String,
+        paymentMethod: String,
+        bankId: String? = null,
+        bankName: String? = null,
+        referenceId: String? = null,
+        note: String? = null
+    ) {
+        if (_actionState.value is UiState.Loading) return
+
+        val parsedAmount = amount.toDoubleOrNull() ?: 0.0
+        if (amount.isBlank() || parsedAmount <= 0.0) {
+            val err = "Please enter a valid disbursement amount"
+            _actionState.value = UiState.Error(err)
+            sendUiMessage(err, MessageType.ERROR)
+            return
+        }
+
+        val normMethod = paymentMethod.lowercase().trim()
+        if (normMethod != "cash" && normMethod != "bank") {
+            val err = "Payment method must be Cash or Bank"
+            _actionState.value = UiState.Error(err)
+            sendUiMessage(err, MessageType.ERROR)
+            return
+        }
+
+        if (normMethod == "bank" && bankId.isNullOrBlank()) {
+            val err = "Please select a bank account for bank disbursement"
+            _actionState.value = UiState.Error(err)
+            sendUiMessage(err, MessageType.ERROR)
             return
         }
 
@@ -242,26 +321,38 @@ class StaffViewModel @Inject constructor(
             repository.paySalary(
                 employeeId = employeeId,
                 amount = amount,
-                paymentMethod = paymentMethod,
+                paymentMethod = normMethod,
+                bankId = if (normMethod == "bank") bankId else null,
+                bankName = if (normMethod == "bank") bankName else null,
                 date = FormatUtils.todayDateString(),
+                referenceId = referenceId,
                 note = note
             ).collect { res ->
                 _actionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
                         refreshCoordinator.notifyMutation(DataMutation.STAFF)
-                        if (paymentMethod == "bank") {
+                        if (normMethod == "bank") {
                             refreshCoordinator.notifyMutation(DataMutation.BANK)
                         } else {
                             refreshCoordinator.notifyMutation(DataMutation.CASH)
                         }
                         loadSalaries()
+                        sendUiMessage("Salary disbursed successfully via ${normMethod.uppercase()}", MessageType.SUCCESS)
                         UiState.Success(Unit)
                     }
-                    is Resource.Error -> UiState.Error(res.message)
+                    is Resource.Error -> {
+                        sendUiMessage(res.message, MessageType.ERROR)
+                        UiState.Error(res.message)
+                    }
                 }
             }
         }
+    }
+
+    // Overload for backward compatibility
+    fun paySalary(employeeId: String, amount: String, paymentMethod: String, note: String?) {
+        paySalary(employeeId, amount, paymentMethod, null, null, null, note)
     }
 
     fun updateEmployee(

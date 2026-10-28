@@ -60,6 +60,10 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
+    abstract fun bindSupplierRepository(impl: com.vyavsa.app.feature.supplier.SupplierRepositoryImpl): com.vyavsa.app.feature.supplier.SupplierRepository
+
+    @Binds
+    @Singleton
     abstract fun bindProductRepository(impl: com.vyavsa.app.feature.products.ProductRepositoryImpl): com.vyavsa.app.feature.products.ProductRepository
 
     @Binds

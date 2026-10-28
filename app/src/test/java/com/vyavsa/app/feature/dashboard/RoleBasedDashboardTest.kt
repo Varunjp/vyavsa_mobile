@@ -271,6 +271,20 @@ class RoleBasedDashboardTest {
         val metrics = (metricsState as UiState.Success).data
         assertEquals("25000.00", metrics.cashBalance)
     }
+
+    @Test
+    fun testDashboardViewModelQuickActionsObservation() = runTest {
+        val fakeRepo = TestRoleDashboardRepository()
+        val fakeTokenManager = FakeTestTokenManager(role = UserRole.ADMIN)
+        val coordinator = DataRefreshCoordinator()
+
+        val vm = DashboardViewModel(fakeRepo, coordinator, fakeTokenManager)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Default Quick Actions state should be true and enabled actions populated
+        assertTrue(vm.showQuickActions.value)
+        assertTrue(vm.enabledQuickActions.value.isNotEmpty())
+    }
 }
 
 private class FakeTestTokenManager(

@@ -8,6 +8,7 @@ import com.vyavsa.app.core.model.AttendanceRecord
 import com.vyavsa.app.core.model.BankTransaction
 import com.vyavsa.app.core.model.CashBalanceResponse
 import com.vyavsa.app.core.model.CashTransaction
+import com.vyavsa.app.core.model.CollectCustomerPaymentRequest
 import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.CounterSalePayment
 import com.vyavsa.app.core.model.CreateBankRequest
@@ -16,11 +17,14 @@ import com.vyavsa.app.core.model.CreateCustomerRequest
 import com.vyavsa.app.core.model.CreateEmployeeRequest
 import com.vyavsa.app.core.model.CreateExpenseRequest
 import com.vyavsa.app.core.model.CreateLineSaleRequest
+import com.vyavsa.app.core.model.CreateProductRequest
 import com.vyavsa.app.core.model.CreatePurchaseRequest
+import com.vyavsa.app.core.model.CreateSupplierRequest
 import com.vyavsa.app.core.model.CreateTenantUserRequest
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.CustomerBalance
 import com.vyavsa.app.core.model.CustomerBalanceAdjustment
+import com.vyavsa.app.core.model.CustomerPaymentResponse
 import com.vyavsa.app.core.model.CustomerStatement
 import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.EmployeeAdvance
@@ -29,31 +33,32 @@ import com.vyavsa.app.core.model.EmployeeSalary
 import com.vyavsa.app.core.model.EmployeeSalaryStatement
 import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.FinancialMetrics
-import com.vyavsa.app.core.model.SalesDashboardResponse
-import com.vyavsa.app.core.model.OfficeDashboardResponse
-import com.vyavsa.app.core.model.RecordAdvanceRequest
-import com.vyavsa.app.core.model.RecordOvertimeRequest
-import com.vyavsa.app.core.model.CreateProductRequest
 import com.vyavsa.app.core.model.ForgotPasswordRequest
-import com.vyavsa.app.core.model.Product
-import com.vyavsa.app.core.model.ProductAnalyticsResponse
-
+import com.vyavsa.app.core.model.InitiateCheckoutRequest
+import com.vyavsa.app.core.model.InitiateCheckoutResponse
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.LineSalePayment
+import com.vyavsa.app.core.model.OfficeDashboardResponse
 import com.vyavsa.app.core.model.PaySalaryRequest
 import com.vyavsa.app.core.model.PlanTransaction
+import com.vyavsa.app.core.model.Product
+import com.vyavsa.app.core.model.ProductAnalyticsResponse
 import com.vyavsa.app.core.model.Purchase
 import com.vyavsa.app.core.model.PurchasePayment
 import com.vyavsa.app.core.model.PurchasePlanRequest
-import com.vyavsa.app.core.model.RecordSupplierPaymentRequest
-import com.vyavsa.app.core.model.SupplierPaymentResponse
-import com.vyavsa.app.core.model.UpdatePurchaseRequest
+import com.vyavsa.app.core.model.RecordAdvanceRequest
 import com.vyavsa.app.core.model.RecordAttendanceRequest
+import com.vyavsa.app.core.model.RecordOvertimeRequest
 import com.vyavsa.app.core.model.RecordPaymentRequest
 import com.vyavsa.app.core.model.RecordSalePaymentRequest
+import com.vyavsa.app.core.model.RecordSupplierPaymentRequest
 import com.vyavsa.app.core.model.RefreshTokenRequest
 import com.vyavsa.app.core.model.ResetPasswordRequest
+import com.vyavsa.app.core.model.SalesDashboardResponse
 import com.vyavsa.app.core.model.SubscriptionPlan
+import com.vyavsa.app.core.model.Supplier
+import com.vyavsa.app.core.model.SupplierBalance
+import com.vyavsa.app.core.model.SupplierPaymentResponse
 import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.model.TenantLoginRequest
 import com.vyavsa.app.core.model.TenantLogoResponse
@@ -64,15 +69,18 @@ import com.vyavsa.app.core.model.TenantUser
 import com.vyavsa.app.core.model.TokenResponse
 import com.vyavsa.app.core.model.UpdateAttendanceRequest
 import com.vyavsa.app.core.model.UpdateBankRequest
-import com.vyavsa.app.core.model.UpdateCustomerRequest
 import com.vyavsa.app.core.model.UpdateCounterSaleRequest
+import com.vyavsa.app.core.model.UpdateCustomerRequest
 import com.vyavsa.app.core.model.UpdateEmployeeRequest
 import com.vyavsa.app.core.model.UpdateLineSaleRequest
 import com.vyavsa.app.core.model.UpdateProductRequest
-
+import com.vyavsa.app.core.model.UpdatePurchaseRequest
+import com.vyavsa.app.core.model.UpdateSupplierRequest
 import com.vyavsa.app.core.model.UpdateTenantProfileRequest
 import com.vyavsa.app.core.model.UpdateTenantUserRequest
 import com.vyavsa.app.core.model.UserProfile
+import com.vyavsa.app.core.model.VerifyPaymentRequest
+import com.vyavsa.app.core.model.VerifyPaymentResponse
 import com.vyavsa.app.core.model.VerifyResetOtpRequest
 import com.vyavsa.app.core.model.VerifyResetOtpResponse
 import okhttp3.MultipartBody
@@ -156,6 +164,12 @@ interface VyavsaApiService {
 
     @POST("api/v1/tenant/subscription/purchase")
     suspend fun purchasePlan(@Body req: PurchasePlanRequest): ApiResponse<TenantSubscription>
+
+    @POST("api/v1/tenant/subscription/checkout")
+    suspend fun initiateSubscriptionCheckout(@Body req: InitiateCheckoutRequest): ApiResponse<InitiateCheckoutResponse>
+
+    @POST("api/v1/tenant/subscription/verify")
+    suspend fun verifySubscriptionPayment(@Body req: VerifyPaymentRequest): ApiResponse<VerifyPaymentResponse>
 
     @GET("api/v1/tenant/subscription/transactions")
     suspend fun listSubscriptionTransactions(
@@ -305,6 +319,60 @@ interface VyavsaApiService {
         @Path("id") id: String,
         @Body req: RecordPaymentRequest
     ): ApiResponse<Map<String, String>>
+
+    @POST("api/v1/tenant/customers/{id}/collections")
+    suspend fun collectCustomerPayment(
+        @Path("id") id: String,
+        @Body req: CollectCustomerPaymentRequest
+    ): ApiResponse<CustomerPaymentResponse>
+
+    @POST("api/v1/tenant/customer-collections")
+    suspend fun collectCustomerPaymentDirect(
+        @Body req: CollectCustomerPaymentRequest
+    ): ApiResponse<CustomerPaymentResponse>
+
+    @GET("api/v1/tenant/customers/{id}/collections")
+    suspend fun listCustomerCollections(
+        @Path("id") id: String,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100
+    ): ApiResponse<List<CustomerPaymentResponse>>
+
+    // ==========================================
+    // 4b. Suppliers & Supplier Payments
+    // ==========================================
+
+    @GET("api/v1/tenant/suppliers")
+    suspend fun listSuppliers(
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100,
+        @Query("search") search: String? = null,
+        @Query("status") status: String? = null
+    ): ApiResponse<List<Supplier>>
+
+    @POST("api/v1/tenant/suppliers")
+    suspend fun createSupplier(@Body req: CreateSupplierRequest): ApiResponse<Supplier>
+
+    @GET("api/v1/tenant/suppliers/{id}")
+    suspend fun getSupplierById(@Path("id") id: String): ApiResponse<Supplier>
+
+    @PUT("api/v1/tenant/suppliers/{id}")
+    suspend fun updateSupplier(
+        @Path("id") id: String,
+        @Body req: UpdateSupplierRequest
+    ): ApiResponse<Supplier>
+
+    @DELETE("api/v1/tenant/suppliers/{id}")
+    suspend fun deleteSupplier(@Path("id") id: String): ApiResponse<Map<String, Boolean>>
+
+    @GET("api/v1/tenant/suppliers/{id}/balance")
+    suspend fun getSupplierBalance(@Path("id") id: String): ApiResponse<SupplierBalance>
+
+    @POST("api/v1/tenant/suppliers/{id}/payments")
+    suspend fun recordSupplierPayment(
+        @Path("id") id: String,
+        @Body req: RecordSupplierPaymentRequest
+    ): ApiResponse<SupplierPaymentResponse>
 
     // ==========================================
     // 5. Expenses

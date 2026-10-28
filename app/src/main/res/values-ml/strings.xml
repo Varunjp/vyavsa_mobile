@@ -1,0 +1,112 @@
+<resources>
+    <string name="app_name">വ്യവസ</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">ഹോം</string>
+    <string name="nav_sales">വിൽപന</string>
+    <string name="nav_counter_sales">കൗണ്ടർ</string>
+    <string name="nav_transactions">ലെഡ്ജർ</string>
+    <string name="nav_dues">കുടിശ്ശിക</string>
+    <string name="nav_staff">സ്റ്റാഫ്</string>
+    <string name="nav_products">കാറ്റലോഗ്</string>
+    <string name="nav_more">കൂടുതൽ</string>
+
+    <!-- Settings General -->
+    <string name="settings_title">ക്രമീകരണങ്ങൾ</string>
+    <string name="settings_subtitle">ആപ്പ് മുൻഗണനകളും പ്രിന്റിംഗ് സജ്ജീകരണവും</string>
+    <string name="tab_general">പൊതുവായവ</string>
+    <string name="tab_invoice_print">ഇൻവോയ്‌സും പ്രിന്റും</string>
+    <string name="tab_printer_setup">പ്രിന്റർ സജ്ജീകരണം</string>
+    <string name="reset_settings">ക്രമീകരണങ്ങൾ പുനഃസജ്ജമാക്കുക</string>
+    <string name="appearance_theme">തീമും നിറങ്ങളും</string>
+    <string name="font_scale">ഫോണ്ട് വലുപ്പം</string>
+    <string name="font_scale_desc">വായിക്കാൻ എളുപ്പമാകുന്നതിന് ആപ്പിലെ ഫോണ്ട് വലുപ്പം ക്രമീകരിക്കുക.</string>
+    <string name="app_language">ആപ്പ് ഭാഷ</string>
+    <string name="dashboard_quick_actions">ഡാഷ്‌ബോർഡ് ദ്രുത പ്രവർത്തനങ്ങൾ</string>
+    <string name="quick_actions_desc">പ്രധാന ഡാഷ്‌ബോർഡിൽ പ്രദർശിപ്പിക്കേണ്ട കുറുക്കുവഴികൾ തിരഞ്ഞെടുക്കുക.</string>
+    <string name="show_quick_actions">ഡാഷ്‌ബോർഡിൽ ദ്രുത പ്രവർത്തനങ്ങൾ കാണിക്കുക</string>
+    <string name="show_quick_actions_desc">പ്രധാന ഡാഷ്‌ബോർഡിൽ കുറുക്കുവഴി ഗ്രിഡ് പ്രദർശിപ്പിക്കുക.</string>
+    <string name="dock_customization">ഡോക്ക് ക്രമീകരണം</string>
+    <string name="dock_customization_desc">നാവിഗേഷൻ ടാബുകൾ പുനഃക്രമീകരിക്കുക.</string>
+
+    <!-- Settings Invoice & Print -->
+    <string name="invoice_themes">ഇൻവോയ്സ് തീമുകൾ</string>
+    <string name="invoice_themes_desc">3 ലേഔട്ട് ടെംപ്ലേറ്റുകളിൽ നിന്ന് തിരഞ്ഞെടുക്കുക.</string>
+    <string name="paper_roll_size">പേപ്പർ റോൾ വലുപ്പം</string>
+    <string name="paper_roll_size_desc">പ്രിന്ററിന്റെ വീതിക്കനുസരിച്ച് രസീത് ഫോർമാറ്റ് ചെയ്യുക.</string>
+    <string name="print_typography_density">പ്രിന്റ് ഡെൻസിറ്റി</string>
+    <string name="print_typography_density_desc">രസീതിലെ ഫോണ്ട് വലുപ്പവും സാന്ദ്രതയും ക്രമീകരിക്കുക.</string>
+    <string name="invoice_footer_terms">അടിക്കുറിപ്പും നിബന്ധനകളും</string>
+    <string name="invoice_footer_terms_desc">ബില്ലുകളുടെ അടിയിൽ പ്രിന്റ് ചെയ്യുന്ന സന്ദേശം.</string>
+    <string name="invoice_content_toggles">ഇൻവോയ്സ് ഉള്ളടക്ക ടോഗിളുകൾ</string>
+    <string name="invoice_content_toggles_desc">ബില്ലുകളിലെ വിവരങ്ങൾ കാണിക്കുക അല്ലെങ്കിൽ മറയ്ക്കുക.</string>
+    <string name="live_receipt_preview">തത്സമയ രസീത് പ്രിവ്യൂ</string>
+
+    <!-- Content Switches -->
+    <string name="toggle_business_address">സ്ഥാപനത്തിന്റെ വിലാസം</string>
+    <string name="toggle_business_address_desc">രസീതിൽ വിലാസം ഉൾപ്പെടുത്തുക</string>
+    <string name="toggle_business_phone">ഫോൺ നമ്പർ</string>
+    <string name="toggle_business_phone_desc">ഫോൺ നമ്പർ പ്രിന്റ് ചെയ്യുക</string>
+    <string name="toggle_business_email">ഇമെയിൽ</string>
+    <string name="toggle_business_email_desc">ഔദ്യോഗിക ഇമെയിൽ കാണിക്കുക</string>
+    <string name="toggle_gstin_tax_id">ജിഎസ്ടി നമ്പർ</string>
+    <string name="toggle_gstin_tax_id_desc">നികുതി ഐഡി പ്രദർശിപ്പിക്കുക</string>
+    <string name="toggle_customer_info">ഉപഭോക്തൃ വിവരങ്ങൾ</string>
+    <string name="toggle_customer_info_desc">പേര്, ഫോൺ വിവരങ്ങൾ പ്രിന്റ് ചെയ്യുക</string>
+    <string name="toggle_payment_breakdown">പേയ്‌മെന്റ് രീതി</string>
+    <string name="toggle_payment_breakdown_desc">പേയ്‌മെന്റ് സംഗ്രഹവും കുടിശ്ശികയും കാണിക്കുക</string>
+    <string name="toggle_notes_remarks">കുറിപ്പുകൾ</string>
+    <string name="toggle_notes_remarks_desc">ഡെലിവറി കുറിപ്പുകൾ കാണിക്കുക</string>
+    <string name="toggle_footer_greeting">അടിക്കുറിപ്പ് സന്ദേശം</string>
+    <string name="toggle_footer_greeting_desc">ബിസിനസ്സ് സന്ദേശം പ്രിന്റ് ചെയ്യുക</string>
+    <string name="toggle_graphic_logo">കമ്പനി ലോഗോ</string>
+    <string name="toggle_graphic_logo_desc">രസീതിൽ ലോഗോ കാണിക്കുക</string>
+
+    <!-- Dashboard -->
+    <string name="quick_actions">ദ്രുത പ്രവർത്തനങ്ങൾ</string>
+    <string name="action_record_sale">വിൽപന രേഖപ്പെടുത്തുക</string>
+    <string name="action_record_sale_sub">ലൈൻ &amp; പിഒഎസ്</string>
+    <string name="action_add_expense">ചെലവ് ചേർക്കുക</string>
+    <string name="action_add_expense_sub">ബില്ലുകൾ &amp; അഡ്വാൻസ്</string>
+    <string name="action_cash_drawer">ക്യാഷ് ഡ്രോയർ</string>
+    <string name="action_cash_drawer_sub">പണം പരിശോധിക്കുക</string>
+    <string name="action_bank_accounts">ബാങ്ക് അക്കൗണ്ടുകൾ</string>
+    <string name="action_bank_accounts_sub">യുപിഐ &amp; ലെഡ്ജറുകൾ</string>
+    <string name="action_product_catalog">ഉൽപ്പന്ന കാറ്റലോഗ്</string>
+    <string name="action_product_catalog_sub">ഇനങ്ങൾ &amp; വിലകൾ</string>
+    <string name="action_product_analytics">ഉൽപ്പന്ന വിശകലനം</string>
+    <string name="action_product_analytics_sub">വിൽപന വിവരങ്ങൾ</string>
+    <string name="cash_in_till">കൈവശമുള്ള പണം</string>
+    <string name="bank_total">ബാങ്ക് ബാലൻസ്</string>
+    <string name="total_liquidity">ആകെ ലിക്വിഡിറ്റി</string>
+    <string name="refresh_dashboard">ഡാഷ്‌ബോർഡ് പുതുക്കുക</string>
+
+    <!-- Invoice Layout Columns -->
+    <string name="col_item">ഇനം</string>
+    <string name="col_qty">എണ്ണം</string>
+    <string name="col_price">വില</string>
+    <string name="col_total">ആകെ</string>
+    <string name="subtotal">സബ് ടോട്ടൽ</string>
+    <string name="discount">കിഴിവ്</string>
+    <string name="total_amount">ആകെ തുക</string>
+    <string name="amount_paid">നൽകിയ തുക</string>
+    <string name="balance_due">കുടിശ്ശിക തുക</string>
+    <string name="paid_in_full">*** മുഴുവൻ നൽകി ***</string>
+    <string name="payment_mode">പേയ്‌മെന്റ് രീതി</string>
+    <string name="receipt_preview">രസീത് പ്രിവ്യൂ</string>
+    <string name="items_billed">ബിൽ ചെയ്ത ഇനങ്ങൾ</string>
+
+    <!-- Common Actions & Feedback -->
+    <string name="btn_save">സേവ് ചെയ്യുക</string>
+    <string name="btn_cancel">റദ്ദാക്കുക</string>
+    <string name="btn_reset">റീസെറ്റ്</string>
+    <string name="btn_confirm">സ്ഥിരീകരിക്കുക</string>
+    <string name="btn_delete">ഡിലീറ്റ് ചെയ്യുക</string>
+    <string name="btn_edit">എഡിറ്റ് ചെയ്യുക</string>
+    <string name="btn_add">ചേർക്കുക</string>
+    <string name="btn_search">തിരയുക</string>
+    <string name="btn_close">അടയ്ക്കുക</string>
+    <string name="loading">ലോഡ് ചെയ്യുന്നു…</string>
+    <string name="empty_state_title">വിവരങ്ങൾ ലഭ്യമല്ല</string>
+    <string name="empty_state_desc">പ്രദർശിപ്പിക്കാൻ ഇനങ്ങളൊന്നുമില്ല.</string>
+</resources>

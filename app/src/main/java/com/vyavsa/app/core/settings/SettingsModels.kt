@@ -27,8 +27,21 @@ enum class AppFontSize(val label: String, val scaleFactor: Float) {
 enum class AppLanguage(val code: String, val displayName: String, val nativeName: String) {
     ENGLISH("en", "English", "English"),
     HINDI("hi", "Hindi", "हिन्दी"),
+    MALAYALAM("ml", "Malayalam", "മലയാളം"),
+    TAMIL("ta", "Tamil", "தமிழ்"),
+    KANNADA("kn", "Kannada", "ಕನ್ನಡ"),
+    TELUGU("te", "Telugu", "తెలుగు"),
+    BENGALI("bn", "Bengali", "বাংলা"),
+    MARATHI("mr", "Marathi", "मराठी"),
     GUJARATI("gu", "Gujarati", "ગુજરાતી"),
-    MARATHI("mr", "Marathi", "मराठी")
+    PUNJABI("pa", "Punjabi", "ਪੰਜਾਬੀ"),
+    ODIA("or", "Odia", "ଓଡ଼ିଆ"),
+    ASSAMESE("as", "Assamese", "অসমীয়া");
+
+    companion object {
+        fun fromCode(code: String): AppLanguage =
+            values().firstOrNull { it.code.equals(code, ignoreCase = true) } ?: ENGLISH
+    }
 }
 
 /**
@@ -57,6 +70,7 @@ data class UserSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val fontSize: AppFontSize = AppFontSize.MEDIUM,
     val language: AppLanguage = AppLanguage.ENGLISH,
+    val showQuickActions: Boolean = true,
     val enabledQuickActions: Set<String> = QuickActionItem.values().filter { it.defaultEnabled }.map { it.id }.toSet(),
     val dockOrder: List<BottomBarDestination> = emptyList()
 )

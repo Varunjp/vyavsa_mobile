@@ -1,0 +1,112 @@
+<resources>
+    <string name="app_name">వ్యవసా</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">హోమ్</string>
+    <string name="nav_sales">అమ్మకాలు</string>
+    <string name="nav_counter_sales">కౌంటర్</string>
+    <string name="nav_transactions">లెడ్జర్</string>
+    <string name="nav_dues">బకాయిలు</string>
+    <string name="nav_staff">సిబ్బంది</string>
+    <string name="nav_products">కేటలాగ్</string>
+    <string name="nav_more">మరిన్ని</string>
+
+    <!-- Settings General -->
+    <string name="settings_title">సెట్టింగ్‌లు</string>
+    <string name="settings_subtitle">యాప్ ప్రాధాన్యతలు &amp; ప్రింటింగ్ సెటప్</string>
+    <string name="tab_general">సాధారణ</string>
+    <string name="tab_invoice_print">ఇన్‌వాయిస్ &amp; ప్రింట్</string>
+    <string name="tab_printer_setup">ప్రింటర్ సెటప్</string>
+    <string name="reset_settings">రీసెట్ చేయండి</string>
+    <string name="appearance_theme">థీమ్ &amp; రంగులు</string>
+    <string name="font_scale">ఫాంట్ పరిమాణం</string>
+    <string name="font_scale_desc">చదవడానికి సులభంగా ఉండేలా ఫాంట్ పరిమాణాన్ని సర్దుబాటు చేయండి.</string>
+    <string name="app_language">యాప్ భాష</string>
+    <string name="dashboard_quick_actions">త్వరిత చర్యలు</string>
+    <string name="quick_actions_desc">డ్యాష్‌బోర్డ్‌లో ప్రదర్శించాల్సిన షార్ట్‌కట్‌లను ఎంచుకోండి.</string>
+    <string name="show_quick_actions">డ్యాష్‌బోర్డ్‌లో త్వరిత చర్యలను చూపించు</string>
+    <string name="show_quick_actions_desc">ప్రధాన వ్యాపార డ్యాష్‌బోర్డ్‌లో షార్ట్‌కట్‌ల గ్రిడ్‌ను చూపండి.</string>
+    <string name="dock_customization">డాక్ అనుకూలీకరణ</string>
+    <string name="dock_customization_desc">క్రింది నావిగేషన్ ట్యాబ్‌లను తిరిగి అమర్చండి.</string>
+
+    <!-- Settings Invoice & Print -->
+    <string name="invoice_themes">ఇన్‌వాయిస్ థీమ్‌లు</string>
+    <string name="invoice_themes_desc">3 లేఅవుట్ టెంప్లేట్‌ల నుండి ఎంచుకోండి.</string>
+    <string name="paper_roll_size">పేపర్ రోల్ పరిమాణం</string>
+    <string name="paper_roll_size_desc">ప్రింటర్ వెడల్పు ప్రకారం రసీదును ఫార్మాట్ చేయండి.</string>
+    <string name="print_typography_density">ప్రింట్ డెన్సిటీ</string>
+    <string name="print_typography_density_desc">రసీదులపై ఫాంట్ పరిమాణాన్ని సర్దుబాటు చేయండి.</string>
+    <string name="invoice_footer_terms">ఫుటరు &amp; నిబంధనలు</string>
+    <string name="invoice_footer_terms_desc">బిల్లుల దిగువన ముద్రించబడే సందేశం.</string>
+    <string name="invoice_content_toggles">ఇన్‌వాయిస్ వివరాల టోగుల్స్</string>
+    <string name="invoice_content_toggles_desc">బిల్లులపై వివరాలను చూపించండి లేదా దాచండి.</string>
+    <string name="live_receipt_preview">రసీదు ప్రివ్యూ</string>
+
+    <!-- Content Switches -->
+    <string name="toggle_business_address">వ్యాపార చిరునామా</string>
+    <string name="toggle_business_address_desc">రసీదులపై వ్యాపార చిరునామాను చేర్చండి</string>
+    <string name="toggle_business_phone">ఫోన్ నంబర్</string>
+    <string name="toggle_business_phone_desc">సంప్రదింపు నంబర్‌ను ప్రింట్ చేయండి</string>
+    <string name="toggle_business_email">ఈమెయిల్</string>
+    <string name="toggle_business_email_desc">అధికారిక ఈమెయిల్‌ను చూపించండి</string>
+    <string name="toggle_gstin_tax_id">జీఎస్టీ నంబర్</string>
+    <string name="toggle_gstin_tax_id_desc">పన్ను ఐడీని ప్రదర్శించండి</string>
+    <string name="toggle_customer_info">కస్టమర్ సమాచారం</string>
+    <string name="toggle_customer_info_desc">కస్టమర్ పేరు మరియు వివరాలను ప్రింట్ చేయండి</string>
+    <string name="toggle_payment_breakdown">చెల్లింపు విధానం</string>
+    <string name="toggle_payment_breakdown_desc">చెల్లింపు సారాంశం మరియు బకాయిని చూపించండి</string>
+    <string name="toggle_notes_remarks">గమనికలు</string>
+    <string name="toggle_notes_remarks_desc">లావాదేవీ గమనికలను చూపించండి</string>
+    <string name="toggle_footer_greeting">ముగింపు సందేశం</string>
+    <string name="toggle_footer_greeting_desc">వ్యాపార సందేశాన్ని ముద్రించండి</string>
+    <string name="toggle_graphic_logo">సంస్థ లోగో</string>
+    <string name="toggle_graphic_logo_desc">రసీదుపై లోగోను చూపించండి</string>
+
+    <!-- Dashboard -->
+    <string name="quick_actions">త్వరిత చర్యలు</string>
+    <string name="action_record_sale">అమ్మకం నమోదు</string>
+    <string name="action_record_sale_sub">లైన్ &amp; పీఓఎస్</string>
+    <string name="action_add_expense">ఖర్చు జోడించు</string>
+    <string name="action_add_expense_sub">బిల్లులు &amp; అడ్వాన్స్</string>
+    <string name="action_cash_drawer">నగదు డ్రాయర్</string>
+    <string name="action_cash_drawer_sub">నగదు తనిఖీ చేయండి</string>
+    <string name="action_bank_accounts">బ్యాంకు ఖాతాలు</string>
+    <string name="action_bank_accounts_sub">యూపీఐ &amp; లెడ్జర్లు</string>
+    <string name="action_product_catalog">ఉత్పత్తి కేటలాగ్</string>
+    <string name="action_product_catalog_sub">వస్తువులు &amp; ధరలు</string>
+    <string name="action_product_analytics">ఉత్పత్తి విశ్లేషణ</string>
+    <string name="action_product_analytics_sub">అమ్మకాల సమాచారం</string>
+    <string name="cash_in_till">క్యాష్ ఇన్ టిల్</string>
+    <string name="bank_total">మొత్తం బ్యాంకు నిల్వ</string>
+    <string name="total_liquidity">వ్యాపార లిక్విడిటీ</string>
+    <string name="refresh_dashboard">రిఫ్రెష్ చేయండి</string>
+
+    <!-- Invoice Layout Columns -->
+    <string name="col_item">వస్తువు</string>
+    <string name="col_qty">పరిమాణం</string>
+    <string name="col_price">ధర</string>
+    <string name="col_total">మొత్తం</string>
+    <string name="subtotal">ఉపమొత్తం</string>
+    <string name="discount">రాయితీ</string>
+    <string name="total_amount">మొత్తం సొమ్ము</string>
+    <string name="amount_paid">చెల్లించిన మొత్తం</string>
+    <string name="balance_due">బకాయి మొత్తం</string>
+    <string name="paid_in_full">*** పూర్తిగా చెల్లించబడింది ***</string>
+    <string name="payment_mode">చెల్లింపు పద్ధతి</string>
+    <string name="receipt_preview">రసీదు మునుజూపు</string>
+    <string name="items_billed">బిల్ చేసిన వస్తువులు</string>
+
+    <!-- Common Actions & Feedback -->
+    <string name="btn_save">సేవ్ చేయండి</string>
+    <string name="btn_cancel">రద్దు చేయండి</string>
+    <string name="btn_reset">రీసెట్</string>
+    <string name="btn_confirm">ధృవీకరించండి</string>
+    <string name="btn_delete">తొలగించండి</string>
+    <string name="btn_edit">సవరించండి</string>
+    <string name="btn_add">జోడించండి</string>
+    <string name="btn_search">వెతకండి</string>
+    <string name="btn_close">మూసివేయండి</string>
+    <string name="loading">లోడ్ అవుతోంది…</string>
+    <string name="empty_state_title">ఎలాంటి రికార్డులు లేవు</string>
+    <string name="empty_state_desc">ప్రదర్శించడానికి ఏ వివరాలు లేవు.</string>
+</resources>

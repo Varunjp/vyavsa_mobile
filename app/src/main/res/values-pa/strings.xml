@@ -1,0 +1,112 @@
+<resources>
+    <string name="app_name">ਵਿਵਸਾ</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">ਮੁੱਖ ਪੰਨਾ</string>
+    <string name="nav_sales">ਵਿਕਰੀ</string>
+    <string name="nav_counter_sales">ਕਾਊਂਟਰ</string>
+    <string name="nav_transactions">ਖਾਤਾ ਬਹੀ</string>
+    <string name="nav_dues">ਬਕਾਇਆ</string>
+    <string name="nav_staff">ਸਟਾਫ਼</string>
+    <string name="nav_products">ਸੂਚੀ</string>
+    <string name="nav_more">ਹੋਰ</string>
+
+    <!-- Settings General -->
+    <string name="settings_title">ਸੈਟਿੰਗਾਂ</string>
+    <string name="settings_subtitle">ਐਪ ਤਰਜੀਹਾਂ ਅਤੇ ਪ੍ਰਿੰਟਿੰਗ ਸੈੱਟਅੱਪ</string>
+    <string name="tab_general">ਆਮ</string>
+    <string name="tab_invoice_print">ਇਨਵੌਇਸ ਅਤੇ ਪ੍ਰਿੰਟ</string>
+    <string name="tab_printer_setup">ਪ੍ਰਿੰਟਰ ਸੈੱਟਅੱਪ</string>
+    <string name="reset_settings">ਸੈਟਿੰਗਾਂ ਰੀਸੈੱਟ ਕਰੋ</string>
+    <string name="appearance_theme">ਦਿੱਖ ਅਤੇ ਰੰਗ ਥੀਮ</string>
+    <string name="font_scale">ਫੌਂਟ ਦਾ ਆਕਾਰ</string>
+    <string name="font_scale_desc">ਪੜ੍ਹਨ ਵਿੱਚ ਆਸਾਨੀ ਲਈ ਫੌਂਟ ਆਕਾਰ ਵਿਵਸਥਿਤ ਕਰੋ।</string>
+    <string name="app_language">ਐਪ ਦੀ ਭਾਸ਼ਾ</string>
+    <string name="dashboard_quick_actions">ਡੈਸ਼ਬੋਰਡ ਤੇਜ਼ ਕਾਰਵਾਈਆਂ</string>
+    <string name="quick_actions_desc">ਮੁੱਖ ਡੈਸ਼ਬੋਰਡ \'ਤੇ ਦਿਖਾਉਣ ਲਈ ਸ਼ਾਰਟਕੱਟ ਚੁਣੋ।</string>
+    <string name="show_quick_actions">ਡੈਸ਼ਬੋਰਡ \'ਤੇ ਤੇਜ਼ ਕਾਰਵਾਈਆਂ ਦਿਖਾਓ</string>
+    <string name="show_quick_actions_desc">ਮੁੱਖ ਕਾਰੋਬਾਰੀ ਡੈਸ਼ਬੋਰਡ \'ਤੇ ਸ਼ਾਰਟਕੱਟ ਗਰਿੱਡ ਪ੍ਰਦਰਸ਼ਿਤ ਕਰੋ।</string>
+    <string name="dock_customization">ਨੈਵੀਗੇਸ਼ਨ ਅਨੁਕੂਲਤਾ</string>
+    <string name="dock_customization_desc">ਆਪਣੇ ਕੰਮ ਅਨੁਸਾਰ ਟੈਬਾਂ ਨੂੰ ਮੁੜ ਵਿਵਸਥਿਤ ਕਰੋ।</string>
+
+    <!-- Settings Invoice & Print -->
+    <string name="invoice_themes">ਇਨਵੌਇਸ ਥੀਮ</string>
+    <string name="invoice_themes_desc">3 ਖਾਕੇ ਨਮੂਨਿਆਂ ਵਿੱਚੋਂ ਚੁਣੋ।</string>
+    <string name="paper_roll_size">ਕਾਗਜ਼ ਦਾ ਆਕਾਰ</string>
+    <string name="paper_roll_size_desc">ਪ੍ਰਿੰਟਰ ਚੌੜਾਈ ਅਨੁਸਾਰ ਰਸੀਦ ਤਿਆਰ ਕਰੋ।</string>
+    <string name="print_typography_density">ਪ੍ਰਿੰਟ ਘਣਤਾ</string>
+    <string name="print_typography_density_desc">ਰਸੀਦਾਂ \'ਤੇ ਫੌਂਟ ਆਕਾਰ ਅਤੇ ਘਣਤਾ ਵਿਵਸਥਿਤ ਕਰੋ।</string>
+    <string name="invoice_footer_terms">ਹੇਠਲੀ ਲਿਖਤ ਅਤੇ ਸ਼ਰਤਾਂ</string>
+    <string name="invoice_footer_terms_desc">ਬਿੱਲਾਂ ਦੇ ਹੇਠਾਂ ਛਾਪਿਆ ਜਾਣ ਵਾਲਾ ਸੁਨੇਹਾ।</string>
+    <string name="invoice_content_toggles">ਇਨਵੌਇਸ ਵੇਰਵੇ ਟੌਗਲ</string>
+    <string name="invoice_content_toggles_desc">ਬਿੱਲਾਂ \'ਤੇ ਵੇਰਵੇ ਦਿਖਾਓ ਜਾਂ ਛੁਪਾਓ।</string>
+    <string name="live_receipt_preview">ਰਸੀਦ ਦੀ ਪੂਰਵਦਰਸ਼ਨ</string>
+
+    <!-- Content Switches -->
+    <string name="toggle_business_address">ਕਾਰੋਬਾਰੀ ਪਤਾ</string>
+    <string name="toggle_business_address_desc">ਰਸੀਦਾਂ \'ਤੇ ਕਾਰੋਬਾਰ ਦਾ ਪਤਾ ਸ਼ਾਮਲ ਕਰੋ</string>
+    <string name="toggle_business_phone">ਫੋਨ ਨੰਬਰ</string>
+    <string name="toggle_business_phone_desc">ਸੰਪਰਕ ਨੰਬਰ ਪ੍ਰਿੰਟ ਕਰੋ</string>
+    <string name="toggle_business_email">ਈਮੇਲ</string>
+    <string name="toggle_business_email_desc">ਅਧਿਕਾਰਤ ਈਮੇਲ ਦਿਖਾਓ</string>
+    <string name="toggle_gstin_tax_id">ਜੀ.ਐਸ.ਟੀ. ਨੰਬਰ</string>
+    <string name="toggle_gstin_tax_id_desc">ਟੈਕਸ ਆਈਡੀ ਦਿਖਾਓ</string>
+    <string name="toggle_customer_info">ਗਾਹਕ ਦੀ ਜਾਣਕਾਰੀ</string>
+    <string name="toggle_customer_info_desc">ਗਾਹਕ ਦਾ ਨਾਮ ਅਤੇ ਵੇਰਵੇ ਛਾਪੋ</string>
+    <string name="toggle_payment_breakdown">ਭੁਗਤਾਨ ਵਿਧੀ</string>
+    <string name="toggle_payment_breakdown_desc">ਭੁਗਤਾਨ ਸਾਰਾਂਸ਼ ਅਤੇ ਬਕਾਇਆ ਦਿਖਾਓ</string>
+    <string name="toggle_notes_remarks">ਨੋਟਸ ਅਤੇ ਟਿੱਪਣੀਆਂ</string>
+    <string name="toggle_notes_remarks_desc">ਲੈਣ-ਦੇਣ ਦੀਆਂ ਟਿੱਪਣੀਆਂ ਦਿਖਾਓ</string>
+    <string name="toggle_footer_greeting">ਸ਼ੁਭਕਾਮਨਾਵਾਂ ਸੁਨੇਹਾ</string>
+    <string name="toggle_footer_greeting_desc">ਕਾਰੋਬਾਰੀ ਸੁਨੇਹਾ ਪ੍ਰਿੰਟ ਕਰੋ</string>
+    <string name="toggle_graphic_logo">ਕੰਪਨੀ ਦਾ ਲੋਗੋ</string>
+    <string name="toggle_graphic_logo_desc">ਰਸੀਦਾਂ \'ਤੇ ਲੋਗੋ ਦਿਖਾਓ</string>
+
+    <!-- Dashboard -->
+    <string name="quick_actions">ਤੇਜ਼ ਕਾਰਵਾਈਆਂ</string>
+    <string name="action_record_sale">ਵਿਕਰੀ ਦਰਜ ਕਰੋ</string>
+    <string name="action_record_sale_sub">ਲਾਈਨ ਅਤੇ ਪੀਓਐਸ</string>
+    <string name="action_add_expense">ਖਰਚਾ ਜੋੜੋ</string>
+    <string name="action_add_expense_sub">ਬਿੱਲ ਅਤੇ ਪੇਸ਼ਗੀ</string>
+    <string name="action_cash_drawer">ਕੈਸ਼ ਦਰਾਜ਼</string>
+    <string name="action_cash_drawer_sub">ਨਕਦ ਹਿਸਾਬ-ਕਿਤਾਬ</string>
+    <string name="action_bank_accounts">ਬੈਂਕ ਖਾਤੇ</string>
+    <string name="action_bank_accounts_sub">ਯੂਪੀਆਈ ਅਤੇ ਖਾਤਾ ਬਹੀ</string>
+    <string name="action_product_catalog">ਉਤਪਾਦ ਕੈਟਾਲਾਗ</string>
+    <string name="action_product_catalog_sub">ਚੀਜ਼ਾਂ ਅਤੇ ਕੀਮਤਾਂ</string>
+    <string name="action_product_analytics">ਉਤਪਾਦ ਵਿਸ਼ਲੇਸ਼ਣ</string>
+    <string name="action_product_analytics_sub">ਵਿਕਰੀ ਅਤੇ ਪ੍ਰਮੁੱਖ ਵਸਤੂਆਂ</string>
+    <string name="cash_in_till">ਨਕਦ ਬਕਾਇਆ</string>
+    <string name="bank_total">ਕੁੱਲ ਬੈਂਕ ਬਕਾਇਆ</string>
+    <string name="total_liquidity">ਕੁੱਲ ਕਾਰੋਬਾਰੀ ਨਕਦੀ</string>
+    <string name="refresh_dashboard">ਤਾਜ਼ਾ ਕਰੋ</string>
+
+    <!-- Invoice Layout Columns -->
+    <string name="col_item">ਵਸਤੂ</string>
+    <string name="col_qty">ਮਾਤਰਾ</string>
+    <string name="col_price">ਕੀਮਤ</string>
+    <string name="col_total">ਕੁੱਲ</string>
+    <string name="subtotal">ਉਪ-ਕੁੱਲ</string>
+    <string name="discount">ਛੋਟ</string>
+    <string name="total_amount">ਕੁੱਲ ਰਕਮ</string>
+    <string name="amount_paid">ਅਦਾ ਕੀਤੀ ਰਕਮ</string>
+    <string name="balance_due">ਬਾਕੀ ਰਕਮ</string>
+    <string name="paid_in_full">*** ਪੂਰਾ ਭੁਗਤਾਨ ਹੋ ਚੁੱਕਾ ਹੈ ***</string>
+    <string name="payment_mode">ਭੁਗਤਾਨ ਦਾ ਢੰਗ</string>
+    <string name="receipt_preview">ਰਸੀਦ ਦਾ ਪੂਰਵਦਰਸ਼ਨ</string>
+    <string name="items_billed">ਬਿੱਲ ਕੀਤੀਆਂ ਚੀਜ਼ਾਂ</string>
+
+    <!-- Common Actions & Feedback -->
+    <string name="btn_save">ਸੰਭਾਲੋ</string>
+    <string name="btn_cancel">ਰੱਦ ਕਰੋ</string>
+    <string name="btn_reset">ਰੀਸੈੱਟ</string>
+    <string name="btn_confirm">ਪੁਸ਼ਟੀ ਕਰੋ</string>
+    <string name="btn_delete">ਮਿਟਾਓ</string>
+    <string name="btn_edit">ਸੋਧੋ</string>
+    <string name="btn_add">ਜੋੜੋ</string>
+    <string name="btn_search">ਖੋਜੋ</string>
+    <string name="btn_close">ਬੰਦ ਕਰੋ</string>
+    <string name="loading">ਲੋਡ ਹੋ ਰਿਹਾ ਹੈ…</string>
+    <string name="empty_state_title">ਕੋਈ ਰਿਕਾਰਡ ਨਹੀਂ ਮਿਲਿਆ</string>
+    <string name="empty_state_desc">ਇੱਥੇ ਦਿਖਾਉਣ ਲਈ ਕੁਝ ਨਹੀਂ ਹੈ।</string>
+</resources>

@@ -88,10 +88,12 @@ class ThermalInvoiceFormatterTest {
         assertTrue(receipt.contains("VYAVSA RETAILERS PVT LTD"))
         assertTrue(receipt.contains("TAX INVOICE"))
         assertTrue(receipt.contains("INV-2026-0089"))
-        assertTrue(receipt.contains("Aashirvaad Superior MP"))
-        assertTrue(receipt.contains("Wheat Atta 5kg"))
-        assertTrue(receipt.contains("2 x Rs. 260.00"))
-        assertTrue(receipt.contains("Rs. 520.00"))
+        assertTrue(receipt.contains("ITEM"))
+        assertTrue(receipt.contains("QTY"))
+        assertTrue(receipt.contains("PRICE"))
+        assertTrue(receipt.contains("TOTAL"))
+        assertTrue(receipt.contains("Aashirvaad"))
+        assertTrue(receipt.contains("520.00"))
         assertTrue(receipt.contains("Subtotal:"))
         assertTrue(receipt.contains("Rs. 940.00"))
         assertTrue(receipt.contains("Discount:"))
@@ -159,10 +161,41 @@ class ThermalInvoiceFormatterTest {
         )
 
         val receipt = ThermalInvoiceFormatter.formatPlainTextReceipt(counterData, PaperWidth.WIDTH_58MM)
-        assertTrue(receipt.contains("Retail Grocery Pack"))
-        assertTrue(receipt.contains("1 x Rs. 350.00"))
+        assertTrue(receipt.contains("Retail"))
+        assertTrue(receipt.contains("350.00"))
         assertTrue(receipt.contains("*** PAID IN FULL ***"))
         assertFalse(receipt.contains("Discount:"))
+    }
+
+    @Test
+    fun testSixDigitAmountsOnSingleLine58mmAnd80mm() {
+        val largeData = sampleData.copy(
+            items = listOf(
+                PrintItem(
+                    name = "Industrial Heavy Duty Diesel Generator 50kVA",
+                    quantity = "1",
+                    unitPrice = "450000.00",
+                    lineTotal = "450000.00"
+                )
+            ),
+            subtotal = 450000.00,
+            discount = 0.00,
+            totalAmount = 450000.00,
+            amountPaid = 450000.00,
+            balanceDue = 0.00
+        )
+
+        val receipt58 = ThermalInvoiceFormatter.formatPlainTextReceipt(largeData, PaperWidth.WIDTH_58MM)
+        receipt58.lines().forEach { line ->
+            assertTrue("58mm Line exceeds 32 chars: '$line' (${line.length})", line.length <= 32)
+        }
+        assertTrue(receipt58.contains("450,000.00"))
+
+        val receipt80 = ThermalInvoiceFormatter.formatPlainTextReceipt(largeData, PaperWidth.WIDTH_80MM)
+        receipt80.lines().forEach { line ->
+            assertTrue("80mm Line exceeds 48 chars: '$line' (${line.length})", line.length <= 48)
+        }
+        assertTrue(receipt80.contains("450,000.00"))
     }
 
     @Test

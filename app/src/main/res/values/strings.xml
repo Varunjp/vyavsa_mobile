@@ -1,3 +1,112 @@
 <resources>
     <string name="app_name">Vyavsa</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_sales">Sales</string>
+    <string name="nav_counter_sales">Counter</string>
+    <string name="nav_transactions">Ledger</string>
+    <string name="nav_dues">Dues</string>
+    <string name="nav_staff">Staff</string>
+    <string name="nav_products">Catalog</string>
+    <string name="nav_more">More</string>
+
+    <!-- Settings General -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_subtitle">App preferences &amp; printing setup</string>
+    <string name="tab_general">General</string>
+    <string name="tab_invoice_print">Invoice &amp; Print</string>
+    <string name="tab_printer_setup">Printer Setup</string>
+    <string name="reset_settings">Reset Settings</string>
+    <string name="appearance_theme">Appearance &amp; Color Theme</string>
+    <string name="font_scale">Font Scale</string>
+    <string name="font_scale_desc">Adjust typography size throughout the application for easier reading.</string>
+    <string name="app_language">App Language</string>
+    <string name="dashboard_quick_actions">Dashboard Quick Actions</string>
+    <string name="quick_actions_desc">Choose shortcuts displayed on your main dashboard.</string>
+    <string name="show_quick_actions">Show Quick Actions on Dashboard</string>
+    <string name="show_quick_actions_desc">Display the shortcut grid on the main business dashboard.</string>
+    <string name="dock_customization">Dock Customization</string>
+    <string name="dock_customization_desc">Reorder bottom navigation tabs to fit your workflow.</string>
+
+    <!-- Settings Invoice & Print -->
+    <string name="invoice_themes">Invoice Themes</string>
+    <string name="invoice_themes_desc">Select from 3 professionally styled layout templates.</string>
+    <string name="paper_roll_size">Paper Roll Size</string>
+    <string name="paper_roll_size_desc">Format receipts precisely for your printer\'s physical width.</string>
+    <string name="print_typography_density">Print Typography Density</string>
+    <string name="print_typography_density_desc">Adjust font sizing and line density on physical receipts.</string>
+    <string name="invoice_footer_terms">Invoice Footer &amp; Terms</string>
+    <string name="invoice_footer_terms_desc">Closing greeting &amp; declaration printed at bottom of bills.</string>
+    <string name="invoice_content_toggles">Invoice Content Toggles</string>
+    <string name="invoice_content_toggles_desc">Show or hide optional fields on printed bills and share previews.</string>
+    <string name="live_receipt_preview">Live Thermal Receipt Preview</string>
+
+    <!-- Content Switches -->
+    <string name="toggle_business_address">Business Address</string>
+    <string name="toggle_business_address_desc">Include physical business address on receipts</string>
+    <string name="toggle_business_phone">Business Phone Number</string>
+    <string name="toggle_business_phone_desc">Print contact telephone or mobile line</string>
+    <string name="toggle_business_email">Business Email</string>
+    <string name="toggle_business_email_desc">Show official support or sales email</string>
+    <string name="toggle_gstin_tax_id">GSTIN / Tax ID</string>
+    <string name="toggle_gstin_tax_id_desc">Display registered tax identifier on bills</string>
+    <string name="toggle_customer_info">Customer Information</string>
+    <string name="toggle_customer_info_desc">Print customer name, phone, route, and salesman</string>
+    <string name="toggle_payment_breakdown">Payment Mode &amp; Ledger</string>
+    <string name="toggle_payment_breakdown_desc">Display split payment summary and balance due</string>
+    <string name="toggle_notes_remarks">Notes &amp; Remarks</string>
+    <string name="toggle_notes_remarks_desc">Show transactional notes and delivery comments</string>
+    <string name="toggle_footer_greeting">Footer Greeting &amp; Legal Terms</string>
+    <string name="toggle_footer_greeting_desc">Print custom closing message and business slogan</string>
+    <string name="toggle_graphic_logo">Company Graphic Logo</string>
+    <string name="toggle_graphic_logo_desc">Render graphic business logo at top of receipts</string>
+
+    <!-- Dashboard -->
+    <string name="quick_actions">Quick Actions</string>
+    <string name="action_record_sale">Record Sale</string>
+    <string name="action_record_sale_sub">Line &amp; POS</string>
+    <string name="action_add_expense">Add Expense</string>
+    <string name="action_add_expense_sub">Bills &amp; Advances</string>
+    <string name="action_cash_drawer">Cash Drawer</string>
+    <string name="action_cash_drawer_sub">Add &amp; Reconcile</string>
+    <string name="action_bank_accounts">Bank Accounts</string>
+    <string name="action_bank_accounts_sub">UPI &amp; Ledgers</string>
+    <string name="action_product_catalog">Product Catalog</string>
+    <string name="action_product_catalog_sub">Items &amp; Pricing</string>
+    <string name="action_product_analytics">Product Analytics</string>
+    <string name="action_product_analytics_sub">Sales &amp; Top Items</string>
+    <string name="cash_in_till">Cash in Till</string>
+    <string name="bank_total">Bank Total</string>
+    <string name="total_liquidity">Net Business Liquidity</string>
+    <string name="refresh_dashboard">Refresh Dashboard</string>
+
+    <!-- Invoice Layout Columns -->
+    <string name="col_item">ITEM</string>
+    <string name="col_qty">QTY</string>
+    <string name="col_price">PRICE</string>
+    <string name="col_total">TOTAL</string>
+    <string name="subtotal">Subtotal</string>
+    <string name="discount">Discount</string>
+    <string name="total_amount">TOTAL AMOUNT</string>
+    <string name="amount_paid">Amount Paid</string>
+    <string name="balance_due">BALANCE DUE</string>
+    <string name="paid_in_full">*** PAID IN FULL ***</string>
+    <string name="payment_mode">Payment Mode</string>
+    <string name="receipt_preview">Receipt Text Preview</string>
+    <string name="items_billed">Items Billed</string>
+
+    <!-- Common Actions & Feedback -->
+    <string name="btn_save">Save</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_reset">Reset</string>
+    <string name="btn_confirm">Confirm</string>
+    <string name="btn_delete">Delete</string>
+    <string name="btn_edit">Edit</string>
+    <string name="btn_add">Add</string>
+    <string name="btn_search">Search</string>
+    <string name="btn_close">Close</string>
+    <string name="loading">Loading…</string>
+    <string name="empty_state_title">No Records Found</string>
+    <string name="empty_state_desc">There are currently no items to display.</string>
 </resources>
