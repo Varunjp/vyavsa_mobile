@@ -52,6 +52,11 @@ class SettingsPreferences @Inject constructor(
     )
     val language: StateFlow<AppLanguage> = _language.asStateFlow()
 
+    private val _showQuickActions = MutableStateFlow(
+        prefs.getBoolean(KEY_SHOW_QUICK_ACTIONS, true)
+    )
+    val showQuickActions: StateFlow<Boolean> = _showQuickActions.asStateFlow()
+
     private val _enabledQuickActions = MutableStateFlow(
         prefs.getStringSet(KEY_QUICK_ACTIONS, null)?.toSet()
             ?: QuickActionItem.values().filter { it.defaultEnabled }.map { it.id }.toSet()
@@ -113,6 +118,12 @@ class SettingsPreferences @Inject constructor(
     fun saveLanguage(lang: AppLanguage) {
         prefs.edit().putString(KEY_LANGUAGE, lang.code).apply()
         _language.value = lang
+        com.vyavsa.app.core.common.LocaleHelper.applyLanguage(context, lang)
+    }
+
+    fun saveShowQuickActions(show: Boolean) {
+        prefs.edit().putBoolean(KEY_SHOW_QUICK_ACTIONS, show).apply()
+        _showQuickActions.value = show
     }
 
     fun toggleQuickAction(actionId: String, enabled: Boolean) {
@@ -184,12 +195,14 @@ class SettingsPreferences @Inject constructor(
         _themeMode.value = ThemeMode.SYSTEM
         _fontSize.value = AppFontSize.MEDIUM
         _language.value = AppLanguage.ENGLISH
+        _showQuickActions.value = true
         _enabledQuickActions.value = QuickActionItem.values().filter { it.defaultEnabled }.map { it.id }.toSet()
         _customDockOrder.value = emptyList()
         _invoiceTheme.value = InvoiceTheme.CLASSIC
         _typography.value = PrintTypography.STANDARD
         _contentSettings.value = InvoiceContentSettings()
         printerPreferences.savePaperWidth(PaperWidth.WIDTH_58MM)
+        com.vyavsa.app.core.common.LocaleHelper.applyLanguage(context, AppLanguage.ENGLISH)
     }
 
     private fun loadSavedDockOrder(): List<BottomBarDestination> {
@@ -205,6 +218,7 @@ class SettingsPreferences @Inject constructor(
         private const val KEY_THEME_MODE = "setting_theme_mode"
         private const val KEY_FONT_SIZE = "setting_font_size"
         private const val KEY_LANGUAGE = "setting_language"
+        private const val KEY_SHOW_QUICK_ACTIONS = "setting_show_quick_actions"
         private const val KEY_QUICK_ACTIONS = "setting_quick_actions"
         private const val KEY_DOCK_ORDER = "setting_dock_order"
         private const val KEY_INVOICE_THEME = "setting_invoice_theme"

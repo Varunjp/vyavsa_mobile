@@ -1,124 +1,63 @@
+# Vyavsa Mobile — Agent Operating Instructions
 
-## Project
+Vyavsa is a native Android business management application for small businesses and retail/distribution enterprises.
 
-Vyavsa native Android application for small businesses.
+---
 
-## Source of Truth
+## 1. Context System & Execution Workflow
 
-- Inspect existing code before making changes.
-- Backend routes, DTOs, middleware, and tests define actual API behavior.
-- Read `docs/backend-api-map.md` before implementing API integrations.
-- Never invent endpoints, payload fields, roles, or response formats.
-- Preserve existing implementation and repository conventions.
+Every agent run must follow this deterministic 7-step sequence:
 
-## Scope
+1. **Context Discovery**: Consult [.agents/context/INDEX.md](file:///home/varun/Desktop/vyavsa_mobile/.agents/context/INDEX.md) to identify the minimal context files to load for the active task.
+2. **Task Continuity**: Check `git status -s`. If uncommitted changes exist or continuing an existing task, inspect [.agents/context/CURRENT_TASK.md](file:///home/varun/Desktop/vyavsa_mobile/.agents/context/CURRENT_TASK.md) before starting.
+3. **Selective Loading**: Load **only** the 1–2 context files relevant to the active task domain (e.g. `ARCHITECTURE.md`, `MODULES.md`, `CONSTRAINTS.md`, `DECISIONS.md`). Never load all documentation files.
+4. **Targeted Code Inspection**: Inspect specific source files and symbols before editing. Never dump entire folders.
+5. **Smallest Safe Implementation**: Implement one vertical slice at a time following existing architecture and conventions.
+6. **Verification Quality Gate**: Run relevant tests (e.g. `./gradlew test --tests <ClassName>`). Never claim unexecuted tests passed. Never proceed past a failing gate.
+7. **Task Handoff**: Update [.agents/context/CURRENT_TASK.md](file:///home/varun/Desktop/vyavsa_mobile/.agents/context/CURRENT_TASK.md) with completed changes, verified test outputs, and the next concrete action.
 
-- Keep Android application code inside the designated mobile folder.
-- Modify backend files only when necessary and justified.
-- Avoid unrelated refactoring and unnecessary new files.
-- Never commit secrets, credentials, tokens, or production data.
+---
 
-## Stack
+## 2. Source of Truth & Scope
 
-- Kotlin, Jetpack Compose, Material 3.
-- MVVM, feature-oriented architecture.
-- Retrofit, OkHttp, Kotlin Serialization.
-- Coroutines and Flow.
-- Hilt for dependency injection.
-- DataStore for preferences.
-- Room only when justified.
-- JUnit and Android testing libraries.
+- **Authoritative Contracts**: Backend routes, DTOs, middleware, and tests define actual API behavior. Inspect `/home/varun/Desktop/vyavsa` when necessary.
+- **Selective API Map Usage**: [docs/backend-api-map.md](file:///home/varun/Desktop/vyavsa_mobile/docs/backend-api-map.md) is 26 KB (>6,000 tokens). **Never load it in full.** Read only the specific section needed (e.g. Section 5 for sales) via line-range reads or grep.
+- **Scope Discipline**: Keep Android application code inside the mobile repository. Modify backend files only when necessary and justified. Avoid unrelated refactoring and preserve uncommitted working tree changes.
+- **Zero Secrets**: Never commit credentials, tokens, passwords, or production keys.
 
-Use the existing compatible toolchain and dependency versions. Do not upgrade dependencies without a reason.
+---
 
-## Architecture
+## 3. Technology Stack & Architecture
 
-- Compose screens render state and emit user actions.
-- ViewModels own screen state and presentation logic.
-- Repositories coordinate data access.
-- API services define typed HTTP contracts.
-- Keep business logic outside composables.
-- Use domain/use-case abstractions only when they add value.
-- Share reusable UI components through the design system.
-- Keep dependency direction consistent and avoid circular dependencies.
+- **Stack**: Kotlin 1.9.24, Jetpack Compose (BOM 2024.04.01), Material 3, MVVM, Retrofit 2.11.0, OkHttp 4.12.0, Kotlinx Serialization, Coroutines & Flow, Hilt 2.51.1, DataStore Preferences, JUnit 4.
+- **Architecture**: Compose UI -> ViewModel (owns screen state via StateFlow) -> Repository -> Retrofit API Service / DataStore.
+- **Separation of Concerns**: Keep business logic outside composables. Share UI components via `core.designsystem`. Maintain unidirectional data flow.
+- **Data Synchronization**: Propagate multi-screen updates reactively using [DataRefreshCoordinator.kt](file:///home/varun/Desktop/vyavsa_mobile/app/src/main/java/com/vyavsa/app/core/sync/DataRefreshCoordinator.kt).
 
-## UI Rules
+---
 
-- Minimal, modern, accessible Material 3 design.
-- Consistent colors, typography, spacing, shapes, and icons.
-- Support loading, success, empty, and error states.
-- Handle keyboard visibility, system insets, and screen sizes.
-- Use descriptive accessibility labels and appropriate touch targets.
-- Do not use fake financial data in production screens.
-- Hide unsupported features instead of displaying nonfunctional navigation.
+## 4. Security & API Rules
 
-## API and Security
+- **Base URLs**: Centralize environment URLs via `BuildConfig.BASE_URL` (Dev: `http://10.0.2.2:8080/`, Prod: `https://vyavsa.varunjp.in/`).
+- **Token Security**: Store tokens strictly in [TokenManager.kt](file:///home/varun/Desktop/vyavsa_mobile/app/src/main/java/com/vyavsa/app/core/security/TokenManager.kt) via `EncryptedSharedPreferences`.
+- **Log Redaction**: Route all OkHttp logging through [RedactedLoggingInterceptor.kt](file:///home/varun/Desktop/vyavsa_mobile/app/src/main/java/com/vyavsa/app/core/network/RedactedLoggingInterceptor.kt). Mask `Authorization` and `Cookie` headers.
+- **Refresh Concurrency**: [TokenAuthenticator.kt](file:///home/varun/Desktop/vyavsa_mobile/app/src/main/java/com/vyavsa/app/core/network/TokenAuthenticator.kt) synchronizes on a refresh lock and enforces `responseCount >= 2` loop limit.
+- **RBAC Authority**: Server-side RBAC and tenant isolation are authoritative. Client checks govern UI visibility only. Clear session on logout or refresh failure.
+- **Idempotency**: Never blindly retry non-idempotent operations (e.g. POST sales/purchases).
 
-- Use the verified backend contract.
-- Centralize environment-specific base URLs.
-- Use HTTPS in production.
-- Never hardcode credentials or tokens.
-- Redact authorization headers and sensitive request/response data from logs.
-- Store sensitive tokens using an appropriate secure mechanism.
-- Handle refresh-token concurrency and failures safely.
-- Do not blindly retry non-idempotent operations.
-- Respect backend authentication, RBAC, and tenant isolation.
-- Clear user-specific cached state on logout and account switching.
-- Never treat client-side checks as authorization.
-- Avoid logging OTPs, passwords, tokens, or financial details.
+---
 
-## Kotlin Rules
+## 5. UI & Kotlin Standards
 
-- Follow Kotlin and Android conventions.
-- Prefer immutable data and small, focused functions.
-- Use structured concurrency.
-- Avoid GlobalScope, blocking calls on the main thread, and unnecessary mutable shared state.
-- Collect UI state lifecycle-safely.
-- Handle exceptions explicitly.
-- Avoid force unwraps and unexplained magic values.
-- Keep functions and files focused.
-- Add comments only when intent is not obvious.
+- **Material 3**: Follow modern Material 3 design, supporting loading, success, empty, and error states. Handle system insets and keyboard visibility.
+- **No Fake Data**: Do not hardcode fake financial metrics in production composables.
+- **Kotlin Conventions**: Structured concurrency, immutable data, lifecycle-safe Flow collection, explicit exception handling, no force unwraps (`!!`).
 
-## Workflow
+---
 
-1. Inspect relevant files before editing.
-2. Identify the smallest safe implementation.
-3. Follow existing naming and architectural conventions.
-4. Implement one feature or vertical slice at a time.
-5. Integrate real API behavior.
-6. Add or update focused tests.
-7. Run the relevant build, tests, and static checks.
-8. Review the diff for regressions and secrets.
-9. Report verified results and remaining limitations.
+## 6. Testing & Quality Gate
 
-Do not proceed past a failing quality gate without fixing the failure or clearly identifying a genuine external blocker.
-
-## Testing
-
-- Test business logic and ViewModels.
-- Test API serialization and error handling.
-- Test authentication and session expiration.
-- Test tenant/account switching and logout.
-- Test important UI states and user flows.
-- Use MockWebServer for isolated HTTP tests when appropriate.
-- Do not claim unexecuted tests passed.
-
-## Token Efficiency
-
-- Read this file once and follow it throughout the task.
-- Inspect targeted files before exploring unrelated directories.
-- Prefer targeted searches over dumping entire files or repositories.
-- Reuse existing models, components, and dependencies.
-- Avoid rereading unchanged files and repeating completed analysis.
-- Keep plans and progress reports concise.
-- Do not regenerate working code without a concrete reason.
-- Update documentation only when contracts or architecture change.
-- Record verified API findings once in `docs/backend-api-map.md`.
-- Delegate only independent tasks that benefit from parallel work.
-- Do not spawn agents for simple edits or duplicate investigations.
-
-## Completion
-
-A task is complete only when the implementation is integrated, relevant checks have been executed, and actual results are reported.
-
-List outstanding backend dependencies, failed checks, and manual verification steps explicitly.
+- Test business logic, ViewModels, API serialization contracts, and thermal invoice formatting.
+- Execute targeted unit tests using `./gradlew test --tests "<package.or.Class>"`.
+- Use MockWebServer for isolated network integration tests.
+- A task is complete only when the implementation is integrated, tests pass, and actual results are reported in [CURRENT_TASK.md](file:///home/varun/Desktop/vyavsa_mobile/.agents/context/CURRENT_TASK.md).

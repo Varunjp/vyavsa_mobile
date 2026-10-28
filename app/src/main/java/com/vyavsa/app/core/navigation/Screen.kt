@@ -1,5 +1,8 @@
 package com.vyavsa.app.core.navigation
 
+import androidx.annotation.StringRes
+import com.vyavsa.app.R
+
 sealed class Screen(val route: String) {
     // Auth routes
     object Login : Screen("login")
@@ -43,19 +46,19 @@ sealed class Screen(val route: String) {
     object Settings : Screen("settings")
 }
 
-
 enum class BottomBarDestination(
     val title: String,
-    val iconName: String
+    val iconName: String,
+    @StringRes val titleResId: Int = 0
 ) {
-    HOME("Home", "home"),
-    SALES("Sales", "shopping_cart"),
-    COUNTER_SALES("Counter", "point_of_sale"),
-    TRANSACTIONS("Ledger", "receipt_long"),
-    DUES("Dues", "account_balance_wallet"),
-    STAFF("Staff", "badge"),
-    PRODUCTS("Catalog", "inventory_2"),
-    MORE("More", "menu");
+    HOME("Home", "home", R.string.nav_home),
+    SALES("Sales", "shopping_cart", R.string.nav_sales),
+    COUNTER_SALES("Counter", "point_of_sale", R.string.nav_counter_sales),
+    TRANSACTIONS("Ledger", "receipt_long", R.string.nav_transactions),
+    DUES("Dues", "account_balance_wallet", R.string.nav_dues),
+    STAFF("Staff", "badge", R.string.nav_staff),
+    PRODUCTS("Catalog", "inventory_2", R.string.nav_products),
+    MORE("More", "menu", R.string.nav_more);
 
     companion object {
         fun destinationsForRole(role: com.vyavsa.app.core.model.UserRole): List<BottomBarDestination> {

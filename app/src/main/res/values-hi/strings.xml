@@ -1,0 +1,112 @@
+<resources>
+    <string name="app_name">व्यवसा</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">होम</string>
+    <string name="nav_sales">बिक्री</string>
+    <string name="nav_counter_sales">काउंटर</string>
+    <string name="nav_transactions">खाता बही</string>
+    <string name="nav_dues">बकाया</string>
+    <string name="nav_staff">स्टाफ</string>
+    <string name="nav_products">कैटलॉग</string>
+    <string name="nav_more">अधिक</string>
+
+    <!-- Settings General -->
+    <string name="settings_title">सेटिंग्स</string>
+    <string name="settings_subtitle">ऐप प्राथमिकताएं और प्रिंटिंग सेटअप</string>
+    <string name="tab_general">सामान्य</string>
+    <string name="tab_invoice_print">चालान और प्रिंट</string>
+    <string name="tab_printer_setup">प्रिंटर सेटअप</string>
+    <string name="reset_settings">सेटिंग्स रीसेट करें</string>
+    <string name="appearance_theme">दिखावट और रंग थीम</string>
+    <string name="font_scale">फ़ॉन्ट स्केल</string>
+    <string name="font_scale_desc">आसान पढ़ने के लिए पूरे एप्लिकेशन में टाइपोग्राफी का आकार समायोजित करें।</string>
+    <string name="app_language">ऐप की भाषा</string>
+    <string name="dashboard_quick_actions">डैशबोर्ड त्वरित क्रियाएं</string>
+    <string name="quick_actions_desc">अपने मुख्य डैशबोर्ड पर प्रदर्शित शॉर्टकट चुनें।</string>
+    <string name="show_quick_actions">डैशबोर्ड पर त्वरित क्रियाएं दिखाएं</string>
+    <string name="show_quick_actions_desc">मुख्य व्यावसायिक डैशबोर्ड पर शॉर्टकट ग्रिड प्रदर्शित करें।</string>
+    <string name="dock_customization">डॉक अनुकूलन</string>
+    <string name="dock_customization_desc">अपने कार्यप्रवाह के अनुसार नीचे नेविगेशन टैब को पुनर्व्यवस्थित करें।</string>
+
+    <!-- Settings Invoice & Print -->
+    <string name="invoice_themes">चालान थीम्स</string>
+    <string name="invoice_themes_desc">3 पेशेवर स्टाइल वाले लेआउट टेम्पलेट्स में से चुनें।</string>
+    <string name="paper_roll_size">पेपर रोल का आकार</string>
+    <string name="paper_roll_size_desc">अपने प्रिंटर की चौड़ाई के लिए रसीद को सटीक रूप से प्रारूपित करें।</string>
+    <string name="print_typography_density">प्रिंट टाइपोग्राफी घनत्व</string>
+    <string name="print_typography_density_desc">भौतिक रसीदों पर फ़ॉन्ट आकार और लाइन घनत्व समायोजित करें।</string>
+    <string name="invoice_footer_terms">चालान पाद लेख और शर्तें</string>
+    <string name="invoice_footer_terms_desc">बिलों के नीचे मुद्रित समापन अभिवादन और घोषणा।</string>
+    <string name="invoice_content_toggles">चालान सामग्री टॉगल</string>
+    <string name="invoice_content_toggles_desc">मुद्रित बिलों और शेयर पूर्वावलोकन पर वैकल्पिक फ़ील्ड दिखाएं या छुपाएं।</string>
+    <string name="live_receipt_preview">लाइव थर्मल रसीद पूर्वावलोकन</string>
+
+    <!-- Content Switches -->
+    <string name="toggle_business_address">व्यावसायिक पता</string>
+    <string name="toggle_business_address_desc">रसीदों पर भौतिक व्यावसायिक पता शामिल करें</string>
+    <string name="toggle_business_phone">व्यावसायिक फोन नंबर</string>
+    <string name="toggle_business_phone_desc">संपर्क टेलीफोन या मोबाइल लाइन प्रिंट करें</string>
+    <string name="toggle_business_email">व्यावसायिक ईमेल</string>
+    <string name="toggle_business_email_desc">आधिकारिक सहायता या बिक्री ईमेल दिखाएं</string>
+    <string name="toggle_gstin_tax_id">जीएसटीआईएन / टैक्स आईडी</string>
+    <string name="toggle_gstin_tax_id_desc">बिलों पर पंजीकृत कर पहचानकर्ता प्रदर्शित करें</string>
+    <string name="toggle_customer_info">ग्राहक जानकारी</string>
+    <string name="toggle_customer_info_desc">ग्राहक का नाम, फोन, रूट और विक्रेता प्रिंट करें</string>
+    <string name="toggle_payment_breakdown">भुगतान मोड और बहीखाता</string>
+    <string name="toggle_payment_breakdown_desc">विभाजित भुगतान सारांश और शेष राशि प्रदर्शित करें</string>
+    <string name="toggle_notes_remarks">नोट्स और टिप्पणियां</string>
+    <string name="toggle_notes_remarks_desc">लेनदेन नोट्स और डिलीवरी टिप्पणियां दिखाएं</string>
+    <string name="toggle_footer_greeting">पाद लेख अभिवादन और शर्तें</string>
+    <string name="toggle_footer_greeting_desc">कस्टम समापन संदेश और व्यावसायिक नारा प्रिंट करें</string>
+    <string name="toggle_graphic_logo">कंपनी ग्राफिक लोगो</string>
+    <string name="toggle_graphic_logo_desc">रसीदों के शीर्ष पर ग्राफिक व्यवसाय लोगो प्रस्तुत करें</string>
+
+    <!-- Dashboard -->
+    <string name="quick_actions">त्वरित क्रियाएं</string>
+    <string name="action_record_sale">बिक्री दर्ज करें</string>
+    <string name="action_record_sale_sub">लाइन और पीओएस</string>
+    <string name="action_add_expense">खर्च जोड़ें</string>
+    <string name="action_add_expense_sub">बिल और अग्रिम</string>
+    <string name="action_cash_drawer">कैश दराज</string>
+    <string name="action_cash_drawer_sub">जोड़ें और मिलान करें</string>
+    <string name="action_bank_accounts">बैंक खाते</string>
+    <string name="action_bank_accounts_sub">यूपीआई और बहीखाता</string>
+    <string name="action_product_catalog">उत्पाद कैटलॉग</string>
+    <string name="action_product_catalog_sub">सामान और मूल्य</string>
+    <string name="action_product_analytics">उत्पाद विश्लेषण</string>
+    <string name="action_product_analytics_sub">बिक्री और शीर्ष उत्पाद</string>
+    <string name="cash_in_till">दराज में नकदी</string>
+    <string name="bank_total">कुल बैंक शेष</string>
+    <string name="total_liquidity">शुद्ध व्यावसायिक तरलता</string>
+    <string name="refresh_dashboard">डैशबोर्ड रीफ्रेश करें</string>
+
+    <!-- Invoice Layout Columns -->
+    <string name="col_item">वस्तु</string>
+    <string name="col_qty">मात्रा</string>
+    <string name="col_price">मूल्य</string>
+    <string name="col_total">कुल</string>
+    <string name="subtotal">उप-कुल</string>
+    <string name="discount">छूट</string>
+    <string name="total_amount">कुल राशि</string>
+    <string name="amount_paid">भुगतान की गई राशि</string>
+    <string name="balance_due">बकाया राशि</string>
+    <string name="paid_in_full">*** पूर्ण भुगतान ***</string>
+    <string name="payment_mode">भुगतान का माध्यम</string>
+    <string name="receipt_preview">रसीद पूर्वावलोकन</string>
+    <string name="items_billed">बिल की गई वस्तुएं</string>
+
+    <!-- Common Actions & Feedback -->
+    <string name="btn_save">सहेजें</string>
+    <string name="btn_cancel">रद्द करें</string>
+    <string name="btn_reset">रीसेट</string>
+    <string name="btn_confirm">पुष्टि करें</string>
+    <string name="btn_delete">हटाएं</string>
+    <string name="btn_edit">संपादित करें</string>
+    <string name="btn_add">जोड़ें</string>
+    <string name="btn_search">खोजें</string>
+    <string name="btn_close">बंद करें</string>
+    <string name="loading">लोड हो रहा है…</string>
+    <string name="empty_state_title">कोई रिकॉर्ड नहीं मिला</string>
+    <string name="empty_state_desc">वर्तमान में प्रदर्शित करने के लिए कोई आइटम नहीं है।</string>
+</resources>

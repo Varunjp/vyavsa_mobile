@@ -1,0 +1,112 @@
+<resources>
+    <string name="app_name">ವ್ಯವಸಾ</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">ಮುಖಪುಟ</string>
+    <string name="nav_sales">ಮಾರಾಟ</string>
+    <string name="nav_counter_sales">ಕೌಂಟರ್</string>
+    <string name="nav_transactions">ಖಾತೆ ಪುಸ್ತಕ</string>
+    <string name="nav_dues">ಬಾಕಿ</string>
+    <string name="nav_staff">ಸಿಬ್ಬಂದಿ</string>
+    <string name="nav_products">ಕ್ಯಾಟಲಾಗ್</string>
+    <string name="nav_more">ಇನ್ನಷ್ಟು</string>
+
+    <!-- Settings General -->
+    <string name="settings_title">ಸೆಟ್ಟಿಂಗ್‌ಗಳು</string>
+    <string name="settings_subtitle">ಅಪ್ಲಿಕೇಶನ್ ಆದ್ಯತೆಗಳು &amp; ಪ್ರಿಂಟಿಂಗ್ ಸೆಟಪ್</string>
+    <string name="tab_general">ಸಾಮಾನ್ಯ</string>
+    <string name="tab_invoice_print">ಇನ್‌ವಾಯ್ಸ್ &amp; ಪ್ರಿಂಟ್</string>
+    <string name="tab_printer_setup">ಪ್ರಿಂಟರ್ ಸೆಟಪ್</string>
+    <string name="reset_settings">ಸೆಟ್ಟಿಂಗ್ ಮರುಹೊಂದಿಸಿ</string>
+    <string name="appearance_theme">ಗೋಚರತೆ &amp; ಬಣ್ಣದ ಥೀಮ್</string>
+    <string name="font_scale">ಫಾಂಟ್ ಗಾತ್ರ</string>
+    <string name="font_scale_desc">ಓದಲು ಸುಲಭವಾಗುವಂತೆ ಫಾಂಟ್ ಗಾತ್ರವನ್ನು ಹೊಂದಿಸಿ.</string>
+    <string name="app_language">ಭಾಷೆ</string>
+    <string name="dashboard_quick_actions">ಡ್ಯಾಶ್‌ಬೋರ್ಡ್ ತ್ವರಿತ ಕ್ರಿಯೆಗಳು</string>
+    <string name="quick_actions_desc">ಡ್ಯಾಶ್‌ಬೋರ್ಡ್‌ನಲ್ಲಿ ತೋರಿಸಬೇಕಾದ ಶಾರ್ಟ್‌ಕಟ್‌ಗಳನ್ನು ಆರಿಸಿ.</string>
+    <string name="show_quick_actions">ಡ್ಯಾಶ್‌ಬೋರ್ಡ್‌ನಲ್ಲಿ ತ್ವರಿತ ಕ್ರಿಯೆಗಳನ್ನು ತೋರಿಸಿ</string>
+    <string name="show_quick_actions_desc">ಮುಖ್ಯ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್‌ನಲ್ಲಿ ಶಾರ್ಟ್‌ಕಟ್ ಗ್ರಿಡ್ ಅನ್ನು ಪ್ರದರ್ಶಿಸಿ.</string>
+    <string name="dock_customization">ಡಾಕ್ ಕಸ್ಟಮೈಸೇಶನ್</string>
+    <string name="dock_customization_desc">ನ್ಯಾವಿಗೇಷನ್ ಟ್ಯಾಬ್‌ಗಳನ್ನು ಮರುಹೊಂದಿಸಿ.</string>
+
+    <!-- Settings Invoice & Print -->
+    <string name="invoice_themes">ಇನ್‌ವಾಯ್ಸ್ ಥೀಮ್‌ಗಳು</string>
+    <string name="invoice_themes_desc">3 ಲೇಔಟ್ ಟೆಂಪ್ಲೇಟ್‌ಗಳಿಂದ ಆಯ್ಕೆಮಾಡಿ.</string>
+    <string name="paper_roll_size">ಪೇಪರ್ ರೋಲ್ ಗಾತ್ರ</string>
+    <string name="paper_roll_size_desc">ಪ್ರಿಂಟರ್ ಗಾತ್ರಕ್ಕೆ ತಕ್ಕಂತೆ ರಶೀದಿಯನ್ನು ಫಾರ್ಮ್ಯಾಟ್ ಮಾಡಿ.</string>
+    <string name="print_typography_density">ಪ್ರಿಂಟ್ ಸಾಂದ್ರತೆ</string>
+    <string name="print_typography_density_desc">ರಶೀದಿಗಳಲ್ಲಿ ಫಾಂಟ್ ಗಾತ್ರವನ್ನು ಹೊಂದಿಸಿ.</string>
+    <string name="invoice_footer_terms">ಅಡಿಟಿಪ್ಪಣಿ &amp; ನಿಯಮಗಳು</string>
+    <string name="invoice_footer_terms_desc">ಬಿಲ್‌ಗಳ ಕೊನೆಯಲ್ಲಿ ಮುದ್ರಿಸಲಾಗುವ ಸಂದೇಶ.</string>
+    <string name="invoice_content_toggles">ಇನ್‌ವಾಯ್ಸ್ ವಿವರಗಳ ಟಾಗಲ್</string>
+    <string name="invoice_content_toggles_desc">ಬಿಲ್‌ನಲ್ಲಿ ವಿವರಗಳನ್ನು ತೋರಿಸಿ ಅಥವಾ ಮರೆಮಾಡಿ.</string>
+    <string name="live_receipt_preview">ರಶೀದಿ ಮುನ್ನೋಟ</string>
+
+    <!-- Content Switches -->
+    <string name="toggle_business_address">ವ್ಯಾಪಾರದ ವಿಳಾಸ</string>
+    <string name="toggle_business_address_desc">ರಶೀದಿಯಲ್ಲಿ ವಿಳಾಸವನ್ನು ಸೇರಿಸಿ</string>
+    <string name="toggle_business_phone">ಫೋನ್ ಸಂಖ್ಯೆ</string>
+    <string name="toggle_business_phone_desc">ಸಂಪರ್ಕ ಸಂಖ್ಯೆಯನ್ನು ಪ್ರಿಂಟ್ ಮಾಡಿ</string>
+    <string name="toggle_business_email">ಇಮೇಲ್</string>
+    <string name="toggle_business_email_desc">ಅಧಿಕೃತ ಇಮೇಲ್ ತೋರಿಸಿ</string>
+    <string name="toggle_gstin_tax_id">ಜಿಎಸ್ಟಿ ಸಂಖ್ಯೆ</string>
+    <string name="toggle_gstin_tax_id_desc">ತೆರಿಗೆ ಐಡಿಯನ್ನು ಪ್ರದರ್ಶಿಸಿ</string>
+    <string name="toggle_customer_info">ಗ್ರಾಹಕರ ಮಾಹಿತಿ</string>
+    <string name="toggle_customer_info_desc">ಗ್ರಾಹಕರ ಹೆಸರು ಮತ್ತು ಫೋನ್ ಮುದ್ರಿಸಿ</string>
+    <string name="toggle_payment_breakdown">ಪಾವತಿ ವಿಧಾನ</string>
+    <string name="toggle_payment_breakdown_desc">ಪಾವತಿ ಸಾರಾಂಶ ಮತ್ತು ಬಾಕಿಯನ್ನು ತೋರಿಸಿ</string>
+    <string name="toggle_notes_remarks">ಟಿಪ್ಪಣಿಗಳು</string>
+    <string name="toggle_notes_remarks_desc">ವಹಿವಾಟಿನ ಟಿಪ್ಪಣಿಗಳನ್ನು ತೋರಿಸಿ</string>
+    <string name="toggle_footer_greeting">ಅಡಿಟಿಪ್ಪಣಿ ಸಂದೇಶ</string>
+    <string name="toggle_footer_greeting_desc">ವ್ಯಾಪಾರದ ಸಂದೇಶವನ್ನು ಮುದ್ರಿಸಿ</string>
+    <string name="toggle_graphic_logo">ಲೋಗೋ</string>
+    <string name="toggle_graphic_logo_desc">ರಶೀದಿಯಲ್ಲಿ ಲೋಗೋ ತೋರಿಸಿ</string>
+
+    <!-- Dashboard -->
+    <string name="quick_actions">ತ್ವರಿತ ಕ್ರಿಯೆಗಳು</string>
+    <string name="action_record_sale">ಮಾರಾಟ ದಾಖಲಿಸಿ</string>
+    <string name="action_record_sale_sub">ಲೈನ್ &amp; ಪಿಒಎಸ್</string>
+    <string name="action_add_expense">ವೆಚ್ಚ ಸೇರಿಸಿ</string>
+    <string name="action_add_expense_sub">ಬಿಲ್‌ಗಳು &amp; ಮುಂಗಡ</string>
+    <string name="action_cash_drawer">ಕ್ಯಾಶ್ ಡ್ರಾಯರ್</string>
+    <string name="action_cash_drawer_sub">ಹಣ ಪರಿಶೀಲಿಸಿ</string>
+    <string name="action_bank_accounts">ಬ್ಯಾಂಕ್ ಖಾತೆಗಳು</string>
+    <string name="action_bank_accounts_sub">ಯುಪಿಐ &amp; ಲೆಡ್ಜರ್</string>
+    <string name="action_product_catalog">ಉತ್ಪನ್ನಗಳ ಕ್ಯಾಟಲಾಗ್</string>
+    <string name="action_product_catalog_sub">ವಸ್ತುಗಳು &amp; ಬೆಲೆಗಳು</string>
+    <string name="action_product_analytics">ಉತ್ಪನ್ನ ವಿಶ್ಲೇಷಣೆ</string>
+    <string name="action_product_analytics_sub">ಮಾರಾಟ ಮಾಹಿತಿ</string>
+    <string name="cash_in_till">ನಗದು ಬಾಕಿ</string>
+    <string name="bank_total">ಬ್ಯಾಂಕ್ ಬ್ಯಾಲೆನ್ಸ್</string>
+    <string name="total_liquidity">ಒಟ್ಟು ಲಿಕ್ವಿಡಿಟಿ</string>
+    <string name="refresh_dashboard">ರಿಫ್ರೆಶ್ ಮಾಡಿ</string>
+
+    <!-- Invoice Layout Columns -->
+    <string name="col_item">ವಸ್ತು</string>
+    <string name="col_qty">ಪ್ರಮಾಣ</string>
+    <string name="col_price">ಬೆಲೆ</string>
+    <string name="col_total">ಒಟ್ಟು</string>
+    <string name="subtotal">ಉಪ-ಮೊತ್ತ</string>
+    <string name="discount">ರಿಯಾಯಿತಿ</string>
+    <string name="total_amount">ಒಟ್ಟು ಮೊತ್ತ</string>
+    <string name="amount_paid">ಪಾವತಿಸಿದ ಮೊತ್ತ</string>
+    <string name="balance_due">ಬಾಕಿ ಮೊತ್ತ</string>
+    <string name="paid_in_full">*** ಪೂರ್ಣ ಪಾವತಿಯಾಗಿದೆ ***</string>
+    <string name="payment_mode">ಪಾವತಿ ವಿಧಾನ</string>
+    <string name="receipt_preview">ರಶೀದಿ ಮುನ್ನೋಟ</string>
+    <string name="items_billed">ಬಿಲ್ ಮಾಡಿದ ವಸ್ತುಗಳು</string>
+
+    <!-- Common Actions & Feedback -->
+    <string name="btn_save">ಉಳಿಸಿ</string>
+    <string name="btn_cancel">ರದ್ದುಮಾಡಿ</string>
+    <string name="btn_reset">ಮರುಹೊಂದಿಸಿ</string>
+    <string name="btn_confirm">ದೃಢೀಕರಿಸಿ</string>
+    <string name="btn_delete">ಅಳಿಸಿ</string>
+    <string name="btn_edit">ತಿದ್ದುಪಡಿ</string>
+    <string name="btn_add">ಸೇರಿಸಿ</string>
+    <string name="btn_search">ಹುಡುಕಿ</string>
+    <string name="btn_close">ಮುಚ್ಚಿ</string>
+    <string name="loading">ಲೋಡ್ ಆಗುತ್ತಿದೆ…</string>
+    <string name="empty_state_title">ಯಾವುದೇ ವಿವರಗಳಿಲ್ಲ</string>
+    <string name="empty_state_desc">ಪ್ರದರ್ಶಿಸಲು ಯಾವುದೇ ವಸ್ತುಗಳಿಲ್ಲ.</string>
+</resources>

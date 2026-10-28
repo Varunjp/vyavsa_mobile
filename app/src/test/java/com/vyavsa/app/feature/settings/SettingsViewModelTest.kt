@@ -338,4 +338,87 @@ class SettingsViewModelTest {
         assertEquals(PrintJobStatus.SUCCESS, vm.testPrintState.value.status)
         assertEquals(1, fakePrinterManager.printedPayloads.size)
     }
+
+    @Test
+    fun testReceiptPreviewUpdatesImmediatelyOnSettingChange() = runTest {
+        val vm = createViewModel()
+        val job = launch { vm.receiptPreviewText.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 1. Initial preview should be non-empty and formatted for 58mm
+        val initialPreview = vm.receiptPreviewText.value
+        assertTrue(initialPreview.isNotBlank())
+        assertTrue(initialPreview.contains("VYAVSA", ignoreCase = true))
+
+        // 2. Change Paper Width to 80mm -> Preview updates immediately
+        vm.setPaperWidth(PaperWidth.WIDTH_80MM)
+        testDispatcher.scheduler.advanceUntilIdle()
+        val preview80 = vm.receiptPreviewText.value
+        assertTrue(preview80.isNotBlank())
+        // In 80mm, lines can be up to 48 characters wide
+        assertTrue(preview80.lines().any { it.length > 32 })
+
+        // 3. Change Invoice Theme to MODERN_MINIMAL -> Preview updates immediately
+        vm.setInvoiceTheme(InvoiceTheme.MODERN_MINIMAL)
+        testDispatcher.scheduler.advanceUntilIdle()
+        val previewModern = vm.receiptPreviewText.value
+        assertTrue(previewModern.contains("CLIENT:"))
+
+        // 4. Toggle Show Customer Details off -> Immediately reflected
+        vm.toggleShowCustomerDetails(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+        val previewNoCust = vm.receiptPreviewText.value
+        assertFalse(previewNoCust.contains("CLIENT:"))
+
+        job.cancel()
+    }
+
+    @Test
+    fun testDashboardQuickActionsTogglePersistenceAndState() = runTest {
+        val vm = createViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Initial default should be true
+        assertTrue(vm.showQuickActions.value)
+
+        // Toggle to false
+        vm.toggleShowQuickActions(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.showQuickActions.value)
+        assertEquals(false, fakePrefs.getBoolean("setting_show_quick_actions", true))
+
+        // Toggle back to true
+        vm.toggleShowQuickActions(true)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.showQuickActions.value)
+        assertEquals(true, fakePrefs.getBoolean("setting_show_quick_actions", false))
+    }
+
+    @Test
+    fun testAllIndianLanguagesSwitching() = runTest {
+        val vm = createViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val expectedLanguages = listOf(
+            AppLanguage.ENGLISH,
+            AppLanguage.HINDI,
+            AppLanguage.MALAYALAM,
+            AppLanguage.TAMIL,
+            AppLanguage.KANNADA,
+            AppLanguage.TELUGU,
+            AppLanguage.BENGALI,
+            AppLanguage.MARATHI,
+            AppLanguage.GUJARATI,
+            AppLanguage.PUNJABI,
+            AppLanguage.ODIA,
+            AppLanguage.ASSAMESE
+        )
+
+        expectedLanguages.forEach { lang ->
+            vm.setLanguage(lang)
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(lang, vm.language.value)
+            assertEquals(lang.code, fakePrefs.getString("setting_language", null))
+        }
+    }
 }

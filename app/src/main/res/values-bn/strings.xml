@@ -1,0 +1,112 @@
+<resources>
+    <string name="app_name">ব্যবসা</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">হোম</string>
+    <string name="nav_sales">বিক্রয়</string>
+    <string name="nav_counter_sales">কাউন্টার</string>
+    <string name="nav_transactions">খতিয়ান</string>
+    <string name="nav_dues">বকেয়া</string>
+    <string name="nav_staff">কর্মী</string>
+    <string name="nav_products">ক্যাটালগ</string>
+    <string name="nav_more">আরও</string>
+
+    <!-- Settings General -->
+    <string name="settings_title">সেটিংস</string>
+    <string name="settings_subtitle">অ্যাপ পছন্দ এবং প্রিন্টিంగ్ সেটআপ</string>
+    <string name="tab_general">সাধারণ</string>
+    <string name="tab_invoice_print">চালান ও প্রিন্ট</string>
+    <string name="tab_printer_setup">প্রিন্টার সেটআপ</string>
+    <string name="reset_settings">সেটিংস রিসেট করুন</string>
+    <string name="appearance_theme">রঙ ও থিম</string>
+    <string name="font_scale">ফন্ট আকার</string>
+    <string name="font_scale_desc">সহজে পড়ার জন্য ফন্টের আকার সমন্বয় করুন।</string>
+    <string name="app_language">ভাষা</string>
+    <string name="dashboard_quick_actions">ড্যাশবোর্ড দ্রুত কাজ</string>
+    <string name="quick_actions_desc">ড্যাশবোর্ডে প্রদর্শিত শর্টকাটগুলি চয়ন করুন।</string>
+    <string name="show_quick_actions">ড্যাশবোর্ডে দ্রুত কাজ প্রদর্শন করুন</string>
+    <string name="show_quick_actions_desc">প্রধান ড্যাশবোর্ডে শর্টকাট গ্রিড প্রদর্শন করুন।</string>
+    <string name="dock_customization">ডক কাস্টমাইজেশন</string>
+    <string name="dock_customization_desc">ন্যাভিগেশন ট্যাবগুলি পুনর্বিন্যাস করুন।</string>
+
+    <!-- Settings Invoice & Print -->
+    <string name="invoice_themes">চালান থিম</string>
+    <string name="invoice_themes_desc">৩টি লেআউট টেমপ্লেট থেকে বেছে নিন।</string>
+    <string name="paper_roll_size">কাগজের মাপ</string>
+    <string name="paper_roll_size_desc">প্রিন্টারের প্রস্থ অনুযায়ী রসিদ বিন্যাস করুন।</string>
+    <string name="print_typography_density">প্রিন্ট ঘনত্ব</string>
+    <string name="print_typography_density_desc">রসিদে ফন্টের আকার এবং ঘনত্ব সমন্বয় করুন।</string>
+    <string name="invoice_footer_terms">পাদটীকা ও শর্তাবলী</string>
+    <string name="invoice_footer_terms_desc">বিলের নিচে মুদ্রিত সমাপ্তি বার্তা।</string>
+    <string name="invoice_content_toggles">চালানের সামগ্রী টগল</string>
+    <string name="invoice_content_toggles_desc">বিলে বিভিন্ন তথ্য প্রদর্শন বা গোপন করুন।</string>
+    <string name="live_receipt_preview">রসিদ প্রিভিউ</string>
+
+    <!-- Content Switches -->
+    <string name="toggle_business_address">ব্যবসায়িক ঠিকানা</string>
+    <string name="toggle_business_address_desc">রসিদে ব্যবসায়ের ঠিকানা অন্তর্ভুক্ত করুন</string>
+    <string name="toggle_business_phone">ফোন নম্বর</string>
+    <string name="toggle_business_phone_desc">যোগাযোগ নম্বর প্রিন্ট করুন</string>
+    <string name="toggle_business_email">ইমেইল</string>
+    <string name="toggle_business_email_desc">অফিসিয়াল ইমেইল প্রদর্শন করুন</string>
+    <string name="toggle_gstin_tax_id">জিএসটি নম্বর</string>
+    <string name="toggle_gstin_tax_id_desc">ট্যাক্স আইডি প্রদর্শন করুন</string>
+    <string name="toggle_customer_info">গ্রাহকের তথ্য</string>
+    <string name="toggle_customer_info_desc">গ্রাহকের নাম ও ফোন প্রিন্ট করুন</string>
+    <string name="toggle_payment_breakdown">পেমেন্ট পদ্ধতি</string>
+    <string name="toggle_payment_breakdown_desc">পেমেন্ট বিবরণ এবং বকেয়া প্রদর্শন করুন</string>
+    <string name="toggle_notes_remarks">নোট ও মন্তব্য</string>
+    <string name="toggle_notes_remarks_desc">লেনদেন সংক্রান্ত মন্তব্য দেখান</string>
+    <string name="toggle_footer_greeting">সমাপ্তি শুভেচ্ছা</string>
+    <string name="toggle_footer_greeting_desc">ব্যবসায়িক শুভেচ্ছা বার্তা প্রিন্ট করুন</string>
+    <string name="toggle_graphic_logo">কোম্পানির লোগো</string>
+    <string name="toggle_graphic_logo_desc">রসিদে লোগো প্রিন্ট করুন</string>
+
+    <!-- Dashboard -->
+    <string name="quick_actions">দ্রুত কাজ</string>
+    <string name="action_record_sale">বিক্রয় নথিভুক্ত করুন</string>
+    <string name="action_record_sale_sub">লাইন ও পিওএস</string>
+    <string name="action_add_expense">খরচ যোগ করুন</string>
+    <string name="action_add_expense_sub">বিল ও অগ্রিম</string>
+    <string name="action_cash_drawer">ক্যাশ ড্রয়ার</string>
+    <string name="action_cash_drawer_sub">নগদ গণনা ও মিলান</string>
+    <string name="action_bank_accounts">ব্যাংক অ্যাকাউন্ট</string>
+    <string name="action_bank_accounts_sub">ইউপিআই ও খতিয়ান</string>
+    <string name="action_product_catalog">পণ্য ক্যাটালগ</string>
+    <string name="action_product_catalog_sub">পণ্য ও মূল্য তালিকা</string>
+    <string name="action_product_analytics">পণ্য বিশ্লেষণ</string>
+    <string name="action_product_analytics_sub">বিক্রয় ও সেরা পণ্য</string>
+    <string name="cash_in_till">নগদ টাকা</string>
+    <string name="bank_total">মোট ব্যাংক ব্যালেন্স</string>
+    <string name="total_liquidity">মোট তরল সম্পদ</string>
+    <string name="refresh_dashboard">রিফ্রেশ করুন</string>
+
+    <!-- Invoice Layout Columns -->
+    <string name="col_item">পণ্য</string>
+    <string name="col_qty">পরিমাণ</string>
+    <string name="col_price">দাম</string>
+    <string name="col_total">মোট</string>
+    <string name="subtotal">উপ-মোট</string>
+    <string name="discount">ছাড়</string>
+    <string name="total_amount">সর্বমোট টাকা</string>
+    <string name="amount_paid">পরিশোধিত টাকা</string>
+    <string name="balance_due">বকেয়া টাকা</string>
+    <string name="paid_in_full">*** সম্পূর্ণ পরিশোধিত ***</string>
+    <string name="payment_mode">পেমেন্ট মাধ্যম</string>
+    <string name="receipt_preview">রসিদ প্রিভিউ</string>
+    <string name="items_billed">বিলভুক্ত পণ্য</string>
+
+    <!-- Common Actions & Feedback -->
+    <string name="btn_save">সংরক্ষণ</string>
+    <string name="btn_cancel">বাতিল</string>
+    <string name="btn_reset">রিসেট</string>
+    <string name="btn_confirm">নিশ্চিত করুন</string>
+    <string name="btn_delete">মুছুন</string>
+    <string name="btn_edit">সম্পাদনা</string>
+    <string name="btn_add">যোগ করুন</string>
+    <string name="btn_search">অনুসন্ধান</string>
+    <string name="btn_close">বন্ধ করুন</string>
+    <string name="loading">লোড হচ্ছে…</string>
+    <string name="empty_state_title">কোনো রেকর্ড নেই</string>
+    <string name="empty_state_desc">প্রদর্শনের জন্য কোনো আইটেম নেই।</string>
+</resources>

@@ -1,0 +1,112 @@
+<resources>
+    <string name="app_name">வியவசா</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">முகப்பு</string>
+    <string name="nav_sales">விற்பனை</string>
+    <string name="nav_counter_sales">கவுண்டர்</string>
+    <string name="nav_transactions">பேரேடு</string>
+    <string name="nav_dues">நிலுவை</string>
+    <string name="nav_staff">பணியாளர்</string>
+    <string name="nav_products">பட்டியல்</string>
+    <string name="nav_more">மேலும்</string>
+
+    <!-- Settings General -->
+    <string name="settings_title">அமைப்புகள்</string>
+    <string name="settings_subtitle">பயன்பாட்டு விருப்பங்கள் &amp; அச்சிடும் அமைப்பு</string>
+    <string name="tab_general">பொதுவானவை</string>
+    <string name="tab_invoice_print">விலைப்பட்டியல் &amp; அச்சிடு</string>
+    <string name="tab_printer_setup">அச்சுப்பொறி அமைப்பு</string>
+    <string name="reset_settings">அமைப்புகளை மீட்டமை</string>
+    <string name="appearance_theme">தோற்றம் &amp; வண்ண தீம்</string>
+    <string name="font_scale">எழுத்துரு அளவு</string>
+    <string name="font_scale_desc">எளிதாக வாசிக்க எழுத்துரு அளவை சரிசெய்யவும்.</string>
+    <string name="app_language">செயலி மொழி</string>
+    <string name="dashboard_quick_actions">விரைவு செயல்கள்</string>
+    <string name="quick_actions_desc">முகப்பில் காட்ட வேண்டிய குறுக்குவழிகளைத் தேர்ந்தெடுக்கவும்.</string>
+    <string name="show_quick_actions">முகப்பில் விரைவு செயல்களைக் காட்டு</string>
+    <string name="show_quick_actions_desc">முதன்மை வணிக முகப்பில் குறுக்குவழிகளைக் காண்பி.</string>
+    <string name="dock_customization">வழிசெலுத்தல் தனிப்பயனாக்கம்</string>
+    <string name="dock_customization_desc">கீழ் வழிசெலுத்தல் தாவல்களை மறுவரிசைப்படுத்தவும்.</string>
+
+    <!-- Settings Invoice & Print -->
+    <string name="invoice_themes">விலைப்பட்டியல் தீம்கள்</string>
+    <string name="invoice_themes_desc">3 வடிவமைப்பு வார்ப்புருக்களிலிருந்து தேர்ந்தெடுக்கவும்.</string>
+    <string name="paper_roll_size">காகித ரோல் அளவு</string>
+    <string name="paper_roll_size_desc">அச்சுப்பொறியின் அகலத்திற்கு ஏற்ப ரசீதை வடிவமைக்கவும்.</string>
+    <string name="print_typography_density">அச்சு அடர்த்தி</string>
+    <string name="print_typography_density_desc">ரசீதுகளில் எழுத்துரு அளவு மற்றும் வரி அடர்த்தியை சரிசெய்யவும்.</string>
+    <string name="invoice_footer_terms">அடிக்குறிப்பு &amp; விதிமுறைகள்</string>
+    <string name="invoice_footer_terms_desc">பில்களின் கீழே அச்சிடப்படும் முடிவுரை செய்தி.</string>
+    <string name="invoice_content_toggles">விலைப்பட்டியல் உள்ளடக்க மாற்று</string>
+    <string name="invoice_content_toggles_desc">பில்களில் விருப்ப புலங்களைக் காட்டு அல்லது மறைக்கவும்.</string>
+    <string name="live_receipt_preview">நேரலை ரசீது முன்னோட்டம்</string>
+
+    <!-- Content Switches -->
+    <string name="toggle_business_address">வணிக முகவரி</string>
+    <string name="toggle_business_address_desc">ரசீதுகளில் வணிக முகவரியைச் சேர்க்கவும்</string>
+    <string name="toggle_business_phone">தொலைபேசி எண்</string>
+    <string name="toggle_business_phone_desc">தொடர்பு தொலைபேசி எண்ணை அச்சிடவும்</string>
+    <string name="toggle_business_email">மின்னஞ்சல்</string>
+    <string name="toggle_business_email_desc">அதிகாரப்பூர்வ மின்னஞ்சலைக் காட்டவும்</string>
+    <string name="toggle_gstin_tax_id">ஜிஎஸ்டி எண்</string>
+    <string name="toggle_gstin_tax_id_desc">வரி அடையாள எண்ணைக் காட்டவும்</string>
+    <string name="toggle_customer_info">வாடிக்கையாளர் தகவல்</string>
+    <string name="toggle_customer_info_desc">வாடிக்கையாளர் பெயர் மற்றும் விவரங்களை அச்சிடவும்</string>
+    <string name="toggle_payment_breakdown">பணம் செலுத்தும் முறை</string>
+    <string name="toggle_payment_breakdown_desc">பணம் செலுத்திய சுருக்கம் மற்றும் நிலுவையைக் காட்டவும்</string>
+    <string name="toggle_notes_remarks">குறிப்புகள்</string>
+    <string name="toggle_notes_remarks_desc">பரிவர்த்தனை குறிப்புகளைக் காட்டவும்</string>
+    <string name="toggle_footer_greeting">அடிக்குறிப்பு வாழ்த்து</string>
+    <string name="toggle_footer_greeting_desc">வணிக வாழ்த்துச் செய்தியை அச்சிடவும்</string>
+    <string name="toggle_graphic_logo">நிறுவன லோகோ</string>
+    <string name="toggle_graphic_logo_desc">ரசீதுகளின் மேற்பகுதியில் லோகோவை அச்சிடவும்</string>
+
+    <!-- Dashboard -->
+    <string name="quick_actions">விரைவு செயல்கள்</string>
+    <string name="action_record_sale">விற்பனையை பதிவுசெய்</string>
+    <string name="action_record_sale_sub">லைன் &amp; பிஓஎஸ்</string>
+    <string name="action_add_expense">செலவைச் சேர்</string>
+    <string name="action_add_expense_sub">பில்கள் &amp; முன்பணம்</string>
+    <string name="action_cash_drawer">பணப் பெட்டி</string>
+    <string name="action_cash_drawer_sub">சேர் &amp; சரிபார்</string>
+    <string name="action_bank_accounts">வங்கி கணக்குகள்</string>
+    <string name="action_bank_accounts_sub">யூபிஐ &amp; பேரேடுகள்</string>
+    <string name="action_product_catalog">பொருள் பட்டியல்</string>
+    <string name="action_product_catalog_sub">பொருட்கள் &amp; விலைகள்</string>
+    <string name="action_product_analytics">பொருள் பகுப்பாய்வு</string>
+    <string name="action_product_analytics_sub">விற்பனை &amp; சிறந்தவை</string>
+    <string name="cash_in_till">கையிருப்பு ரொக்கம்</string>
+    <string name="bank_total">வங்கி இருப்பு</string>
+    <string name="total_liquidity">மொத்த வணிக பணப்புழக்கம்</string>
+    <string name="refresh_dashboard">புதுப்பிக்கவும்</string>
+
+    <!-- Invoice Layout Columns -->
+    <string name="col_item">பொருள்</string>
+    <string name="col_qty">அளவு</string>
+    <string name="col_price">விலை</string>
+    <string name="col_total">மொத்தம்</string>
+    <string name="subtotal">கூடுதல்</string>
+    <string name="discount">தள்ளுபடி</string>
+    <string name="total_amount">மொத்த தொகை</string>
+    <string name="amount_paid">செலுத்திய தொகை</string>
+    <string name="balance_due">நிலுவை தொகை</string>
+    <string name="paid_in_full">*** முழுவதும் செலுத்தப்பட்டது ***</string>
+    <string name="payment_mode">செலுத்தும் முறை</string>
+    <string name="receipt_preview">ரசீது முன்னோட்டம்</string>
+    <string name="items_billed">பட்டியலிடப்பட்ட பொருட்கள்</string>
+
+    <!-- Common Actions & Feedback -->
+    <string name="btn_save">சேமி</string>
+    <string name="btn_cancel">ரத்துசெய்</string>
+    <string name="btn_reset">மீட்டமை</string>
+    <string name="btn_confirm">உறுதிசெய்</string>
+    <string name="btn_delete">நீக்கு</string>
+    <string name="btn_edit">திருத்து</string>
+    <string name="btn_add">சேர்</string>
+    <string name="btn_search">தேடு</string>
+    <string name="btn_close">மூடு</string>
+    <string name="loading">ஏற்றுகிறது…</string>
+    <string name="empty_state_title">பதிவுகள் எதுவும் இல்லை</string>
+    <string name="empty_state_desc">காண்பிக்க எந்த தகவலும் இல்லை.</string>
+</resources>

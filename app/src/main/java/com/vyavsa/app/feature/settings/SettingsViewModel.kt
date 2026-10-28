@@ -40,9 +40,12 @@ import com.vyavsa.app.feature.dashboard.DashboardRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -70,6 +73,7 @@ class SettingsViewModel @Inject constructor(
     val themeMode: StateFlow<ThemeMode> = settingsPreferences.themeMode
     val fontSize: StateFlow<AppFontSize> = settingsPreferences.fontSize
     val language: StateFlow<AppLanguage> = settingsPreferences.language
+    val showQuickActions: StateFlow<Boolean> = settingsPreferences.showQuickActions
     val enabledQuickActions: StateFlow<Set<String>> = settingsPreferences.enabledQuickActions
     val customDockOrder: StateFlow<List<BottomBarDestination>> = settingsPreferences.customDockOrder
 
@@ -100,6 +104,26 @@ class SettingsViewModel @Inject constructor(
 
     private val _companyProfile = MutableStateFlow<TenantProfile?>(null)
     val companyProfile: StateFlow<TenantProfile?> = _companyProfile.asStateFlow()
+
+    val receiptPreviewText: StateFlow<String> = combine(
+        invoiceTheme,
+        paperWidth,
+        typography,
+        contentSettings,
+        companyProfile
+    ) { theme, width, typo, settings, _ ->
+        ThermalInvoiceFormatter.formatPlainTextReceipt(
+            data = getSampleInvoiceData(),
+            paperWidth = width,
+            theme = theme,
+            contentSettings = settings,
+            typography = typo
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = getReceiptPreviewText()
+    )
 
     private val _footerUpdateState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val footerUpdateState: StateFlow<UiState<Unit>> = _footerUpdateState.asStateFlow()
@@ -273,6 +297,7 @@ class SettingsViewModel @Inject constructor(
     fun setThemeMode(mode: ThemeMode) = settingsPreferences.saveThemeMode(mode)
     fun setFontSize(size: AppFontSize) = settingsPreferences.saveFontSize(size)
     fun setLanguage(lang: AppLanguage) = settingsPreferences.saveLanguage(lang)
+    fun toggleShowQuickActions(show: Boolean) = settingsPreferences.saveShowQuickActions(show)
     fun toggleQuickAction(id: String, enabled: Boolean) = settingsPreferences.toggleQuickAction(id, enabled)
 
     fun getEffectiveDockOrder(): List<BottomBarDestination> {

@@ -2,15 +2,10 @@
 package com.vyavsa.app.navigation
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
@@ -48,10 +43,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -111,6 +108,7 @@ fun MainShellScreen(
     val duesViewModel: DuesViewModel = hiltViewModel()
     val staffViewModel: StaffViewModel = hiltViewModel()
     val profileViewModel: ProfileViewModel = hiltViewModel()
+    val saveableStateHolder = rememberSaveableStateHolder()
 
     val userRole = dashboardViewModel.tokenManager.getUserRole()
     val customDockOrder = settingsPreferences?.customDockOrder?.collectAsState()?.value ?: emptyList()
@@ -165,11 +163,8 @@ fun MainShellScreen(
                         destinations.forEach { destination ->
                         val isSelected = selectedDestination == destination
                         val iconScale by animateFloatAsState(
-                            targetValue = if (isSelected) 1.12f else 1.0f,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            ),
+                            targetValue = if (isSelected) 1.08f else 1.0f,
+                            animationSpec = tween(durationMillis = 140),
                             label = "BottomNavIconScale"
                         )
                         val icon = when (destination) {
@@ -183,6 +178,12 @@ fun MainShellScreen(
                             BottomBarDestination.MORE -> if (isSelected) Icons.Filled.Menu else Icons.Outlined.Menu
                         }
 
+                        val navTitle = if (destination.titleResId != 0) {
+                            stringResource(destination.titleResId)
+                        } else {
+                            destination.title
+                        }
+
                         NavigationBarItem(
                             selected = isSelected,
                             onClick = { selectedDestination = destination },
@@ -190,7 +191,7 @@ fun MainShellScreen(
                             icon = {
                                 Icon(
                                     imageVector = icon,
-                                    contentDescription = destination.title,
+                                    contentDescription = navTitle,
                                     modifier = Modifier.graphicsLayer {
                                         scaleX = iconScale
                                         scaleY = iconScale
@@ -199,7 +200,7 @@ fun MainShellScreen(
                             },
                             label = {
                                 Text(
-                                    text = destination.title,
+                                    text = navTitle,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     style = MaterialTheme.typography.labelSmall.copy(
@@ -231,110 +232,103 @@ fun MainShellScreen(
             AnimatedContent(
                 targetState = selectedDestination,
                 transitionSpec = {
-                    val direction = if (targetState.ordinal >= initialState.ordinal) 1 else -1
-                    (fadeIn(animationSpec = tween(230, easing = FastOutSlowInEasing)) +
-                        slideInHorizontally(
-                            initialOffsetX = { (it * 0.08f * direction).toInt() },
-                            animationSpec = tween(250, easing = FastOutSlowInEasing)
-                        )) togetherWith
-                        (fadeOut(animationSpec = tween(170, easing = FastOutSlowInEasing)) +
-                            slideOutHorizontally(
-                                targetOffsetX = { (-it * 0.06f * direction).toInt() },
-                                animationSpec = tween(200, easing = FastOutSlowInEasing)
-                            ))
+                    fadeIn(animationSpec = tween(140)) togetherWith
+                        fadeOut(animationSpec = tween(100))
                 },
                 label = "BottomNavDestinationTransition"
             ) { destination ->
-                when (destination) {
-                    BottomBarDestination.HOME -> {
-                        when (userRole) {
-                            UserRole.SALES -> {
-                                SalesDashboardScreen(
-                                    viewModel = dashboardViewModel,
-                                    onNavigateToCreateLineSale = onNavigateToCreateSale,
-                                    onNavigateToLineSales = { selectedDestination = BottomBarDestination.SALES },
-                                    onNavigateToProducts = { selectedDestination = BottomBarDestination.PRODUCTS }
-                                )
-                            }
-                            UserRole.OFFICE -> {
-                                OfficeDashboardScreen(
-                                    viewModel = dashboardViewModel,
-                                    onNavigateToCreateCounterSale = onNavigateToCreateCounterSale,
-                                    onNavigateToCreatePurchase = onNavigateToCreatePurchase,
-                                    onNavigateToCreateExpense = onNavigateToCreateExpense,
-                                    onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF },
-                                    onNavigateToCounterSales = { selectedDestination = BottomBarDestination.COUNTER_SALES }
-                                )
-                            }
-                            UserRole.ADMIN, UserRole.USER -> {
-                                DashboardScreen(
-                                    viewModel = dashboardViewModel,
-                                    onNavigateToCreateSale = onNavigateToCreateSale,
-                                    onNavigateToCreateExpense = onNavigateToCreateExpense,
-                                    onNavigateToCashDrawer = onNavigateToCashDrawer,
-                                    onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF },
-                                    onNavigateToBankAccounts = onNavigateToBankAccounts,
-                                    onNavigateToProducts = onNavigateToProducts,
-                                    onNavigateToProductAnalytics = onNavigateToProductAnalytics
-                                )
+                saveableStateHolder.SaveableStateProvider(destination) {
+                    when (destination) {
+                        BottomBarDestination.HOME -> {
+                            when (userRole) {
+                                UserRole.SALES -> {
+                                    SalesDashboardScreen(
+                                        viewModel = dashboardViewModel,
+                                        onNavigateToCreateLineSale = onNavigateToCreateSale,
+                                        onNavigateToLineSales = { selectedDestination = BottomBarDestination.SALES },
+                                        onNavigateToProducts = { selectedDestination = BottomBarDestination.PRODUCTS }
+                                    )
+                                }
+                                UserRole.OFFICE -> {
+                                    OfficeDashboardScreen(
+                                        viewModel = dashboardViewModel,
+                                        onNavigateToCreateCounterSale = onNavigateToCreateCounterSale,
+                                        onNavigateToCreatePurchase = onNavigateToCreatePurchase,
+                                        onNavigateToCreateExpense = onNavigateToCreateExpense,
+                                        onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF },
+                                        onNavigateToCounterSales = { selectedDestination = BottomBarDestination.COUNTER_SALES }
+                                    )
+                                }
+                                UserRole.ADMIN, UserRole.USER -> {
+                                    DashboardScreen(
+                                        viewModel = dashboardViewModel,
+                                        onNavigateToCreateSale = onNavigateToCreateSale,
+                                        onNavigateToCreateExpense = onNavigateToCreateExpense,
+                                        onNavigateToCashDrawer = onNavigateToCashDrawer,
+                                        onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF },
+                                        onNavigateToBankAccounts = onNavigateToBankAccounts,
+                                        onNavigateToProducts = onNavigateToProducts,
+                                        onNavigateToProductAnalytics = onNavigateToProductAnalytics
+                                    )
+                                }
                             }
                         }
-                    }
-                    BottomBarDestination.SALES -> {
-                        SalesScreen(
-                            viewModel = transactionsViewModel,
-                            onNavigateToCreateSale = onNavigateToCreateSale,
-                            onNavigateToSaleDetails = onNavigateToSaleDetails
-                        )
-                    }
-                    BottomBarDestination.COUNTER_SALES -> {
-                        SalesScreen(
-                            viewModel = transactionsViewModel,
-                            onNavigateToCreateSale = onNavigateToCreateCounterSale,
-                            onNavigateToSaleDetails = onNavigateToSaleDetails
-                        )
-                    }
-                    BottomBarDestination.TRANSACTIONS -> {
-                        TransactionsScreen(
-                            viewModel = transactionsViewModel,
-                            onNavigateToCreateSale = if (userRole == UserRole.OFFICE) onNavigateToCreateCounterSale else onNavigateToCreateSale,
-                            onNavigateToCreateExpense = onNavigateToCreateExpense,
-                            onNavigateToCreatePurchase = onNavigateToCreatePurchase,
-                            onNavigateToPurchaseDetails = onNavigateToPurchaseDetails,
-                            onNavigateToSaleDetails = onNavigateToSaleDetails
-                        )
-                    }
-                    BottomBarDestination.DUES -> {
-                        DuesScreen(
-                            viewModel = duesViewModel,
-                            onNavigateToStatement = onNavigateToStatement,
-                            onNavigateToCustomerDetails = onNavigateToCustomerDetails
-                        )
-                    }
-                    BottomBarDestination.STAFF -> {
-                        StaffScreen(
-                            viewModel = staffViewModel
-                        )
-                    }
-                    BottomBarDestination.PRODUCTS -> {
-                        val productViewModel: ProductViewModel = hiltViewModel()
-                        ProductsScreen(
-                            viewModel = productViewModel,
-                            onNavigateBack = { selectedDestination = BottomBarDestination.HOME },
-                            onNavigateToAnalytics = onNavigateToProductAnalytics
-                        )
-                    }
-                    BottomBarDestination.MORE -> {
-                        ProfileScreen(
-                            viewModel = profileViewModel,
-                            onLogoutSuccess = onLogoutSuccess,
-                            onNavigateToBankAccounts = onNavigateToBankAccounts,
-                            onNavigateToPlans = onNavigateToPlans,
-                            onNavigateToTenantUsers = onNavigateToTenantUsers,
-                            onNavigateToProducts = onNavigateToProducts,
-                            onNavigateToProductAnalytics = onNavigateToProductAnalytics,
-                            onNavigateToSettings = onNavigateToSettings
-                        )
+                        BottomBarDestination.SALES -> {
+                            SalesScreen(
+                                viewModel = transactionsViewModel,
+                                onNavigateToCreateSale = onNavigateToCreateSale,
+                                onNavigateToSaleDetails = onNavigateToSaleDetails
+                            )
+                        }
+                        BottomBarDestination.COUNTER_SALES -> {
+                            SalesScreen(
+                                viewModel = transactionsViewModel,
+                                onNavigateToCreateSale = onNavigateToCreateCounterSale,
+                                onNavigateToSaleDetails = onNavigateToSaleDetails
+                            )
+                        }
+                        BottomBarDestination.TRANSACTIONS -> {
+                            TransactionsScreen(
+                                viewModel = transactionsViewModel,
+                                onNavigateToCreateSale = if (userRole == UserRole.OFFICE) onNavigateToCreateCounterSale else onNavigateToCreateSale,
+                                onNavigateToCreateExpense = onNavigateToCreateExpense,
+                                onNavigateToCreatePurchase = onNavigateToCreatePurchase,
+                                onNavigateToPurchaseDetails = onNavigateToPurchaseDetails,
+                                onNavigateToSaleDetails = onNavigateToSaleDetails
+                            )
+                        }
+                        BottomBarDestination.DUES -> {
+                            DuesScreen(
+                                viewModel = duesViewModel,
+                                onNavigateToStatement = onNavigateToStatement,
+                                onNavigateToCustomerDetails = onNavigateToCustomerDetails
+                            )
+                        }
+                        BottomBarDestination.STAFF -> {
+                            StaffScreen(
+                                viewModel = staffViewModel
+                            )
+                        }
+                        BottomBarDestination.PRODUCTS -> {
+                            val productViewModel: ProductViewModel = hiltViewModel()
+                            ProductsScreen(
+                                viewModel = productViewModel,
+                                onNavigateBack = { selectedDestination = BottomBarDestination.HOME },
+                                onNavigateToAnalytics = onNavigateToProductAnalytics
+                            )
+                        }
+                        BottomBarDestination.MORE -> {
+                            ProfileScreen(
+                                viewModel = profileViewModel,
+                                onLogoutSuccess = onLogoutSuccess,
+                                onNavigateToBankAccounts = onNavigateToBankAccounts,
+                                onNavigateToPlans = onNavigateToPlans,
+                                onNavigateToTenantUsers = onNavigateToTenantUsers,
+                                onNavigateToProducts = onNavigateToProducts,
+                                onNavigateToProductAnalytics = onNavigateToProductAnalytics,
+                                onNavigateToSettings = onNavigateToSettings
+                            )
+                        }
                     }
                 }
             }

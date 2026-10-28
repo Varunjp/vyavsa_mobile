@@ -685,118 +685,187 @@ object ThermalInvoiceFormatter {
         }
     }
 
-    private fun formatItems58mm(data: InvoicePrintData, sb: StringBuilder, width: Int) {
-        sb.appendLine("ITEM / QTY x RATE          TOTAL")
-        if (data.items.isNotEmpty()) {
-            data.items.forEach { item ->
-                wrapText(item.name, width).forEach { line ->
-                    sb.appendLine(line)
-                }
-                val qtyRate = "  ${item.quantity} x ${formatCurrency(item.unitPrice.toDoubleOrNull() ?: 0.0)}"
-                val lineTotal = formatCurrency(item.lineTotal.toDoubleOrNull() ?: 0.0)
-                sb.appendLine(formatKeyValue(qtyRate, lineTotal, width))
-            }
-        } else if (!data.singleItemName.isNullOrBlank()) {
-            wrapText(data.singleItemName, width).forEach { line ->
-                sb.appendLine(line)
-            }
-            sb.appendLine(formatKeyValue("  1 x ${formatCurrency(data.subtotal)}", formatCurrency(data.subtotal), width))
-        } else {
-            sb.appendLine("Sale Item")
-            sb.appendLine(formatKeyValue("  1 x ${formatCurrency(data.subtotal)}", formatCurrency(data.subtotal), width))
+    /**
+     * Helper to format table amounts so that numeric columns never overflow their allocated column width.
+     */
+    fun formatTableAmount(amount: Double, maxChars: Int, includeCurrency: Boolean = true): String {
+        val standard = if (includeCurrency) formatCurrency(amount) else String.format(Locale.US, "%,.2f", amount)
+        if (standard.length <= maxChars) {
+            return standard
         }
+        val withoutSymbol = String.format(Locale.US, "%,.2f", amount)
+        if (withoutSymbol.length <= maxChars) {
+            return withoutSymbol
+        }
+        return String.format(Locale.US, "%.2f", amount)
     }
 
-    private fun formatItems80mm(data: InvoicePrintData, sb: StringBuilder, width: Int) {
-        val itemColWidth = 18
-        val qtyColWidth = 6
-        val priceColWidth = 10
+    private fun formatItems58mm(data: InvoicePrintData, sb: StringBuilder, width: Int) {
+        val qtyColWidth = 4
+        val priceColWidth = 8
         val totalColWidth = 10
+        val baseItemWidth = width - (qtyColWidth + priceColWidth + totalColWidth) // 10
 
-        val header = "ITEM".padEnd(itemColWidth) +
+        val header = "ITEM".padEnd(baseItemWidth) +
             "QTY".padStart(qtyColWidth) +
-            "  " +
             "PRICE".padStart(priceColWidth) +
-            "  " +
             "TOTAL".padStart(totalColWidth)
         sb.appendLine(header)
         sb.appendLine("-".repeat(width))
 
         if (data.items.isNotEmpty()) {
             data.items.forEach { item ->
-                val nameChunks = wrapText(item.name, itemColWidth)
-                val qtyStr = item.quantity.padStart(qtyColWidth)
-                val priceStr = formatCurrency(item.unitPrice.toDoubleOrNull() ?: 0.0).padStart(priceColWidth)
-                val totalStr = formatCurrency(item.lineTotal.toDoubleOrNull() ?: 0.0).padStart(totalColWidth)
+                val qtyStr = item.quantity
+                val priceVal = item.unitPrice.toDoubleOrNull() ?: 0.0
+                val totalVal = item.lineTotal.toDoubleOrNull() ?: 0.0
 
+                val totalStr = formatTableAmount(totalVal, totalColWidth)
+                val priceStr = formatTableAmount(priceVal, priceColWidth)
+
+                val dynamicTotalW = maxOf(totalColWidth, totalStr.length)
+                val dynamicPriceW = maxOf(priceColWidth, priceStr.length)
+                val dynamicQtyW = maxOf(qtyColWidth, qtyStr.length)
+                val dynamicItemW = maxOf(6, width - (dynamicQtyW + dynamicPriceW + dynamicTotalW))
+
+                val nameChunks = wrapText(item.name, dynamicItemW)
                 val firstChunk = nameChunks.firstOrNull() ?: ""
-                sb.appendLine(firstChunk.padEnd(itemColWidth) + qtyStr + "  " + priceStr + "  " + totalStr)
+                val line = firstChunk.padEnd(dynamicItemW) +
+                    qtyStr.padStart(dynamicQtyW) +
+                    priceStr.padStart(dynamicPriceW) +
+                    totalStr.padStart(dynamicTotalW)
+                sb.appendLine(line)
 
                 for (i in 1 until nameChunks.size) {
-                    sb.appendLine(nameChunks[i].padEnd(itemColWidth))
+                    sb.appendLine(nameChunks[i].padEnd(dynamicItemW))
                 }
             }
         } else if (!data.singleItemName.isNullOrBlank()) {
-            val nameChunks = wrapText(data.singleItemName, itemColWidth)
-            val qtyStr = "1".padStart(qtyColWidth)
-            val priceStr = formatCurrency(data.subtotal).padStart(priceColWidth)
-            val totalStr = formatCurrency(data.subtotal).padStart(totalColWidth)
+            val nameChunks = wrapText(data.singleItemName, baseItemWidth)
+            val qtyStr = "1"
+            val priceStr = formatTableAmount(data.subtotal, priceColWidth)
+            val totalStr = formatTableAmount(data.subtotal, totalColWidth)
 
             val firstChunk = nameChunks.firstOrNull() ?: ""
-            sb.appendLine(firstChunk.padEnd(itemColWidth) + qtyStr + "  " + priceStr + "  " + totalStr)
-
+            sb.appendLine(firstChunk.padEnd(baseItemWidth) + qtyStr.padStart(qtyColWidth) + priceStr.padStart(priceColWidth) + totalStr.padStart(totalColWidth))
             for (i in 1 until nameChunks.size) {
-                sb.appendLine(nameChunks[i].padEnd(itemColWidth))
+                sb.appendLine(nameChunks[i].padEnd(baseItemWidth))
             }
         } else {
-            val nameChunks = wrapText("Sale Item", itemColWidth)
-            val qtyStr = "1".padStart(qtyColWidth)
-            val priceStr = formatCurrency(data.subtotal).padStart(priceColWidth)
-            val totalStr = formatCurrency(data.subtotal).padStart(totalColWidth)
+            val totalStr = formatTableAmount(data.subtotal, totalColWidth)
+            val priceStr = formatTableAmount(data.subtotal, priceColWidth)
+            sb.appendLine("Item".padEnd(baseItemWidth) + "1".padStart(qtyColWidth) + priceStr.padStart(priceColWidth) + totalStr.padStart(totalColWidth))
+        }
+    }
+
+    private fun formatItems80mm(data: InvoicePrintData, sb: StringBuilder, width: Int) {
+        val qtyColWidth = 5
+        val priceColWidth = 13
+        val totalColWidth = 14
+        val baseItemWidth = width - (qtyColWidth + priceColWidth + totalColWidth) // 16
+
+        val header = "ITEM".padEnd(baseItemWidth) +
+            "QTY".padStart(qtyColWidth) +
+            "PRICE".padStart(priceColWidth) +
+            "TOTAL".padStart(totalColWidth)
+        sb.appendLine(header)
+        sb.appendLine("-".repeat(width))
+
+        if (data.items.isNotEmpty()) {
+            data.items.forEach { item ->
+                val qtyStr = item.quantity
+                val priceVal = item.unitPrice.toDoubleOrNull() ?: 0.0
+                val totalVal = item.lineTotal.toDoubleOrNull() ?: 0.0
+
+                val totalStr = formatTableAmount(totalVal, totalColWidth)
+                val priceStr = formatTableAmount(priceVal, priceColWidth)
+
+                val dynamicTotalW = maxOf(totalColWidth, totalStr.length)
+                val dynamicPriceW = maxOf(priceColWidth, priceStr.length)
+                val dynamicQtyW = maxOf(qtyColWidth, qtyStr.length)
+                val dynamicItemW = maxOf(8, width - (dynamicQtyW + dynamicPriceW + dynamicTotalW))
+
+                val nameChunks = wrapText(item.name, dynamicItemW)
+                val firstChunk = nameChunks.firstOrNull() ?: ""
+                val line = firstChunk.padEnd(dynamicItemW) +
+                    qtyStr.padStart(dynamicQtyW) +
+                    priceStr.padStart(dynamicPriceW) +
+                    totalStr.padStart(dynamicTotalW)
+                sb.appendLine(line)
+
+                for (i in 1 until nameChunks.size) {
+                    sb.appendLine(nameChunks[i].padEnd(dynamicItemW))
+                }
+            }
+        } else if (!data.singleItemName.isNullOrBlank()) {
+            val nameChunks = wrapText(data.singleItemName, baseItemWidth)
+            val qtyStr = "1"
+            val priceStr = formatTableAmount(data.subtotal, priceColWidth)
+            val totalStr = formatTableAmount(data.subtotal, totalColWidth)
 
             val firstChunk = nameChunks.firstOrNull() ?: ""
-            sb.appendLine(firstChunk.padEnd(itemColWidth) + qtyStr + "  " + priceStr + "  " + totalStr)
+            sb.appendLine(firstChunk.padEnd(baseItemWidth) + qtyStr.padStart(qtyColWidth) + priceStr.padStart(priceColWidth) + totalStr.padStart(totalColWidth))
+
+            for (i in 1 until nameChunks.size) {
+                sb.appendLine(nameChunks[i].padEnd(baseItemWidth))
+            }
+        } else {
+            val priceStr = formatTableAmount(data.subtotal, priceColWidth)
+            val totalStr = formatTableAmount(data.subtotal, totalColWidth)
+            sb.appendLine("Sale Item".padEnd(baseItemWidth) + "1".padStart(qtyColWidth) + priceStr.padStart(priceColWidth) + totalStr.padStart(totalColWidth))
         }
     }
 
     private fun formatItemsA4(data: InvoicePrintData, sb: StringBuilder, width: Int) {
-        val itemColWidth = 32
-        val qtyColWidth = 8
-        val priceColWidth = 14
-        val totalColWidth = 14
+        val qtyColWidth = 6
+        val priceColWidth = 18
+        val totalColWidth = 22
+        val baseItemWidth = width - (qtyColWidth + priceColWidth + totalColWidth) // 26
 
-        val header = "ITEM DESCRIPTION".padEnd(itemColWidth) +
+        val header = "ITEM DESCRIPTION".padEnd(baseItemWidth) +
             "QTY".padStart(qtyColWidth) +
-            "  " +
             "UNIT RATE".padStart(priceColWidth) +
-            "  " +
             "AMOUNT".padStart(totalColWidth)
         sb.appendLine(header)
         sb.appendLine("-".repeat(width))
 
         if (data.items.isNotEmpty()) {
             data.items.forEach { item ->
-                val nameChunks = wrapText(item.name, itemColWidth)
-                val qtyStr = item.quantity.padStart(qtyColWidth)
-                val priceStr = formatCurrency(item.unitPrice.toDoubleOrNull() ?: 0.0).padStart(priceColWidth)
-                val totalStr = formatCurrency(item.lineTotal.toDoubleOrNull() ?: 0.0).padStart(totalColWidth)
+                val qtyStr = item.quantity
+                val priceVal = item.unitPrice.toDoubleOrNull() ?: 0.0
+                val totalVal = item.lineTotal.toDoubleOrNull() ?: 0.0
 
+                val totalStr = formatTableAmount(totalVal, totalColWidth)
+                val priceStr = formatTableAmount(priceVal, priceColWidth)
+
+                val dynamicTotalW = maxOf(totalColWidth, totalStr.length)
+                val dynamicPriceW = maxOf(priceColWidth, priceStr.length)
+                val dynamicQtyW = maxOf(qtyColWidth, qtyStr.length)
+                val dynamicItemW = maxOf(12, width - (dynamicQtyW + dynamicPriceW + dynamicTotalW))
+
+                val nameChunks = wrapText(item.name, dynamicItemW)
                 val firstChunk = nameChunks.firstOrNull() ?: ""
-                sb.appendLine(firstChunk.padEnd(itemColWidth) + qtyStr + "  " + priceStr + "  " + totalStr)
+                val line = firstChunk.padEnd(dynamicItemW) +
+                    qtyStr.padStart(dynamicQtyW) +
+                    priceStr.padStart(dynamicPriceW) +
+                    totalStr.padStart(dynamicTotalW)
+                sb.appendLine(line)
 
                 for (i in 1 until nameChunks.size) {
-                    sb.appendLine(nameChunks[i].padEnd(itemColWidth))
+                    sb.appendLine(nameChunks[i].padEnd(dynamicItemW))
                 }
             }
         } else {
             val name = data.singleItemName ?: "Sales Product"
-            val nameChunks = wrapText(name, itemColWidth)
-            val qtyStr = "1".padStart(qtyColWidth)
-            val priceStr = formatCurrency(data.subtotal).padStart(priceColWidth)
-            val totalStr = formatCurrency(data.subtotal).padStart(totalColWidth)
+            val nameChunks = wrapText(name, baseItemWidth)
+            val qtyStr = "1"
+            val priceStr = formatTableAmount(data.subtotal, priceColWidth)
+            val totalStr = formatTableAmount(data.subtotal, totalColWidth)
 
             val firstChunk = nameChunks.firstOrNull() ?: ""
-            sb.appendLine(firstChunk.padEnd(itemColWidth) + qtyStr + "  " + priceStr + "  " + totalStr)
+            sb.appendLine(firstChunk.padEnd(baseItemWidth) + qtyStr.padStart(qtyColWidth) + priceStr.padStart(priceColWidth) + totalStr.padStart(totalColWidth))
+            for (i in 1 until nameChunks.size) {
+                sb.appendLine(nameChunks[i].padEnd(baseItemWidth))
+            }
         }
     }
 
