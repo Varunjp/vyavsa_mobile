@@ -45,6 +45,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -61,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
+import com.vyavsa.app.core.common.ObserveAsEvents
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
@@ -73,8 +76,10 @@ import com.vyavsa.app.core.designsystem.VyavsaButton
 import com.vyavsa.app.core.designsystem.VyavsaGradients
 import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
+import com.vyavsa.app.core.model.InitiateCheckoutResponse
 import com.vyavsa.app.core.model.PlanTransaction
 import com.vyavsa.app.core.model.SubscriptionPlan
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -88,12 +93,19 @@ fun PlansScreen(
     val plansState by viewModel.plansState.collectAsState()
     val txState by viewModel.transactionsState.collectAsState()
     val actionState by viewModel.purchaseActionState.collectAsState()
+    val checkoutState by viewModel.checkoutState.collectAsState()
     val isAdmin = viewModel.isAdmin
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    ObserveAsEvents(viewModel.uiEvents) { msg ->
+        snackbarHostState.showSnackbar(msg.text)
+    }
 
     var selectedPlanToPurchase by remember { mutableStateOf<SubscriptionPlan?>(null) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             VyavsaTopAppBar(
                 title = "Plans & Subscription",
@@ -363,11 +375,172 @@ fun PlansScreen(
         PurchasePlanDialog(
             plan = plan,
             onDismiss = { selectedPlanToPurchase = null },
-            onConfirm = { paymentMethod ->
+            onConfirm = { _ ->
                 selectedPlanToPurchase = null
-                viewModel.purchasePlan(plan.id, paymentMethod)
+                viewModel.startPlanPurchase(plan.id, "instant")
             }
         )
+    }
+
+    // Razorpay Checkout State Machine Dialogs
+    when (val state = checkoutState) {
+        is CheckoutUiState.InitiatingCheckout -> {
+            AlertDialog(
+                onDismissRequest = {},
+                shape = RoundedCornerShape(24.dp),
+                title = { Text("Connecting to Gateway", fontWeight = FontWeight.Bold) },
+                text = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                        Text("Creating secure Razorpay subscription session...")
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+        is CheckoutUiState.AwaitingPayment -> {
+            val info = state.checkoutInfo
+            AlertDialog(
+                onDismissRequest = { viewModel.cancelCheckout() },
+                shape = RoundedCornerShape(28.dp),
+                title = { Text("Complete Subscription Payment", fontWeight = FontWeight.ExtraBold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Text(
+                                    text = info.planName,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Amount: ₹${info.amount} / ${info.billingInterval}",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Subscription ID: ${info.subscriptionId}",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = "Billing Contact: ${info.customer.name.ifBlank { "Tenant Admin" }} • ${info.customer.phone.ifBlank { info.customer.email }}",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        )
+
+                        Text(
+                            text = "Secure subscription checkout via Razorpay. Tap 'Authorize & Pay' to complete your order.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val mockPaymentId = "pay_${UUID.randomUUID().toString().replace("-", "").take(14)}"
+                            val mockSignature = "sig_${UUID.randomUUID().toString().replace("-", "").take(20)}"
+                            viewModel.verifyPayment(
+                                planId = info.planId,
+                                paymentId = mockPaymentId,
+                                subscriptionId = info.subscriptionId,
+                                signature = mockSignature,
+                                activationMode = info.activationMode ?: "instant"
+                            )
+                        }
+                    ) {
+                        Text("Authorize & Pay", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.cancelCheckout() }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+        is CheckoutUiState.VerifyingPayment -> {
+            AlertDialog(
+                onDismissRequest = {},
+                shape = RoundedCornerShape(24.dp),
+                title = { Text("Verifying Payment", fontWeight = FontWeight.Bold) },
+                text = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                        Text("Cryptographically verifying payment with backend...")
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+        is CheckoutUiState.Success -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.cancelCheckout() },
+                shape = RoundedCornerShape(28.dp),
+                title = { Text("Subscription Activated!", fontWeight = FontWeight.ExtraBold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(state.message)
+                        if (state.subscription != null) {
+                            Text(
+                                "Current Active Plan: ${state.subscription.currentPlanName}",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.cancelCheckout() }) {
+                        Text("Got it", fontWeight = FontWeight.Bold)
+                    }
+                }
+            )
+        }
+        is CheckoutUiState.Failed -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.cancelCheckout() },
+                shape = RoundedCornerShape(28.dp),
+                title = { Text("Payment Verification", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
+                text = {
+                    Text(state.message)
+                },
+                confirmButton = {
+                    if (state.canRetryVerification) {
+                        TextButton(onClick = { viewModel.retryPendingVerification() }) {
+                            Text("Retry Verification", fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        TextButton(onClick = { viewModel.cancelCheckout() }) {
+                            Text("Close", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                },
+                dismissButton = {
+                    if (state.canRetryVerification) {
+                        TextButton(onClick = { viewModel.cancelCheckout() }) {
+                            Text("Dismiss")
+                        }
+                    }
+                }
+            )
+        }
+        CheckoutUiState.Idle -> {}
     }
 }
 

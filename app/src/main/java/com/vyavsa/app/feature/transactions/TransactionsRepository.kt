@@ -18,6 +18,7 @@ import com.vyavsa.app.core.model.Purchase
 import com.vyavsa.app.core.model.PurchasePayment
 import com.vyavsa.app.core.model.RecordSalePaymentRequest
 import com.vyavsa.app.core.model.RecordSupplierPaymentRequest
+import com.vyavsa.app.core.model.Supplier
 import com.vyavsa.app.core.model.SupplierPaymentResponse
 import com.vyavsa.app.core.model.UpdateCounterSaleRequest
 import com.vyavsa.app.core.model.UpdateLineSaleRequest
@@ -61,6 +62,7 @@ interface TransactionsRepository {
     fun listCashTransactions(): Flow<Resource<List<CashTransaction>>>
     fun listSubscriptionTransactions(): Flow<Resource<List<PlanTransaction>>>
     fun listCustomers(): Flow<Resource<List<Customer>>>
+    fun listSuppliers(): Flow<Resource<List<Supplier>>>
     fun listEmployees(): Flow<Resource<List<Employee>>>
 }
 
@@ -483,6 +485,20 @@ class TransactionsRepositoryImpl @Inject constructor(
             }
         } catch (e: Throwable) {
             emit(ApiErrorParser.parse(e, "Network error loading customers"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun listSuppliers(): Flow<Resource<List<Supplier>>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.listSuppliers(page = 1, pageSize = 100)
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data))
+            } else {
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load suppliers"))
+            }
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading suppliers"))
         }
     }.flowOn(Dispatchers.IO)
 

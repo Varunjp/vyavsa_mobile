@@ -1,16 +1,21 @@
 package com.vyavsa.app.feature.staff
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,15 +30,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,6 +54,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -65,6 +75,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
+import com.vyavsa.app.core.common.ObserveAsEvents
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.designsystem.Amber50
 import com.vyavsa.app.core.designsystem.Amber600
@@ -85,6 +96,7 @@ import com.vyavsa.app.core.designsystem.vyavsaClickable
 import com.vyavsa.app.core.model.AttendanceRecord
 import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.EmployeeSalary
+import com.vyavsa.app.core.model.TenantBank
 
 @Composable
 fun StaffScreen(
@@ -95,8 +107,14 @@ fun StaffScreen(
     val employeesState by viewModel.employeesState.collectAsState()
     val attendanceState by viewModel.attendanceState.collectAsState()
     val salariesState by viewModel.salariesState.collectAsState()
+    val banksState by viewModel.banksState.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
     val isAdmin = viewModel.isAdmin
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    ObserveAsEvents(viewModel.uiEvents) { msg ->
+        snackbarHostState.showSnackbar(msg.text)
+    }
 
     var showAddEmployeeDialog by remember { mutableStateOf(false) }
     var markingAttendanceEmployee by remember { mutableStateOf<Employee?>(null) }
@@ -125,6 +143,7 @@ fun StaffScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             VyavsaTopAppBar(
                 title = "Staff & Payroll",
@@ -269,14 +288,19 @@ fun StaffScreen(
 
     // Disburse Salary Dialog
     if (disbursingSalaryItem != null) {
+        val banks = (banksState as? UiState.Success)?.data ?: emptyList()
         DisburseSalaryDialog(
             salary = disbursingSalaryItem!!,
+            banks = banks,
             onDismiss = { disbursingSalaryItem = null },
-            onConfirm = { amount, method, note ->
+            onConfirm = { amount, method, bankId, bankName, referenceId, note ->
                 viewModel.paySalary(
                     employeeId = disbursingSalaryItem!!.employeeId,
                     amount = amount,
                     paymentMethod = method,
+                    bankId = bankId,
+                    bankName = bankName,
+                    referenceId = referenceId,
                     note = note
                 )
                 disbursingSalaryItem = null
@@ -1243,12 +1267,16 @@ fun AddEmployeeDialog(
 @Composable
 fun DisburseSalaryDialog(
     salary: EmployeeSalary,
+    banks: List<TenantBank> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (amount: String, method: String, note: String?) -> Unit
+    onConfirm: (amount: String, method: String, bankId: String?, bankName: String?, referenceId: String?, note: String?) -> Unit
 ) {
     var amount by remember { mutableStateOf(salary.balance) }
     var method by remember { mutableStateOf("cash") }
+    var selectedBankId by remember(banks) { mutableStateOf(banks.firstOrNull()?.id) }
+    var referenceId by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1256,7 +1284,10 @@ fun DisburseSalaryDialog(
         containerColor = MaterialTheme.colorScheme.surface,
         title = { Text("Disburse Salary: ${salary.employeeName}", fontWeight = FontWeight.ExtraBold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Surface(
                     shape = RoundedCornerShape(14.dp),
                     color = Crimson50,
@@ -1268,24 +1299,159 @@ fun DisburseSalaryDialog(
                         modifier = Modifier.padding(12.dp)
                     )
                 }
+
                 VyavsaTextField(
                     value = amount,
-                    onValueChange = { amount = it },
+                    onValueChange = {
+                        amount = it
+                        validationError = null
+                    },
                     label = "Disbursement Amount (₹) *",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
+
+                Text(
+                    text = "Payment Method *",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                )
+
+                VyavsaSegmentedTabs(
+                    tabs = listOf("Cash", "Bank Transfer"),
+                    selectedIndex = if (method == "cash") 0 else 1,
+                    onTabSelected = { idx ->
+                        method = if (idx == 0) "cash" else "bank"
+                        validationError = null
+                        if (method == "bank" && selectedBankId == null && banks.isNotEmpty()) {
+                            selectedBankId = banks.first().id
+                        }
+                    }
+                )
+
+                AnimatedVisibility(
+                    visible = method == "bank",
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Select Bank Account *",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
+
+                        if (banks.isEmpty()) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Amber50,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AccountBalance,
+                                        contentDescription = null,
+                                        tint = Amber600,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "No bank accounts available. Please add a bank account first.",
+                                        style = MaterialTheme.typography.bodySmall.copy(color = Amber600)
+                                    )
+                                }
+                            }
+                        } else {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState())
+                            ) {
+                                banks.forEach { bank ->
+                                    val isSelected = selectedBankId == bank.id
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            selectedBankId = bank.id
+                                            validationError = null
+                                        },
+                                        shape = CircleShape,
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.AccountBalance,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                        ),
+                                        label = {
+                                            val labelText = if (!bank.accountNumber.isNullOrBlank()) {
+                                                "${bank.bankName} (..${bank.accountNumber.takeLast(4)})"
+                                            } else {
+                                                bank.bankName
+                                            }
+                                            Text(labelText, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        VyavsaTextField(
+                            value = referenceId,
+                            onValueChange = { referenceId = it },
+                            label = "Reference / UTR ID (Optional)",
+                            placeholder = "e.g. UTR12345678"
+                        )
+                    }
+                }
+
                 VyavsaTextField(
                     value = note,
                     onValueChange = { note = it },
-                    label = "Note / Reference",
+                    label = "Note (Optional)",
                     placeholder = "Salary payout"
                 )
+
+                if (validationError != null) {
+                    Text(
+                        text = validationError!!,
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error)
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(amount, method, note) },
-                enabled = amount.isNotBlank()
+                onClick = {
+                    val trimmed = amount.trim()
+                    val parsed = trimmed.toDoubleOrNull()
+                    if (trimmed.isBlank() || parsed == null || parsed <= 0.0) {
+                        validationError = "Please enter a valid disbursement amount"
+                        return@TextButton
+                    }
+                    if (method == "bank" && (selectedBankId.isNullOrBlank() || banks.isEmpty())) {
+                        validationError = "Please select a bank account for bank disbursement"
+                        return@TextButton
+                    }
+                    val selectedBank = if (method == "bank") banks.firstOrNull { it.id == selectedBankId } else null
+                    onConfirm(
+                        trimmed,
+                        method,
+                        if (method == "bank") selectedBankId else null,
+                        selectedBank?.bankName,
+                        referenceId.trim().ifBlank { null },
+                        note.trim().ifBlank { null }
+                    )
+                },
+                enabled = amount.isNotBlank() && (method == "cash" || (banks.isNotEmpty() && selectedBankId != null))
             ) {
                 Text("Disburse Payout", fontWeight = FontWeight.Bold)
             }

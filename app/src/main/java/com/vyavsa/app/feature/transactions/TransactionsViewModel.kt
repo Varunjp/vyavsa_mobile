@@ -20,6 +20,7 @@ import com.vyavsa.app.core.model.PlanTransaction
 import com.vyavsa.app.core.model.Product
 import com.vyavsa.app.core.model.Purchase
 import com.vyavsa.app.core.model.SaleItemRequest
+import com.vyavsa.app.core.model.Supplier
 import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.security.TokenManager
 import com.vyavsa.app.core.sync.DataMutation
@@ -32,7 +33,11 @@ import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import com.vyavsa.app.core.common.FormatUtils
+import com.vyavsa.app.core.common.MessageType
+import com.vyavsa.app.core.common.OneTimeEventEmitter
+import com.vyavsa.app.core.common.UiMessage
 import com.vyavsa.app.core.designsystem.LogoMemoryCache
+import kotlinx.coroutines.flow.Flow
 import com.vyavsa.app.core.document.InvoiceShareManager
 import com.vyavsa.app.core.model.TenantProfile
 import com.vyavsa.app.core.printer.InvoiceContentSettings
@@ -141,6 +146,9 @@ class TransactionsViewModel @Inject constructor(
     private val _customersState = MutableStateFlow<UiState<List<Customer>>>(UiState.Idle)
     val customersState: StateFlow<UiState<List<Customer>>> = _customersState.asStateFlow()
 
+    private val _suppliersState = MutableStateFlow<UiState<List<Supplier>>>(UiState.Idle)
+    val suppliersState: StateFlow<UiState<List<Supplier>>> = _suppliersState.asStateFlow()
+
     private val _banksState = MutableStateFlow<UiState<List<TenantBank>>>(UiState.Idle)
     val banksState: StateFlow<UiState<List<TenantBank>>> = _banksState.asStateFlow()
 
@@ -150,8 +158,11 @@ class TransactionsViewModel @Inject constructor(
     private val _productsState = MutableStateFlow<UiState<List<Product>>>(UiState.Idle)
     val productsState: StateFlow<UiState<List<Product>>> = _productsState.asStateFlow()
 
-    private val _dateFilter = MutableStateFlow<String?>(null)
+    private val _dateFilter = MutableStateFlow<String?>(FormatUtils.todayDateString())
     val dateFilter: StateFlow<String?> = _dateFilter.asStateFlow()
+
+    private val eventEmitter = OneTimeEventEmitter()
+    val uiEvents: Flow<UiMessage> = eventEmitter.events
 
     private val _createActionState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val createActionState: StateFlow<UiState<Unit>> = _createActionState.asStateFlow()
@@ -196,6 +207,18 @@ class TransactionsViewModel @Inject constructor(
     val paperWidth: StateFlow<PaperWidth> = _paperWidth.asStateFlow()
 
     private var searchJob: Job? = null
+    private var lineSalesJob: Job? = null
+    private var counterSalesJob: Job? = null
+    private var purchasesJob: Job? = null
+    private var expensesJob: Job? = null
+
+    fun sendUiMessage(text: String, type: MessageType = MessageType.INFO) {
+        eventEmitter.emit(text, type)
+    }
+
+    fun resetPrintJobState() {
+        _printJobState.value = PrintJobState(status = PrintJobStatus.IDLE)
+    }
 
     val isAdmin: Boolean
         get() = tokenManager?.isTenantAdmin() ?: false
@@ -203,6 +226,7 @@ class TransactionsViewModel @Inject constructor(
     init {
         loadData()
         loadCustomers()
+        loadSuppliers()
         loadBanks()
         loadEmployees()
         loadProducts()
@@ -271,7 +295,6 @@ class TransactionsViewModel @Inject constructor(
                         loadProducts()
                         loadCompanyProfile()
                     }
-                    else -> {}
                 }
             }
         }
@@ -303,12 +326,14 @@ class TransactionsViewModel @Inject constructor(
     fun loadLineSalesData(date: String? = null, query: String? = null) {
         val q = query ?: _searchQuery.value.ifBlank { null }
         val d = date ?: _dateFilter.value?.ifBlank { null }
-        viewModelScope.launch {
+        lineSalesJob?.cancel()
+        _lineSalesState.value = UiState.Loading
+        lineSalesJob = viewModelScope.launch {
             repository.listLineSales(date = d, search = q).collect { res ->
                 _lineSalesState.value = when (res) {
-                    is Resource.Loading -> if (_lineSalesState.value is UiState.Success) _lineSalesState.value else UiState.Loading
+                    is Resource.Loading -> UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
-                    is Resource.Error -> UiState.Error(res.message)
+                    is Resource.Error -> UiState.Error(res.message, res.code)
                 }
             }
         }
@@ -317,12 +342,14 @@ class TransactionsViewModel @Inject constructor(
     fun loadCounterSalesData(date: String? = null, query: String? = null) {
         val q = query ?: _searchQuery.value.ifBlank { null }
         val d = date ?: _dateFilter.value?.ifBlank { null }
-        viewModelScope.launch {
+        counterSalesJob?.cancel()
+        _counterSalesState.value = UiState.Loading
+        counterSalesJob = viewModelScope.launch {
             repository.listCounterSales(date = d, search = q).collect { res ->
                 _counterSalesState.value = when (res) {
-                    is Resource.Loading -> if (_counterSalesState.value is UiState.Success) _counterSalesState.value else UiState.Loading
+                    is Resource.Loading -> UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
-                    is Resource.Error -> UiState.Error(res.message)
+                    is Resource.Error -> UiState.Error(res.message, res.code)
                 }
             }
         }
@@ -331,12 +358,14 @@ class TransactionsViewModel @Inject constructor(
     fun loadPurchasesData(date: String? = null, query: String? = null) {
         val q = query ?: _searchQuery.value.ifBlank { null }
         val d = date ?: _dateFilter.value?.ifBlank { null }
-        viewModelScope.launch {
+        purchasesJob?.cancel()
+        _purchasesState.value = UiState.Loading
+        purchasesJob = viewModelScope.launch {
             repository.listPurchases(date = d, search = q).collect { res ->
                 _purchasesState.value = when (res) {
-                    is Resource.Loading -> if (_purchasesState.value is UiState.Success) _purchasesState.value else UiState.Loading
+                    is Resource.Loading -> UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
-                    is Resource.Error -> UiState.Error(res.message)
+                    is Resource.Error -> UiState.Error(res.message, res.code)
                 }
             }
         }
@@ -345,12 +374,14 @@ class TransactionsViewModel @Inject constructor(
     fun loadExpensesData(date: String? = null, query: String? = null) {
         val q = query ?: _searchQuery.value.ifBlank { null }
         val d = date ?: _dateFilter.value?.ifBlank { null }
-        viewModelScope.launch {
+        expensesJob?.cancel()
+        _expensesState.value = UiState.Loading
+        expensesJob = viewModelScope.launch {
             repository.listExpenses(date = d, search = q).collect { res ->
                 _expensesState.value = when (res) {
-                    is Resource.Loading -> if (_expensesState.value is UiState.Success) _expensesState.value else UiState.Loading
+                    is Resource.Loading -> UiState.Loading
                     is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
-                    is Resource.Error -> UiState.Error(res.message)
+                    is Resource.Error -> UiState.Error(res.message, res.code)
                 }
             }
         }
@@ -382,7 +413,7 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 
-    private fun loadFilterableData(activeTabOnly: Boolean = false) {
+    fun loadFilterableData(activeTabOnly: Boolean = false) {
         val query = _searchQuery.value.ifBlank { null }
         val date = _dateFilter.value?.ifBlank { null }
 
@@ -427,6 +458,18 @@ class TransactionsViewModel @Inject constructor(
                     is Resource.Loading -> if (_customersState.value is UiState.Success) _customersState.value else UiState.Loading
                     is Resource.Success -> UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
+                }
+            }
+        }
+    }
+
+    fun loadSuppliers() {
+        viewModelScope.launch {
+            repository.listSuppliers().collect { res ->
+                _suppliersState.value = when (res) {
+                    is Resource.Loading -> if (_suppliersState.value is UiState.Success) _suppliersState.value else UiState.Loading
+                    is Resource.Success -> UiState.Success(res.data)
+                    is Resource.Error -> UiState.Error(res.message, res.code)
                 }
             }
         }
@@ -741,12 +784,13 @@ class TransactionsViewModel @Inject constructor(
     }
 
     fun createPurchase(
-        customerId: String? = null,
+        supplierId: String? = null,
         item: String,
         quantity: String,
         totalAmount: String,
         cashAmount: String = "0.00",
-        bankPayments: List<BankPaymentSplit> = emptyList()
+        bankPayments: List<BankPaymentSplit> = emptyList(),
+        customerId: String? = null
     ) {
         if (_createActionState.value is UiState.Loading) return
 
@@ -806,9 +850,13 @@ class TransactionsViewModel @Inject constructor(
         val formattedTotalPaid = String.format(java.util.Locale.US, "%.2f", totalPaidVal)
         val formattedCash = String.format(java.util.Locale.US, "%.2f", cashVal)
 
+        val resolvedSupplierId = supplierId?.trim()?.ifBlank { null }
+        val resolvedCustomerId = customerId?.trim()?.ifBlank { null }
+
         viewModelScope.launch {
             val req = CreatePurchaseRequest(
-                customerId = customerId?.trim()?.ifBlank { null },
+                supplierId = resolvedSupplierId,
+                customerId = resolvedCustomerId,
                 item = trimmedItem,
                 quantity = qty,
                 totalAmount = totalAmount.trim(),
@@ -1128,22 +1176,30 @@ class TransactionsViewModel @Inject constructor(
         // 2. If no hardware printer is available or configured, fallback gracefully to Android System Print
         if (targetPrinter == null || manager == null) {
             InvoicePrintAdapter.print(context, printData)
-            _printJobState.value = PrintJobState(status = PrintJobStatus.SUCCESS, message = "Sent to system print service")
+            val msg = "Sent to system print service"
+            _printJobState.value = PrintJobState(status = PrintJobStatus.SUCCESS, message = msg)
+            sendUiMessage(msg, MessageType.SUCCESS)
             return
         }
 
         // 3. Hardware permission & connection checks for Bluetooth
         if (targetPrinter.connectionType == PrinterConnectionType.BLUETOOTH) {
             if (!manager.isBluetoothSupported()) {
-                _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "Bluetooth is not supported on this device.")
+                val msg = "Bluetooth is not supported on this device."
+                _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = msg)
+                sendUiMessage(msg, MessageType.ERROR)
                 return
             }
             if (!manager.isBluetoothEnabled()) {
-                _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "Bluetooth is turned off. Please enable Bluetooth.")
+                val msg = "Bluetooth is turned off. Please enable Bluetooth."
+                _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = msg)
+                sendUiMessage(msg, MessageType.ERROR)
                 return
             }
             if (!manager.hasBluetoothPermission()) {
-                _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = "Bluetooth permission is required.")
+                val msg = "Bluetooth permission is required."
+                _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = msg)
+                sendUiMessage(msg, MessageType.ERROR)
                 onPermissionRequired?.invoke(com.vyavsa.app.core.printer.BluetoothPermissionHelper.getRequiredPermissions())
                 return
             }
@@ -1169,18 +1225,24 @@ class TransactionsViewModel @Inject constructor(
             _printJobState.value = PrintJobState(status = PrintJobStatus.PRINTING, message = "Printing receipt...")
             val res = manager.printReceipt(targetPrinter, rawBytes)
             if (res.isSuccess) {
-                _printJobState.value = PrintJobState(status = PrintJobStatus.SUCCESS, message = "Printed successfully on ${targetPrinter.name}")
+                val msg = "Printed successfully on ${targetPrinter.name}"
+                _printJobState.value = PrintJobState(status = PrintJobStatus.SUCCESS, message = msg)
+                sendUiMessage(msg, MessageType.SUCCESS)
             } else {
+                val msg = res.exceptionOrNull()?.message ?: "Print failed. Check printer connection or paper roll."
                 _printJobState.value = PrintJobState(
                     status = PrintJobStatus.ERROR,
-                    message = res.exceptionOrNull()?.message ?: "Print failed. Check printer connection or paper roll."
+                    message = msg
                 )
+                sendUiMessage(msg, MessageType.ERROR)
             }
         } catch (e: Exception) {
+            val msg = e.message ?: "Printer error"
             _printJobState.value = PrintJobState(
                 status = PrintJobStatus.ERROR,
-                message = e.message ?: "Printer error"
+                message = msg
             )
+            sendUiMessage(msg, MessageType.ERROR)
         }
     }
 
@@ -1231,6 +1293,7 @@ class TransactionsViewModel @Inject constructor(
     fun dismissPrintDialog() {
         _activePrintDialogData.value = null
         _activePrintingSaleId.value = null
+        resetPrintJobState()
     }
 
     fun printCurrentDialogReceipt(context: Context) {
@@ -1240,6 +1303,9 @@ class TransactionsViewModel @Inject constructor(
 
         if (printer == null) {
             InvoicePrintAdapter.print(context, printData)
+            val msg = "Sent to system print service"
+            _printJobState.value = PrintJobState(status = PrintJobStatus.SUCCESS, message = msg)
+            sendUiMessage(msg, MessageType.SUCCESS)
             dismissPrintDialog()
             return
         }
@@ -1264,20 +1330,26 @@ class TransactionsViewModel @Inject constructor(
                 _printJobState.value = PrintJobState(status = PrintJobStatus.PRINTING, message = "Printing receipt...")
                 val res = printerManager?.printReceipt(printer, rawBytes)
                 if (res != null && res.isSuccess) {
-                    _printJobState.value = PrintJobState(status = PrintJobStatus.SUCCESS, message = "Printed successfully")
+                    val msg = "Printed successfully"
+                    _printJobState.value = PrintJobState(status = PrintJobStatus.SUCCESS, message = msg)
+                    sendUiMessage(msg, MessageType.SUCCESS)
                     delay(800)
                     dismissPrintDialog()
                 } else {
+                    val msg = res?.exceptionOrNull()?.message ?: "Thermal print failed. Check printer connection or paper."
                     _printJobState.value = PrintJobState(
                         status = PrintJobStatus.ERROR,
-                        message = res?.exceptionOrNull()?.message ?: "Thermal print failed. Check printer connection or paper."
+                        message = msg
                     )
+                    sendUiMessage(msg, MessageType.ERROR)
                 }
             } catch (e: Exception) {
+                val msg = e.message ?: "Printer error"
                 _printJobState.value = PrintJobState(
                     status = PrintJobStatus.ERROR,
-                    message = e.message ?: "Printer error"
+                    message = msg
                 )
+                sendUiMessage(msg, MessageType.ERROR)
             } finally {
                 _activePrintingSaleId.value = null
             }

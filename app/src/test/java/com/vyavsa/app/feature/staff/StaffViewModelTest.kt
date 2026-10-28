@@ -296,6 +296,66 @@ class StaffViewModelTest {
         val actionState = viewModel.actionState.value
         assertTrue("Expected Success for overtime, got $actionState", actionState is UiState.Success)
     }
+
+    @Test
+    fun testPaySalaryCashSuccess() = runTest {
+        viewModel.paySalary(
+            employeeId = "emp-1",
+            amount = "5000.00",
+            paymentMethod = "cash",
+            note = "Monthly salary"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success for cash salary payout, got $actionState", actionState is UiState.Success)
+    }
+
+    @Test
+    fun testPaySalaryBankRequiresBankSelection() = runTest {
+        viewModel.paySalary(
+            employeeId = "emp-1",
+            amount = "5000.00",
+            paymentMethod = "bank",
+            bankId = null
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Error when bankId is missing for bank payout, got $actionState", actionState is UiState.Error)
+        assertEquals("Please select a bank account for bank disbursement", (actionState as UiState.Error).message)
+    }
+
+    @Test
+    fun testPaySalaryBankSuccess() = runTest {
+        viewModel.paySalary(
+            employeeId = "emp-1",
+            amount = "5000.00",
+            paymentMethod = "bank",
+            bankId = "bank-123",
+            bankName = "HDFC Bank",
+            referenceId = "UTR998877",
+            note = "Direct transfer"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success for bank payout, got $actionState", actionState is UiState.Success)
+    }
+
+    @Test
+    fun testPaySalaryInvalidAmount() = runTest {
+        viewModel.paySalary(
+            employeeId = "emp-1",
+            amount = "0.00",
+            paymentMethod = "cash"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Error for 0 amount, got $actionState", actionState is UiState.Error)
+        assertEquals("Please enter a valid disbursement amount", (actionState as UiState.Error).message)
+    }
 }
 
 class FakeStaffRepository : StaffRepository {
@@ -483,7 +543,10 @@ class FakeStaffRepository : StaffRepository {
         employeeId: String,
         amount: String,
         paymentMethod: String,
+        bankId: String?,
+        bankName: String?,
         date: String?,
+        referenceId: String?,
         note: String?
     ): Flow<Resource<Unit>> = flow {
         emit(Resource.Loading)

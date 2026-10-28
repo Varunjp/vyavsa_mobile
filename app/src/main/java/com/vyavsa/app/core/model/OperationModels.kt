@@ -247,6 +247,7 @@ data class Purchase(
 @Serializable
 data class CreatePurchaseRequest(
     @SerialName("customer_id") val customerId: String? = null,
+    @SerialName("supplier_id") val supplierId: String? = null,
     val item: String,
     val quantity: Int = 1,
     @SerialName("total_amount") val totalAmount: String,
@@ -258,6 +259,7 @@ data class CreatePurchaseRequest(
 @Serializable
 data class UpdatePurchaseRequest(
     @SerialName("customer_id") val customerId: String? = null,
+    @SerialName("supplier_id") val supplierId: String? = null,
     val item: String? = null,
     val quantity: Int? = null,
     @SerialName("total_amount") val totalAmount: String? = null,
@@ -266,6 +268,9 @@ data class UpdatePurchaseRequest(
 
 @Serializable
 data class RecordSupplierPaymentRequest(
+    @SerialName("customer_id") val customerId: String? = null,
+    @SerialName("supplier_id") val supplierId: String? = null,
+    @SerialName("purchase_id") val purchaseId: String? = null,
     val amount: String,
     @SerialName("payment_method") val paymentMethod: String = "cash",
     @SerialName("bank_id") val bankId: String? = null,
@@ -297,6 +302,9 @@ data class SupplierPaymentResponse(
     @SerialName("payment_method") val paymentMethod: String = "cash",
     @SerialName("previous_outstanding") val previousOutstanding: String = "0.00",
     @SerialName("new_outstanding") val newOutstanding: String = "0.00",
+    @SerialName("payment_date") val paymentDate: String = "",
+    @SerialName("reference_id") val referenceId: String? = null,
+    val note: String? = null,
     val allocations: List<SupplierPaymentAllocation> = emptyList()
 )
 
@@ -401,6 +409,89 @@ data class RecordPaymentRequest(
     @SerialName("payment_method") val paymentMethod: String = "cash",
     @SerialName("payment_date") val paymentDate: String? = null,
     val note: String? = null
+)
+
+@Serializable
+data class CollectCustomerPaymentRequest(
+    @SerialName("customer_id") val customerId: String? = null,
+    val amount: String,
+    @SerialName("payment_method") val paymentMethod: String = "cash", // cash, bank
+    @SerialName("cash_amount") val cashAmount: String? = null,
+    @SerialName("bank_id") val bankId: String? = null,
+    @SerialName("bank_name") val bankName: String? = null,
+    @SerialName("payment_date") val paymentDate: String? = null,
+    @SerialName("reference_id") val referenceId: String? = null,
+    val note: String? = null,
+    @SerialName("idempotency_key") val idempotencyKey: String? = null
+)
+
+@Immutable
+@Serializable
+data class CustomerPaymentResponse(
+    val id: String = "",
+    @SerialName("tenant_id") val tenantId: String = "",
+    @SerialName("customer_id") val customerId: String = "",
+    @SerialName("customer_name") val customerName: String = "",
+    @SerialName("collection_number") val collectionNumber: String = "",
+    val amount: String = "0.00",
+    @SerialName("payment_method") val paymentMethod: String = "",
+    @SerialName("cash_amount") val cashAmount: String = "0.00",
+    @SerialName("bank_amount") val bankAmount: String = "0.00",
+    @SerialName("customer_balance") val customerBalance: String = "0.00",
+    @SerialName("previous_balance") val previousBalance: String = "0.00",
+    @SerialName("reference_id") val referenceId: String? = null,
+    val note: String? = null,
+    @SerialName("payment_date") val paymentDate: String = "",
+    @SerialName("created_at") val createdAt: String = ""
+)
+
+// ==========================================
+// 2b. Supplier Models
+// ==========================================
+
+@Immutable
+@Serializable
+data class Supplier(
+    val id: String = "",
+    @SerialName("tenant_id") val tenantId: String = "",
+    @SerialName("supplier_name") val supplierName: String = "",
+    @SerialName("customer_name") val customerName: String? = null,
+    val phone: String? = null,
+    @SerialName("total_purchases") val totalPurchases: String = "0.00",
+    @SerialName("total_paid") val totalPaid: String = "0.00",
+    @SerialName("outstanding_payable") val outstandingPayable: String = "0.00",
+    val status: String = "active",
+    @SerialName("entity_type") val entityType: String = "supplier",
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("updated_at") val updatedAt: String = ""
+) {
+    val displayName: String
+        get() = supplierName.ifBlank { customerName ?: "Unnamed Supplier" }
+}
+
+@Serializable
+data class CreateSupplierRequest(
+    @SerialName("supplier_name") val supplierName: String,
+    val phone: String? = null,
+    val status: String = "active"
+)
+
+@Serializable
+data class UpdateSupplierRequest(
+    @SerialName("supplier_name") val supplierName: String? = null,
+    val phone: String? = null,
+    val status: String? = null
+)
+
+@Immutable
+@Serializable
+data class SupplierBalance(
+    @SerialName("supplier_id") val supplierId: String = "",
+    @SerialName("supplier_name") val supplierName: String = "",
+    @SerialName("total_purchases") val totalPurchases: String = "0.00",
+    @SerialName("total_paid") val totalPaid: String = "0.00",
+    @SerialName("outstanding_payable") val outstandingPayable: String = "0.00",
+    val status: String = "active"
 )
 
 // ==========================================
@@ -620,8 +711,11 @@ data class EmployeeSalary(
 @Serializable
 data class PaySalaryRequest(
     @SerialName("payment_method") val paymentMethod: String = "cash",
+    @SerialName("bank_id") val bankId: String? = null,
+    @SerialName("bank_name") val bankName: String? = null,
     val amount: String,
     @SerialName("payment_date") val paymentDate: String? = null,
+    @SerialName("reference_id") val referenceId: String? = null,
     val note: String? = null
 )
 
