@@ -16,6 +16,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +39,18 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import android.widget.Toast
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.ui.platform.LocalContext
+import com.vyavsa.app.core.common.SaleCalculationUtils
+import com.vyavsa.app.core.common.SaleCalculationUtils.PosAllocationPreview
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
@@ -45,6 +58,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -82,7 +96,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
+import com.vyavsa.app.core.designsystem.AvatarInitialCircle
 import com.vyavsa.app.core.designsystem.Blue50
+import com.vyavsa.app.core.designsystem.CustomerSelectorBottomSheet
+import com.vyavsa.app.core.designsystem.QuickAddCustomerDialog
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.ReceiptLong
@@ -101,7 +118,6 @@ import com.vyavsa.app.core.designsystem.VyavsaOutlinedButton
 import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
-import com.vyavsa.app.core.common.SaleCalculationUtils
 import com.vyavsa.app.core.model.BankPaymentSplit
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.Product
@@ -183,8 +199,15 @@ fun CreateSaleScreen(
     val isLoadingBanks = banksState is UiState.Loading
 
     // Form fields for Line Sale
+    val context = LocalContext.current
+    var saleDate by remember { mutableStateOf(FormatUtils.todayDateString()) }
+    var showDatePicker by remember { mutableStateOf(false) }
+
     var selectedCustomer by remember { mutableStateOf<Customer?>(null) }
-    var customerDropdownExpanded by remember { mutableStateOf(false) }
+    var showCustomerSelectorSheet by remember { mutableStateOf(false) }
+    var customerSelectorTarget by remember { mutableStateOf(SaleType.LINE_SALE) }
+    var customerSearchQuery by remember { mutableStateOf("") }
+    var showQuickAddCustomerDialog by remember { mutableStateOf(false) }
     var route by remember { mutableStateOf("") }
     var salesman by remember { mutableStateOf("") }
     var lineSubtotal by remember { mutableStateOf("") }
@@ -197,6 +220,7 @@ fun CreateSaleScreen(
     var lineItems by remember { mutableStateOf<List<SaleItemEntry>>(emptyList()) }
 
     // Form fields for Counter Sale
+    var counterSelectedCustomer by remember { mutableStateOf<Customer?>(null) }
     var counterItem by remember { mutableStateOf("") }
     var counterPrice by remember { mutableStateOf("") }
     var counterSubtotal by remember { mutableStateOf("") }
@@ -207,6 +231,41 @@ fun CreateSaleScreen(
     var counterBankEntries by remember { mutableStateOf<List<BankPaymentEntry>>(emptyList()) }
     var counterItems by remember { mutableStateOf<List<SaleItemEntry>>(emptyList()) }
 
+    LaunchedEffect(Unit) {
+        if (customersState !is UiState.Success || customers.isEmpty()) {
+            viewModel.loadCustomers()
+        }
+        if (productsState !is UiState.Success) {
+            viewModel.loadProducts()
+        }
+        if (banksState !is UiState.Success) {
+            viewModel.loadBanks()
+        }
+    }
+
+    // Dynamic POS allocation calculation
+    val lineBankTotal = if (lineIncludeBank) lineBankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } else 0.0
+    val linePosPreview = remember(lineTotalAmount, selectedCustomer, lineCashIn, lineBankTotal) {
+        SaleCalculationUtils.calculatePosAllocation(
+            saleTotalStr = lineTotalAmount,
+            customerCurrentBalanceStr = selectedCustomer?.currentBalance,
+            customerAdvanceBalanceStr = selectedCustomer?.advanceBalance,
+            directCashStr = lineCashIn,
+            directBankStr = lineBankTotal.toString()
+        )
+    }
+
+    val counterBankTotal = if (counterIncludeBank) counterBankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } else 0.0
+    val counterPosPreview = remember(counterTotalAmount, counterSelectedCustomer, counterCash, counterBankTotal) {
+        SaleCalculationUtils.calculatePosAllocation(
+            saleTotalStr = counterTotalAmount,
+            customerCurrentBalanceStr = counterSelectedCustomer?.currentBalance,
+            customerAdvanceBalanceStr = counterSelectedCustomer?.advanceBalance,
+            directCashStr = counterCash,
+            directBankStr = counterBankTotal.toString()
+        )
+    }
+
     // Searchable Product Selector Sheet State
     var showProductSelectorSheet by remember { mutableStateOf(false) }
     var selectorTarget by remember { mutableStateOf(SaleType.LINE_SALE) }
@@ -216,6 +275,33 @@ fun CreateSaleScreen(
         if (createActionState is UiState.Success) {
             onSaleCreated()
             viewModel.resetCreateState()
+        }
+    }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                            saleDate = sdf.format(Date(millis))
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("Select", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 
@@ -343,7 +429,9 @@ fun CreateSaleScreen(
                                     bankId = splits.firstOrNull()?.bankId,
                                     bankPayments = splits,
                                     note = note,
-                                    items = itemRequests
+                                    items = itemRequests,
+                                    saleDate = saleDate,
+                                    advanceToApply = linePosPreview.advanceAppliedString
                                 )
                             } else {
                                 val splits = if (counterIncludeBank) {
@@ -376,7 +464,11 @@ fun CreateSaleScreen(
                                     bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
                                     bankId = splits.firstOrNull()?.bankId,
                                     bankPayments = splits,
-                                    items = itemRequests
+                                    items = itemRequests,
+                                    customerId = counterSelectedCustomer?.id,
+                                    customerName = counterSelectedCustomer?.customerName,
+                                    saleDate = saleDate,
+                                    advanceToApply = if (counterSelectedCustomer != null) counterPosPreview.advanceAppliedString else null
                                 )
                             }
                         },
@@ -460,67 +552,125 @@ fun CreateSaleScreen(
                                     style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 )
 
-                                Spacer(modifier = Modifier.height(18.dp))
+                                Spacer(modifier = Modifier.height(14.dp))
 
-                                // Customer Selector (Aligned with VyavsaTextField style)
-                                ExposedDropdownMenuBox(
-                                    expanded = customerDropdownExpanded,
-                                    onExpandedChange = { customerDropdownExpanded = !customerDropdownExpanded },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    OutlinedTextField(
-                                        value = selectedCustomer?.customerName ?: "",
-                                        onValueChange = {},
-                                        readOnly = true,
-                                        label = { Text("Customer Account *") },
-                                        placeholder = { Text("Select registered customer") },
-                                        leadingIcon = {
+                                SaleDateSelectorRow(
+                                    saleDate = saleDate,
+                                    isAdmin = viewModel.isAdmin,
+                                    onSelectDateClick = {
+                                        if (viewModel.isAdmin) {
+                                            showDatePicker = true
+                                        } else {
+                                            Toast.makeText(context, "Non-admins can only record sales for today", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Customer Selector for Line Sale
+                                if (selectedCustomer == null) {
+                                    Surface(
+                                        shape = RoundedCornerShape(18.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(18.dp))
+                                            .clickable {
+                                                customerSelectorTarget = SaleType.LINE_SALE
+                                                customerSearchQuery = ""
+                                                showCustomerSelectorSheet = true
+                                            }
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 14.dp)
+                                        ) {
                                             Icon(
                                                 imageVector = Icons.Default.Person,
                                                 contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = "Customer Account *",
+                                                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                )
+                                                Text(
+                                                    text = "Select registered route customer",
+                                                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                                                )
+                                            }
+                                            Icon(
+                                                imageVector = Icons.Default.Search,
+                                                contentDescription = "Search",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(20.dp)
                                             )
-                                        },
-                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = customerDropdownExpanded) },
+                                        }
+                                    }
+                                } else {
+                                    Surface(
                                         shape = RoundedCornerShape(18.dp),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                                        ),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .menuAnchor()
-                                    )
-
-                                    ExposedDropdownMenu(
-                                        expanded = customerDropdownExpanded,
-                                        onDismissRequest = { customerDropdownExpanded = false }
+                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f),
+                                        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        if (customers.isEmpty()) {
-                                            DropdownMenuItem(
-                                                text = { Text("No customers found") },
-                                                onClick = { customerDropdownExpanded = false }
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                        ) {
+                                            AvatarInitialCircle(
+                                                name = selectedCustomer!!.customerName,
+                                                modifier = Modifier.size(42.dp)
                                             )
-                                        } else {
-                                            customers.forEach { customer ->
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        Column {
-                                                            Text(customer.customerName, fontWeight = FontWeight.Bold)
-                                                            Text(
-                                                                text = "Balance: ${FormatUtils.formatCurrency(customer.currentBalance)}",
-                                                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                            )
-                                                        }
-                                                    },
-                                                    onClick = {
-                                                        selectedCustomer = customer
-                                                        customerDropdownExpanded = false
-                                                    }
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = selectedCustomer!!.customerName,
+                                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                                                 )
+                                                if (!selectedCustomer!!.phone.isNullOrBlank()) {
+                                                    Text(
+                                                        text = selectedCustomer!!.phone!!,
+                                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    )
+                                                }
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    modifier = Modifier.padding(top = 4.dp)
+                                                ) {
+                                                    val due = selectedCustomer!!.currentBalance.toDoubleOrNull() ?: 0.0
+                                                    val adv = selectedCustomer!!.advanceBalance.toDoubleOrNull() ?: 0.0
+                                                    StatBadge(
+                                                        text = "Due: ${FormatUtils.formatCurrency(selectedCustomer!!.currentBalance)}",
+                                                        backgroundColor = if (due > 0) Crimson50 else Emerald50,
+                                                        textColor = if (due > 0) Crimson600 else Emerald600
+                                                    )
+                                                    if (adv > 0) {
+                                                        StatBadge(
+                                                            text = "Adv: ${FormatUtils.formatCurrency(selectedCustomer!!.advanceBalance)}",
+                                                            backgroundColor = Blue50,
+                                                            textColor = Blue600
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            TextButton(
+                                                onClick = {
+                                                    customerSelectorTarget = SaleType.LINE_SALE
+                                                    customerSearchQuery = ""
+                                                    showCustomerSelectorSheet = true
+                                                }
+                                            ) {
+                                                Text("Change", fontWeight = FontWeight.Bold)
                                             }
                                         }
                                     }
@@ -533,14 +683,11 @@ fun CreateSaleScreen(
                                     exit = shrinkVertically() + fadeOut()
                                 ) {
                                     selectedCustomer?.let { cust ->
-                                        val lineBankTotal = if (lineIncludeBank) lineBankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } else 0.0
                                         Column {
                                             Spacer(modifier = Modifier.height(12.dp))
                                             CustomerBalancePreviewBox(
-                                                currentBalance = cust.currentBalance,
-                                                totalAmount = lineTotalAmount,
-                                                cashIn = lineCashIn,
-                                                bankAmount = lineBankTotal.toString()
+                                                customer = cust,
+                                                posPreview = linePosPreview
                                             )
                                         }
                                     }
@@ -714,7 +861,9 @@ fun CreateSaleScreen(
                                     cashAmount = lineCashIn,
                                     bankEntries = if (lineIncludeBank) lineBankEntries else emptyList(),
                                     isLineSale = true,
-                                    itemsSubtotal = lineItemsSubtotal
+                                    itemsSubtotal = lineItemsSubtotal,
+                                    customer = selectedCustomer,
+                                    posAllocationPreview = if (selectedCustomer != null) linePosPreview else null
                                 )
 
                                 Spacer(modifier = Modifier.height(14.dp))
@@ -744,7 +893,156 @@ fun CreateSaleScreen(
                                     style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 )
 
-                                Spacer(modifier = Modifier.height(18.dp))
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                SaleDateSelectorRow(
+                                    saleDate = saleDate,
+                                    isAdmin = viewModel.isAdmin,
+                                    onSelectDateClick = {
+                                        if (viewModel.isAdmin) {
+                                            showDatePicker = true
+                                        } else {
+                                            Toast.makeText(context, "Non-admins can only record sales for today", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                )
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Optional Customer Selector for Counter Sale
+                                if (counterSelectedCustomer == null) {
+                                    Surface(
+                                        shape = RoundedCornerShape(18.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(18.dp))
+                                            .clickable {
+                                                customerSelectorTarget = SaleType.COUNTER_SALE
+                                                customerSearchQuery = ""
+                                                showCustomerSelectorSheet = true
+                                            }
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 14.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Person,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = "Customer Account (Optional)",
+                                                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                )
+                                                Text(
+                                                    text = "Walk-in Customer (Tap to select registered account)",
+                                                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
+                                                )
+                                            }
+                                            Icon(
+                                                imageVector = Icons.Default.Search,
+                                                contentDescription = "Search",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Surface(
+                                        shape = RoundedCornerShape(18.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f),
+                                        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                                        ) {
+                                            AvatarInitialCircle(
+                                                name = counterSelectedCustomer!!.customerName,
+                                                modifier = Modifier.size(42.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = counterSelectedCustomer!!.customerName,
+                                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                                )
+                                                if (!counterSelectedCustomer!!.phone.isNullOrBlank()) {
+                                                    Text(
+                                                        text = counterSelectedCustomer!!.phone!!,
+                                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    )
+                                                }
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    modifier = Modifier.padding(top = 4.dp)
+                                                ) {
+                                                    val due = counterSelectedCustomer!!.currentBalance.toDoubleOrNull() ?: 0.0
+                                                    val adv = counterSelectedCustomer!!.advanceBalance.toDoubleOrNull() ?: 0.0
+                                                    StatBadge(
+                                                        text = "Due: ${FormatUtils.formatCurrency(counterSelectedCustomer!!.currentBalance)}",
+                                                        backgroundColor = if (due > 0) Crimson50 else Emerald50,
+                                                        textColor = if (due > 0) Crimson600 else Emerald600
+                                                    )
+                                                    if (adv > 0) {
+                                                        StatBadge(
+                                                            text = "Adv: ${FormatUtils.formatCurrency(counterSelectedCustomer!!.advanceBalance)}",
+                                                            backgroundColor = Blue50,
+                                                            textColor = Blue600
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                TextButton(
+                                                    onClick = {
+                                                        customerSelectorTarget = SaleType.COUNTER_SALE
+                                                        customerSearchQuery = ""
+                                                        showCustomerSelectorSheet = true
+                                                    }
+                                                ) {
+                                                    Text("Change", fontWeight = FontWeight.Bold)
+                                                }
+                                                TextButton(
+                                                    onClick = {
+                                                        counterSelectedCustomer = null
+                                                    }
+                                                ) {
+                                                    Text("Walk-in", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                AnimatedVisibility(
+                                    visible = counterSelectedCustomer != null,
+                                    enter = expandVertically() + fadeIn(),
+                                    exit = shrinkVertically() + fadeOut()
+                                ) {
+                                    counterSelectedCustomer?.let { cust ->
+                                        Column {
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            CustomerBalancePreviewBox(
+                                                customer = cust,
+                                                posPreview = counterPosPreview
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
 
                                 // Items in Counter Sale Section
                                 val counterItemsSubtotal = if (counterItems.isNotEmpty()) {
@@ -899,7 +1197,9 @@ fun CreateSaleScreen(
                                     cashAmount = counterCash,
                                     bankEntries = if (counterIncludeBank) counterBankEntries else emptyList(),
                                     isLineSale = false,
-                                    itemsSubtotal = counterItemsSubtotal
+                                    itemsSubtotal = counterItemsSubtotal,
+                                    customer = counterSelectedCustomer,
+                                    posAllocationPreview = if (counterSelectedCustomer != null) counterPosPreview else null
                                 )
 
                                 Spacer(modifier = Modifier.height(20.dp))
@@ -970,6 +1270,55 @@ fun CreateSaleScreen(
                     showProductSelectorSheet = false
                 },
                 onDismiss = { showProductSelectorSheet = false }
+            )
+        }
+
+        // Searchable Customer Selector Sheet
+        if (showCustomerSelectorSheet) {
+            CustomerSelectorBottomSheet(
+                customersState = customersState,
+                searchQuery = customerSearchQuery,
+                onSearchQueryChange = { query ->
+                    customerSearchQuery = query
+                    viewModel.setCustomerSearchQuery(query)
+                },
+                allowWalkIn = customerSelectorTarget == SaleType.COUNTER_SALE,
+                onAddNewCustomerClick = {
+                    showQuickAddCustomerDialog = true
+                },
+                onRetry = {
+                    viewModel.loadCustomers(customerSearchQuery.ifBlank { null })
+                },
+                onCustomerSelected = { customer ->
+                    if (customerSelectorTarget == SaleType.LINE_SALE) {
+                        selectedCustomer = customer
+                    } else {
+                        counterSelectedCustomer = customer
+                    }
+                    showCustomerSelectorSheet = false
+                },
+                onDismiss = { showCustomerSelectorSheet = false }
+            )
+        }
+
+        // Quick Add Customer Dialog
+        if (showQuickAddCustomerDialog) {
+            QuickAddCustomerDialog(
+                initialName = customerSearchQuery,
+                onDismiss = { showQuickAddCustomerDialog = false },
+                onConfirm = { name, phone, openingBalance ->
+                    showQuickAddCustomerDialog = false
+                    viewModel.createCustomer(name, phone, openingBalance) { success, createdCustomer, _ ->
+                        if (success && createdCustomer != null) {
+                            if (customerSelectorTarget == SaleType.LINE_SALE) {
+                                selectedCustomer = createdCustomer
+                            } else {
+                                counterSelectedCustomer = createdCustomer
+                            }
+                            showCustomerSelectorSheet = false
+                        }
+                    }
+                }
             )
         }
     }
@@ -1496,20 +1845,73 @@ private fun BankPaymentRowItem(
 }
 
 @Composable
-private fun CustomerBalancePreviewBox(
-    currentBalance: String,
-    totalAmount: String,
-    cashIn: String,
-    bankAmount: String,
+private fun SaleDateSelectorRow(
+    saleDate: String,
+    isAdmin: Boolean,
+    onSelectDateClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cur = currentBalance.toDoubleOrNull() ?: 0.0
-    val total = totalAmount.toDoubleOrNull() ?: 0.0
-    val cash = cashIn.toDoubleOrNull() ?: 0.0
-    val bank = bankAmount.toDoubleOrNull() ?: 0.0
-    val collected = cash + bank
-    val saleDue = if (total > collected) total - collected else 0.0
-    val resulting = cur + saleDue
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.CalendarToday,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(
+                        text = "Sale Date",
+                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
+                    Text(
+                        text = saleDate,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+            }
+            TextButton(
+                onClick = onSelectDateClick
+            ) {
+                Text(
+                    text = if (isAdmin) "Change Date" else "Today Only",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        color = if (isAdmin) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CustomerBalancePreviewBox(
+    customer: Customer,
+    posPreview: PosAllocationPreview,
+    modifier: Modifier = Modifier
+) {
+    val curDue = customer.currentBalance.toDoubleOrNull() ?: 0.0
+    val availAdv = customer.advanceBalance.toDoubleOrNull() ?: 0.0
+    val advApplied = posPreview.advanceApplied.toDouble()
+    val netPayable = posPreview.remainingPayable.toDouble()
+    val prevSettled = posPreview.previousDuesSettled.toDouble()
+    val newAdv = posPreview.advanceGenerated.toDouble()
+    val updatedDue = posPreview.updatedCustomerDue.toDouble()
+    val updatedAdv = posPreview.updatedAdvanceBalance.toDouble()
 
     Card(
         shape = RoundedCornerShape(18.dp),
@@ -1529,17 +1931,17 @@ private fun CustomerBalancePreviewBox(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "Current Customer Balance:",
+                    text = "Customer Outstanding Due:",
                     style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
                 StatBadge(
-                    text = FormatUtils.formatCurrency(cur.toString()),
-                    backgroundColor = if (cur > 0.0) Crimson50 else Emerald50,
-                    textColor = if (cur > 0.0) Crimson600 else Emerald600
+                    text = FormatUtils.formatCurrency(curDue.toString()),
+                    backgroundColor = if (curDue > 0.0) Crimson50 else Emerald50,
+                    textColor = if (curDue > 0.0) Crimson600 else Emerald600
                 )
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1547,17 +1949,100 @@ private fun CustomerBalancePreviewBox(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "This Invoice Due (Unpaid):",
+                    text = "Available Advance Balance:",
                     style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
-                Text(
-                    text = "+${FormatUtils.formatCurrency(saleDue.toString())}",
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        color = if (saleDue > 0.0) Crimson600 else Emerald600
-                    )
+                StatBadge(
+                    text = FormatUtils.formatCurrency(availAdv.toString()),
+                    backgroundColor = if (availAdv > 0.0) Blue50 else MaterialTheme.colorScheme.surfaceContainerHigh,
+                    textColor = if (availAdv > 0.0) Blue600 else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            if (advApplied > 0.0) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Advance Auto-Applied to Sale:",
+                        style = MaterialTheme.typography.bodySmall.copy(color = Emerald600, fontWeight = FontWeight.SemiBold)
+                    )
+                    Text(
+                        text = "-${FormatUtils.formatCurrency(advApplied.toString())}",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = Emerald600
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Remaining Net Sale Payable:",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = FormatUtils.formatCurrency(netPayable.toString()),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                }
+            }
+
+            if (prevSettled > 0.0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Settles Previous Customer Dues:",
+                        style = MaterialTheme.typography.bodySmall.copy(color = Emerald600, fontWeight = FontWeight.SemiBold)
+                    )
+                    Text(
+                        text = "-${FormatUtils.formatCurrency(prevSettled.toString())}",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = Emerald600
+                        )
+                    )
+                }
+            }
+
+            if (newAdv > 0.0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Remaining Excess Stored as Advance:",
+                        style = MaterialTheme.typography.bodySmall.copy(color = Blue600, fontWeight = FontWeight.SemiBold)
+                    )
+                    Text(
+                        text = "+${FormatUtils.formatCurrency(newAdv.toString())}",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = Blue600
+                        )
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -1568,17 +2053,39 @@ private fun CustomerBalancePreviewBox(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "Resulting Account Balance:",
+                    text = "Resulting Outstanding Due:",
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
                 )
                 Text(
-                    text = FormatUtils.formatCurrency(resulting.toString()),
+                    text = FormatUtils.formatCurrency(updatedDue.toString()),
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = if (updatedDue > 0.0) Crimson600 else Emerald600
                     )
                 )
+            }
+
+            if (updatedAdv > 0.0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Resulting Advance Balance:",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = FormatUtils.formatCurrency(updatedAdv.toString()),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = Blue600
+                        )
+                    )
+                }
             }
         }
     }
@@ -1593,6 +2100,8 @@ private fun SaleCalculationBox(
     bankEntries: List<BankPaymentEntry> = emptyList(),
     isLineSale: Boolean,
     itemsSubtotal: Double? = null,
+    customer: Customer? = null,
+    posAllocationPreview: PosAllocationPreview? = null,
     modifier: Modifier = Modifier
 ) {
     val total = totalAmount.toDoubleOrNull() ?: 0.0
@@ -1602,19 +2111,18 @@ private fun SaleCalculationBox(
     val bankTotal = bankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
     val collected = cash + bankTotal
     val due = if (total > collected) total - collected else 0.0
-    val exceeds = total > 0.0 && collected > total
     val invalidDiscount = disc < 0.0 || (sub > 0.0 && disc > sub)
 
     Card(
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (exceeds || invalidDiscount) Crimson50.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = if (invalidDiscount) Crimson50.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceContainerLow
         ),
         modifier = modifier
             .fillMaxWidth()
             .border(
                 1.dp,
-                if (exceeds || invalidDiscount) Crimson600.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant,
+                if (invalidDiscount) Crimson600.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant,
                 RoundedCornerShape(18.dp)
             )
     ) {
@@ -1667,7 +2175,7 @@ private fun SaleCalculationBox(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Final Payable Amount:", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                Text("Sale Total:", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
                 Text(
                     text = FormatUtils.formatCurrency(total.toString()),
                     style = MaterialTheme.typography.titleSmall.copy(
@@ -1676,6 +2184,40 @@ private fun SaleCalculationBox(
                         color = MaterialTheme.colorScheme.primary
                     )
                 )
+            }
+
+            if (posAllocationPreview != null && posAllocationPreview.advanceApplied.toDouble() > 0.0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Paid using Advance:", style = MaterialTheme.typography.bodySmall.copy(color = Emerald600, fontWeight = FontWeight.Bold))
+                    Text(
+                        text = "-${FormatUtils.formatCurrency(posAllocationPreview.advanceAppliedString)}",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = Emerald600
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Remaining Net Payable:", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                    Text(
+                        text = FormatUtils.formatCurrency(posAllocationPreview.remainingPayableString),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -1745,35 +2287,127 @@ private fun SaleCalculationBox(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Total Received (Cash + Bank):", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                Text("Total Received Directly (Cash + Bank):", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
                 Text(
                     text = FormatUtils.formatCurrency(collected.toString()),
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (exceeds) Crimson600 else Emerald600
+                        color = Emerald600
                     )
                 )
             }
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = if (isLineSale) "Due Balance (Customer Ledger):" else "Due / Credit Balance:",
-                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                )
-                Text(
-                    text = FormatUtils.formatCurrency(due.toString()),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        color = if (due > 0.0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+            if (posAllocationPreview != null) {
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Balance Due for this Sale:",
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
-                )
+                    Text(
+                        text = FormatUtils.formatCurrency(posAllocationPreview.remainingSaleDueString),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = if (posAllocationPreview.remainingSaleDue.toDouble() > 0.0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                }
+
+                if (posAllocationPreview.excessPayment.toDouble() > 0.0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Excess Payment Collected:", style = MaterialTheme.typography.bodySmall.copy(color = Emerald600, fontWeight = FontWeight.SemiBold))
+                        Text(
+                            text = FormatUtils.formatCurrency(posAllocationPreview.excessPaymentString),
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = Emerald600)
+                        )
+                    }
+
+                    if (posAllocationPreview.previousDuesSettled.toDouble() > 0.0) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("↳ Settled Previous Dues:", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                            Text(
+                                text = "-${FormatUtils.formatCurrency(posAllocationPreview.previousDuesSettledString)}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold, color = Emerald600)
+                            )
+                        }
+                    }
+
+                    if (posAllocationPreview.advanceGenerated.toDouble() > 0.0) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("↳ Added to Advance Balance:", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                            Text(
+                                text = "+${FormatUtils.formatCurrency(posAllocationPreview.advanceGeneratedString)}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold, color = Blue600)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Updated Customer Total Due:", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                    Text(
+                        text = FormatUtils.formatCurrency(posAllocationPreview.updatedCustomerDueString),
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (posAllocationPreview.updatedCustomerDue.toDouble() > 0.0) Crimson600 else Emerald600
+                        )
+                    )
+                }
+            } else {
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = if (isLineSale) "Due Balance (Customer Ledger):" else "Due / Credit Balance:",
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
+                    Text(
+                        text = FormatUtils.formatCurrency(due.toString()),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = if (due > 0.0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                }
+
+                if (collected > total && total > 0.0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Change / Excess Collected:", style = MaterialTheme.typography.bodySmall.copy(color = Emerald600, fontWeight = FontWeight.Bold))
+                        Text(
+                            text = FormatUtils.formatCurrency((collected - total).toString()),
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = Emerald600)
+                        )
+                    }
+                }
             }
 
             if (!isLineSale) {
@@ -1805,12 +2439,6 @@ private fun SaleCalculationBox(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "⚠️ Discount (${FormatUtils.formatCurrency(disc.toString())}) cannot exceed subtotal (${FormatUtils.formatCurrency(sub.toString())})",
-                    style = MaterialTheme.typography.bodySmall.copy(color = Crimson600, fontWeight = FontWeight.Bold)
-                )
-            } else if (exceeds) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "⚠️ Collected amount cannot exceed total sale amount (${FormatUtils.formatCurrency(total.toString())})",
                     style = MaterialTheme.typography.bodySmall.copy(color = Crimson600, fontWeight = FontWeight.Bold)
                 )
             }

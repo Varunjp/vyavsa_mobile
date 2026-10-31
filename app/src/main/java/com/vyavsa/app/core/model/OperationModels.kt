@@ -69,6 +69,13 @@ data class LineSale(
     @SerialName("bank_amount") val bankAmount: String = "0.00",
     @SerialName("collected_amount") val collectedAmount: String = "0.00",
     val balance: String = "0.00",
+    @SerialName("previous_balance") val previousBalance: String = "0.00",
+    @SerialName("advance_applied") val advanceApplied: String = "0.00",
+    @SerialName("previous_dues_settled") val previousDuesSettled: String = "0.00",
+    @SerialName("advance_generated") val advanceGenerated: String = "0.00",
+    @SerialName("updated_balance") val updatedBalance: String = "0.00",
+    @SerialName("sale_date") val saleDate: String? = null,
+    @SerialName("payment_status") val paymentStatus: String? = null,
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
     val payments: List<LineSalePayment> = emptyList(),
@@ -102,7 +109,11 @@ data class CreateLineSaleRequest(
     @SerialName("bank_amount") val bankAmount: String = "0.00",
     @SerialName("bank_id") val bankId: String? = null,
     @SerialName("bank_payments") val bankPayments: List<BankPaymentSplit> = emptyList(),
-    val items: List<SaleItemRequest> = emptyList()
+    val items: List<SaleItemRequest> = emptyList(),
+    @SerialName("sale_date") val saleDate: String? = null,
+    @SerialName("advance_to_apply") val advanceToApply: String? = null,
+    @SerialName("settle_previous_dues") val settlePreviousDues: Boolean? = null,
+    @SerialName("previous_dues_to_settle") val previousDuesToSettle: String? = null
 )
 
 @Serializable
@@ -115,7 +126,8 @@ data class UpdateLineSaleRequest(
     @SerialName("discount_amount") val discountAmount: String? = null,
     @SerialName("total_amount") val totalAmount: String? = null,
     @SerialName("total_cash_in") val totalCashIn: String? = null,
-    val items: List<SaleItemRequest> = emptyList()
+    val items: List<SaleItemRequest> = emptyList(),
+    @SerialName("sale_date") val saleDate: String? = null
 )
 
 @Immutable
@@ -141,6 +153,8 @@ data class CounterSalePayment(
 data class CounterSale(
     val id: String = "",
     @SerialName("invoice_number") val invoiceNumber: String? = null,
+    @SerialName("customer_id") val customerId: String? = null,
+    @SerialName("customer_name") val customerName: String? = null,
     val item: String = "",
     val price: String = "0.00",
     val subtotal: String = "0.00",
@@ -149,8 +163,16 @@ data class CounterSale(
     @SerialName("payment_method") val paymentMethod: String = "cash",
     val cash: String = "0.00",
     @SerialName("bank_amount") val bankAmount: String = "0.00",
+    @SerialName("bank_id") val bankId: String? = null,
     @SerialName("collected_amount") val collectedAmount: String = "0.00",
     val account: String = "0.00",
+    @SerialName("previous_balance") val previousBalance: String = "0.00",
+    @SerialName("advance_applied") val advanceApplied: String = "0.00",
+    @SerialName("previous_dues_settled") val previousDuesSettled: String = "0.00",
+    @SerialName("advance_generated") val advanceGenerated: String = "0.00",
+    @SerialName("updated_balance") val updatedBalance: String = "0.00",
+    @SerialName("sale_date") val saleDate: String? = null,
+    @SerialName("payment_status") val paymentStatus: String? = null,
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
     val payments: List<CounterSalePayment> = emptyList(),
@@ -159,6 +181,8 @@ data class CounterSale(
 
 @Serializable
 data class CreateCounterSaleRequest(
+    @SerialName("customer_id") val customerId: String? = null,
+    @SerialName("customer_name") val customerName: String? = null,
     val item: String = "",
     val price: String = "0.00",
     val subtotal: String? = null,
@@ -172,7 +196,11 @@ data class CreateCounterSaleRequest(
     @SerialName("bank_id") val bankId: String? = null,
     val account: String? = null,
     @SerialName("bank_payments") val bankPayments: List<BankPaymentSplit> = emptyList(),
-    val items: List<SaleItemRequest> = emptyList()
+    val items: List<SaleItemRequest> = emptyList(),
+    @SerialName("sale_date") val saleDate: String? = null,
+    @SerialName("advance_to_apply") val advanceToApply: String? = null,
+    @SerialName("settle_previous_dues") val settlePreviousDues: Boolean? = null,
+    @SerialName("previous_dues_to_settle") val previousDuesToSettle: String? = null
 )
 
 @Serializable
@@ -187,7 +215,8 @@ data class UpdateCounterSaleRequest(
     val cash: String? = null,
     @SerialName("bank_amount") val bankAmount: String? = null,
     val account: String? = null,
-    val items: List<SaleItemRequest> = emptyList()
+    val items: List<SaleItemRequest> = emptyList(),
+    @SerialName("sale_date") val saleDate: String? = null
 )
 
 @Serializable
@@ -316,9 +345,14 @@ data class Customer(
     val phone: String? = null,
     @SerialName("opening_balance") val openingBalance: String = "0.00",
     @SerialName("current_balance") val currentBalance: String = "0.00",
+    @SerialName("advance_balance") val advanceBalance: String = "0.00",
+    @SerialName("total_billed") val totalBilled: String = "0.00",
+    @SerialName("amount_paid") val amountPaid: String = "0.00",
+    @SerialName("outstanding_balance") val outstandingBalance: String = "0.00",
     @SerialName("total_purchases") val totalPurchases: String = "0.00",
     @SerialName("total_paid") val totalPaid: String = "0.00",
     @SerialName("outstanding_payable") val outstandingPayable: String = "0.00",
+    @SerialName("entity_type") val entityType: String = "customer",
     val status: String = "active",
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = ""
@@ -369,6 +403,7 @@ data class CustomerBalance(
     @SerialName("customer_id") val customerId: String = "",
     @SerialName("customer_name") val customerName: String = "",
     @SerialName("current_balance") val currentBalance: String = "0.00",
+    @SerialName("advance_balance") val advanceBalance: String = "0.00",
     @SerialName("total_purchases") val totalPurchases: String = "0.00",
     @SerialName("total_paid") val totalPaid: String = "0.00",
     @SerialName("outstanding_payable") val outstandingPayable: String = "0.00",
@@ -383,10 +418,13 @@ data class CustomerStatementEntry(
     @SerialName("formatted_date") val formattedDate: String = "",
     val description: String = "",
     @SerialName("entry_type") val entryType: String = "",
+    @SerialName("billed_amount") val billedAmount: String = "0.00",
     @SerialName("purchase_amount") val purchaseAmount: String = "0.00",
     @SerialName("paid_amount") val paidAmount: String = "0.00",
     val balance: String = "0.00",
-    @SerialName("payment_method") val paymentMethod: String? = null
+    @SerialName("payment_method") val paymentMethod: String? = null,
+    @SerialName("bank_name") val bankName: String? = null,
+    @SerialName("reference_id") val referenceId: String? = null
 )
 
 @Immutable
@@ -397,6 +435,10 @@ data class CustomerStatement(
     val phone: String? = null,
     @SerialName("opening_balance") val openingBalance: String = "0.00",
     @SerialName("current_balance") val currentBalance: String = "0.00",
+    @SerialName("advance_balance") val advanceBalance: String = "0.00",
+    @SerialName("total_billed") val totalBilled: String = "0.00",
+    @SerialName("amount_paid") val amountPaid: String = "0.00",
+    @SerialName("outstanding_due") val outstandingDue: String = "0.00",
     @SerialName("total_purchases") val totalPurchases: String = "0.00",
     @SerialName("total_paid") val totalPaid: String = "0.00",
     @SerialName("outstanding_payable") val outstandingPayable: String = "0.00",
@@ -427,6 +469,15 @@ data class CollectCustomerPaymentRequest(
 
 @Immutable
 @Serializable
+data class CustomerPaymentAllocation(
+    @SerialName("sale_type") val saleType: String = "",
+    @SerialName("line_sale_id") val lineSaleId: String? = null,
+    @SerialName("counter_sale_id") val counterSaleId: String? = null,
+    val amount: String = "0.00"
+)
+
+@Immutable
+@Serializable
 data class CustomerPaymentResponse(
     val id: String = "",
     @SerialName("tenant_id") val tenantId: String = "",
@@ -442,7 +493,87 @@ data class CustomerPaymentResponse(
     @SerialName("reference_id") val referenceId: String? = null,
     val note: String? = null,
     @SerialName("payment_date") val paymentDate: String = "",
-    @SerialName("created_at") val createdAt: String = ""
+    @SerialName("created_at") val createdAt: String = "",
+    val allocations: List<CustomerPaymentAllocation> = emptyList()
+) {
+    val receiptNumber: String
+        get() = collectionNumber.ifBlank { id }
+}
+
+// ==========================================
+// 2a. Customer Advance Models
+// ==========================================
+
+@Serializable
+data class CollectCustomerAdvanceRequest(
+    @SerialName("customer_id") val customerId: String,
+    val amount: String,
+    @SerialName("payment_method") val paymentMethod: String = "cash", // cash, bank, split
+    @SerialName("cash_amount") val cashAmount: String? = null,
+    @SerialName("bank_id") val bankId: String? = null,
+    @SerialName("bank_account_id") val bankAccountId: String? = null,
+    @SerialName("bank_name") val bankName: String? = null,
+    @SerialName("payment_date") val paymentDate: String? = null,
+    @SerialName("reference_id") val referenceId: String? = null,
+    val note: String? = null,
+    @SerialName("idempotency_key") val idempotencyKey: String? = null
+)
+
+@Immutable
+@Serializable
+data class CustomerAdvanceAllocation(
+    @SerialName("sale_type") val saleType: String = "",
+    @SerialName("line_sale_id") val lineSaleId: String? = null,
+    @SerialName("counter_sale_id") val counterSaleId: String? = null,
+    val amount: String = "0.00"
+)
+
+@Immutable
+@Serializable
+data class CustomerAdvanceResponse(
+    val id: String = "",
+    @SerialName("tenant_id") val tenantId: String = "",
+    @SerialName("customer_id") val customerId: String = "",
+    @SerialName("customer_name") val customerName: String = "",
+    @SerialName("receipt_number") val receiptNumber: String = "",
+    val amount: String = "0.00",
+    @SerialName("applied_amount") val appliedAmount: String = "0.00",
+    @SerialName("available_amount") val availableAmount: String = "0.00",
+    @SerialName("settled_dues") val settledDues: String = "0.00",
+    @SerialName("payment_method") val paymentMethod: String = "cash",
+    @SerialName("cash_amount") val cashAmount: String = "0.00",
+    @SerialName("bank_amount") val bankAmount: String = "0.00",
+    @SerialName("payment_date") val paymentDate: String = "",
+    @SerialName("customer_balance") val customerBalance: String = "0.00",
+    @SerialName("advance_balance") val advanceBalance: String = "0.00",
+    @SerialName("reference_id") val referenceId: String? = null,
+    val note: String? = null,
+    val status: String = "active",
+    @SerialName("recorded_by_user_name") val recordedByUserName: String? = null,
+    @SerialName("recorded_by_role") val recordedByRole: String? = null,
+    @SerialName("created_at") val createdAt: String = "",
+    val allocations: List<CustomerAdvanceAllocation> = emptyList()
+)
+
+@Serializable
+data class ApplyCustomerAdvanceRequest(
+    @SerialName("customer_id") val customerId: String,
+    val amount: String,
+    @SerialName("amount_to_apply") val amountToApply: String? = null,
+    @SerialName("advance_id") val advanceId: String? = null,
+    val note: String? = null
+)
+
+@Immutable
+@Serializable
+data class ApplyCustomerAdvanceResponse(
+    @SerialName("customer_id") val customerId: String = "",
+    @SerialName("customer_name") val customerName: String = "",
+    @SerialName("amount_applied") val amountApplied: String = "0.00",
+    @SerialName("previous_customer_balance") val previousCustomerBalance: String = "0.00",
+    @SerialName("updated_customer_balance") val updatedCustomerBalance: String = "0.00",
+    @SerialName("previous_advance_balance") val previousAdvanceBalance: String = "0.00",
+    @SerialName("updated_advance_balance") val updatedAdvanceBalance: String = "0.00"
 )
 
 // ==========================================

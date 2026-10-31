@@ -241,7 +241,7 @@ fun MainShellScreen(
                     when (destination) {
                         BottomBarDestination.HOME -> {
                             when (userRole) {
-                                UserRole.SALES -> {
+                                UserRole.SALES, UserRole.LINE -> {
                                     SalesDashboardScreen(
                                         viewModel = dashboardViewModel,
                                         onNavigateToCreateLineSale = onNavigateToCreateSale,

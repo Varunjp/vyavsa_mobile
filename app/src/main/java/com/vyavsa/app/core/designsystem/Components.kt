@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingBag
@@ -64,6 +65,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
+import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.Product
 import com.vyavsa.app.core.model.TopSellingProduct
 import androidx.compose.material3.ModalBottomSheet
@@ -2118,6 +2120,462 @@ fun VyavsaSwitchRow(
             onCheckedChange = onCheckedChange,
             enabled = enabled
         )
+    }
+}
+
+/**
+ * Modern Searchable Customer Selector Bottom Sheet for POS and Field Sales.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CustomerSelectorBottomSheet(
+    customersState: UiState<List<Customer>>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onCustomerSelected: (Customer?) -> Unit,
+    onAddNewCustomerClick: (() -> Unit)? = null,
+    allowWalkIn: Boolean = false,
+    onRetry: (() -> Unit)? = null,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier
+                    .padding(vertical = 12.dp)
+                    .size(width = 40.dp, height = 4.dp)
+            ) {}
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+        ) {
+            // Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    Text(
+                        text = "Select Customer Account",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                    Text(
+                        text = "Choose an account to apply ledger dues & advance",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Search Bar + Quick Add Button
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                VyavsaSearchBar(
+                    query = searchQuery,
+                    onQueryChange = onSearchQueryChange,
+                    placeholder = "Search by name or phone...",
+                    modifier = Modifier.weight(1f)
+                )
+
+                if (onAddNewCustomerClick != null) {
+                    FilledTonalIconButton(
+                        onClick = onAddNewCustomerClick,
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.size(50.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add New Customer",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Body
+            when (customersState) {
+                is UiState.Loading -> {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp)
+                    ) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                is UiState.Error -> {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp)
+                            .padding(16.dp)
+                    ) {
+                        ErrorBanner(message = customersState.message)
+                        if (onRetry != null) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            VyavsaButton(
+                                text = "Retry",
+                                onClick = onRetry
+                            )
+                        }
+                    }
+                }
+                is UiState.Empty -> {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp)
+                            .padding(16.dp)
+                    ) {
+                        EmptyStateView(
+                            icon = Icons.Default.Person,
+                            title = "No Customers Found",
+                            description = if (searchQuery.isNotBlank()) "No customers matched \"$searchQuery\"" else "No customers registered yet.",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (onAddNewCustomerClick != null) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            VyavsaButton(
+                                text = "Add New Customer",
+                                onClick = onAddNewCustomerClick
+                            )
+                        }
+                    }
+                }
+                is UiState.Success -> {
+                    val allCustomers = customersState.data.filter { it.status == "active" || it.status.isBlank() }
+                    val filteredCustomers = if (searchQuery.isBlank()) {
+                        allCustomers
+                    } else {
+                        val q = searchQuery.trim().lowercase()
+                        allCustomers.filter {
+                            it.customerName.lowercase().contains(q) ||
+                                (it.phone != null && it.phone.lowercase().contains(q))
+                        }
+                    }
+
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(380.dp)
+                    ) {
+                        if (allowWalkIn) {
+                            item(key = "walk_in_customer") {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .vyavsaClickable {
+                                            onCustomerSelected(null)
+                                        }
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    ) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier
+                                                .size(42.dp)
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Person,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(14.dp))
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Walk-in Customer",
+                                                style = MaterialTheme.typography.titleMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            )
+                                            Text(
+                                                text = "General retail cash/bank sale (No ledger credit)",
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (filteredCustomers.isEmpty() && !allowWalkIn) {
+                            item(key = "empty_filtered") {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 32.dp)
+                                ) {
+                                    Text(
+                                        text = "No customers matched \"$searchQuery\"",
+                                        style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    )
+                                    if (onAddNewCustomerClick != null) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        VyavsaButton(
+                                            text = "Add Customer \"$searchQuery\"",
+                                            onClick = onAddNewCustomerClick
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        items(filteredCustomers, key = { it.id }) { customer ->
+                            val currentDue = customer.currentBalance.toDoubleOrNull() ?: 0.0
+                            val advanceBal = customer.advanceBalance.toDoubleOrNull() ?: 0.0
+
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .vyavsaClickable {
+                                        onCustomerSelected(customer)
+                                    }
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                                ) {
+                                    AvatarInitialCircle(
+                                        name = customer.customerName,
+                                        modifier = Modifier.size(42.dp)
+                                    )
+
+                                    Spacer(modifier = Modifier.width(14.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = customer.customerName,
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (!customer.phone.isNullOrBlank()) {
+                                            Text(
+                                                text = customer.phone,
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    Column(
+                                        horizontalAlignment = Alignment.End,
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        if (currentDue > 0.0) {
+                                            StatBadge(
+                                                text = "Due: ${FormatUtils.formatCurrency(customer.currentBalance)}",
+                                                backgroundColor = Crimson50,
+                                                textColor = Crimson600
+                                            )
+                                        } else {
+                                            StatBadge(
+                                                text = "Due: ₹0.00",
+                                                backgroundColor = Emerald50,
+                                                textColor = Emerald600
+                                            )
+                                        }
+                                        if (advanceBal > 0.0) {
+                                            StatBadge(
+                                                text = "Adv: ${FormatUtils.formatCurrency(customer.advanceBalance)}",
+                                                backgroundColor = Blue50,
+                                                textColor = Blue600
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else -> Unit
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+/**
+ * Fast Inline Customer Creation Dialog for POS / Counter Sales.
+ */
+@Composable
+fun QuickAddCustomerDialog(
+    initialName: String = "",
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, phone: String?, openingBalance: String) -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+    var phone by remember { mutableStateOf("") }
+    var openingBalance by remember { mutableStateOf("0.00") }
+    var nameError by remember { mutableStateOf<String?>(null) }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(24.dp))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(22.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Quick Add Customer",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold)
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Add new customer account to immediately select in sale",
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                VyavsaTextField(
+                    value = name,
+                    onValueChange = {
+                        name = it
+                        if (it.isNotBlank()) nameError = null
+                    },
+                    label = "Customer Name *",
+                    placeholder = "e.g. Ramesh Patel",
+                    isError = nameError != null,
+                    errorMessage = nameError,
+                    keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Next),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                VyavsaTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = "Phone Number (Optional)",
+                    placeholder = "e.g. 9876543210",
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone,
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Next
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                VyavsaTextField(
+                    value = openingBalance,
+                    onValueChange = { openingBalance = it },
+                    label = "Opening Due Balance (₹)",
+                    placeholder = "0.00",
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal,
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(22.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    VyavsaOutlinedButton(
+                        text = "Cancel",
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    )
+                    VyavsaButton(
+                        text = "Save & Select",
+                        onClick = {
+                            if (name.isBlank()) {
+                                nameError = "Customer name is required"
+                                return@VyavsaButton
+                            }
+                            onConfirm(name.trim(), phone.trim().ifBlank { null }, openingBalance.trim().ifBlank { "0.00" })
+                        },
+                        modifier = Modifier.weight(1.2f)
+                    )
+                }
+            }
+        }
     }
 }
 

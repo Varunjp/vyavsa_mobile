@@ -5,6 +5,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -81,6 +82,12 @@ import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.designsystem.vyavsaClickable
+import com.vyavsa.app.core.designsystem.Blue50
+import com.vyavsa.app.core.designsystem.Blue600
+import com.vyavsa.app.core.designsystem.VyavsaButton
+import androidx.compose.material3.HorizontalDivider
+import com.vyavsa.app.core.model.CustomerAdvanceResponse
+import com.vyavsa.app.core.model.CustomerPaymentResponse
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.Supplier
 import com.vyavsa.app.core.model.TenantBank
@@ -108,7 +115,12 @@ fun DuesScreen(
     var showAddCustomerDialog by remember { mutableStateOf(false) }
     var showAddSupplierDialog by remember { mutableStateOf(false) }
     var collectingCustomer by remember { mutableStateOf<Customer?>(null) }
+    var collectingAdvanceCustomer by remember { mutableStateOf<Customer?>(null) }
+    var applyingAdvanceCustomer by remember { mutableStateOf<Customer?>(null) }
     var payingSupplier by remember { mutableStateOf<Supplier?>(null) }
+
+    val lastPaymentResponse by viewModel.lastPaymentResponse.collectAsState()
+    val lastAdvanceResponse by viewModel.lastAdvanceResponse.collectAsState()
 
     val banks = (banksState as? UiState.Success)?.data ?: emptyList()
 
@@ -262,7 +274,11 @@ fun DuesScreen(
                             ) { customer ->
                                 CustomerDuesCard(
                                     customer = customer,
+                                    canCollectPayment = viewModel.canCollectPayment,
+                                    canCollectAdvance = viewModel.canCollectAdvance,
                                     onCollectPaymentClick = { collectingCustomer = customer },
+                                    onCollectAdvanceClick = { collectingAdvanceCustomer = customer },
+                                    onApplyAdvanceClick = { applyingAdvanceCustomer = customer },
                                     onStatementClick = { onNavigateToStatement(customer.id, customer.customerName) },
                                     onClick = { onNavigateToCustomerDetails(customer.id) }
                                 )
@@ -413,6 +429,59 @@ fun DuesScreen(
         )
     }
 
+    // Collect Customer Advance Dialog
+    if (collectingAdvanceCustomer != null) {
+        CollectCustomerAdvanceDialog(
+            customer = collectingAdvanceCustomer!!,
+            banks = banks,
+            onDismiss = { collectingAdvanceCustomer = null },
+            onConfirm = { amount, method, bankId, bankName, refId, note ->
+                viewModel.collectCustomerAdvance(
+                    customerId = collectingAdvanceCustomer!!.id,
+                    amount = amount,
+                    paymentMethod = method,
+                    bankId = bankId,
+                    bankName = bankName,
+                    referenceId = refId,
+                    note = note
+                )
+                collectingAdvanceCustomer = null
+            }
+        )
+    }
+
+    if (applyingAdvanceCustomer != null) {
+        ApplyCustomerAdvanceDialog(
+            customer = applyingAdvanceCustomer!!,
+            onDismiss = { applyingAdvanceCustomer = null },
+            onConfirm = { amount, note ->
+                val cust = applyingAdvanceCustomer!!
+                applyingAdvanceCustomer = null
+                viewModel.applyCustomerAdvance(
+                    customerId = cust.id,
+                    amount = amount,
+                    note = note
+                )
+            }
+        )
+    }
+
+    val curPaymentResp = lastPaymentResponse
+    if (curPaymentResp != null) {
+        CustomerPaymentReceiptDialog(
+            response = curPaymentResp,
+            onDismiss = { viewModel.clearLastPaymentResponse() }
+        )
+    }
+
+    val curAdvanceResp = lastAdvanceResponse
+    if (curAdvanceResp != null) {
+        CustomerAdvanceReceiptDialog(
+            response = curAdvanceResp,
+            onDismiss = { viewModel.clearLastAdvanceResponse() }
+        )
+    }
+
     // Pay Supplier Dialog
     if (payingSupplier != null) {
         RecordSupplierPaymentDialog(
@@ -437,12 +506,17 @@ fun DuesScreen(
 @Composable
 private fun CustomerDuesCard(
     customer: Customer,
+    canCollectPayment: Boolean = true,
+    canCollectAdvance: Boolean = true,
     onCollectPaymentClick: () -> Unit,
+    onCollectAdvanceClick: () -> Unit,
+    onApplyAdvanceClick: (() -> Unit)? = null,
     onStatementClick: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val balanceAmount = customer.currentBalance.toDoubleOrNull() ?: 0.0
+    val advanceAmount = customer.advanceBalance.toDoubleOrNull() ?: 0.0
 
     Card(
         shape = RoundedCornerShape(24.dp),
@@ -494,11 +568,20 @@ private fun CustomerDuesCard(
                         )
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    StatBadge(
-                        text = if (balanceAmount > 0) "Due" else "Clear",
-                        backgroundColor = if (balanceAmount > 0) Crimson50 else Emerald50,
-                        textColor = if (balanceAmount > 0) Crimson600 else Emerald600
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (advanceAmount > 0) {
+                            StatBadge(
+                                text = "Adv: ${FormatUtils.formatCurrency(customer.advanceBalance)}",
+                                backgroundColor = Blue50,
+                                textColor = Blue600
+                            )
+                        }
+                        StatBadge(
+                            text = if (balanceAmount > 0) "Due" else "Clear",
+                            backgroundColor = if (balanceAmount > 0) Crimson50 else Emerald50,
+                            textColor = if (balanceAmount > 0) Crimson600 else Emerald600
+                        )
+                    }
                 }
             }
 
@@ -509,7 +592,7 @@ private fun CustomerDuesCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                if (balanceAmount > 0) {
+                if (balanceAmount > 0 && canCollectPayment) {
                     Surface(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.primaryContainer,
@@ -521,6 +604,45 @@ private fun CustomerDuesCard(
                             text = "Collect Payment",
                             style = MaterialTheme.typography.labelMedium.copy(
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+
+                if (canCollectAdvance) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Blue50,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .vyavsaClickable { onCollectAdvanceClick() }
+                    ) {
+                        Text(
+                            text = "Collect Advance",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                color = Blue600,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+
+                if (canCollectAdvance && balanceAmount > 0.0 && advanceAmount > 0.0 && onApplyAdvanceClick != null) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Blue50,
+                        border = BorderStroke(1.dp, Blue600.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .vyavsaClickable { onApplyAdvanceClick() }
+                    ) {
+                        Text(
+                            text = "Apply Adv",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                color = Blue600,
                                 fontWeight = FontWeight.Bold
                             ),
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
@@ -1138,6 +1260,405 @@ fun RecordSupplierPaymentDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun CollectCustomerAdvanceDialog(
+    customer: Customer,
+    banks: List<TenantBank> = emptyList(),
+    onDismiss: () -> Unit,
+    onConfirm: (amount: String, method: String, bankId: String?, bankName: String?, referenceId: String?, note: String?) -> Unit
+) {
+    var amount by remember { mutableStateOf("") }
+    var method by remember { mutableStateOf("cash") }
+    var selectedBankId by remember(banks) { mutableStateOf(banks.firstOrNull()?.id) }
+    var referenceId by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+    var validationError by remember { mutableStateOf<String?>(null) }
+
+    val currentDueVal = customer.currentBalance.toDoubleOrNull() ?: 0.0
+    val currentAdvVal = customer.advanceBalance.toDoubleOrNull() ?: 0.0
+    val enteredAmt = amount.trim().toDoubleOrNull() ?: 0.0
+    val settlesDues = minOf(currentDueVal, enteredAmt)
+    val remExcess = (enteredAmt - settlesDues).coerceAtLeast(0.0)
+    val resultingDue = (currentDueVal - settlesDues).coerceAtLeast(0.0)
+    val resultingAdv = currentAdvVal + remExcess
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Collect Advance: ${customer.customerName}", fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Balance Status Banner
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Current Outstanding Due:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                            Text(FormatUtils.formatCurrency(currentDueVal.toString()), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = if (currentDueVal > 0) Crimson600 else Emerald600))
+                        }
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Available Advance Balance:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                            Text(FormatUtils.formatCurrency(currentAdvVal.toString()), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = Blue600))
+                        }
+                    }
+                }
+
+                VyavsaTextField(
+                    value = amount,
+                    onValueChange = {
+                        amount = it
+                        validationError = null
+                    },
+                    label = "Advance Amount (₹) *",
+                    placeholder = "0.00",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+
+                if (enteredAmt > 0.0) {
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Emerald50.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, Emerald600.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Backend Allocation Preview:", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Emerald600))
+                            if (settlesDues > 0.0) {
+                                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                    Text("↳ Settles Existing Dues FIFO:", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                                    Text(FormatUtils.formatCurrency(settlesDues.toString()), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Emerald600))
+                                }
+                            }
+                            if (remExcess > 0.0) {
+                                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                    Text("↳ Added to Advance Balance:", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                                    Text(FormatUtils.formatCurrency(remExcess.toString()), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Blue600))
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text("Resulting Outstanding Due:", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold))
+                                Text(FormatUtils.formatCurrency(resultingDue.toString()), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                            }
+                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text("Resulting Advance Balance:", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold))
+                                Text(FormatUtils.formatCurrency(resultingAdv.toString()), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Blue600))
+                            }
+                        }
+                    }
+                }
+
+                Text(
+                    text = "Deposit Mode *",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                )
+
+                VyavsaSegmentedTabs(
+                    tabs = listOf("Cash Till", "Bank Account"),
+                    selectedIndex = if (method == "cash") 0 else 1,
+                    onTabSelected = { idx ->
+                        method = if (idx == 0) "cash" else "bank"
+                        validationError = null
+                        if (method == "bank" && selectedBankId == null && banks.isNotEmpty()) {
+                            selectedBankId = banks.first().id
+                        }
+                    }
+                )
+
+                AnimatedVisibility(
+                    visible = method == "bank",
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Deposit Into Bank Account *",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                        )
+
+                        if (banks.isEmpty()) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Amber50,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(imageVector = Icons.Default.AccountBalance, contentDescription = null, tint = Amber600, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(text = "No bank accounts found.", style = MaterialTheme.typography.bodySmall.copy(color = Amber600))
+                                }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                banks.forEach { bank ->
+                                    val isSelected = bank.id == selectedBankId
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedBankId = bank.id },
+                                        label = {
+                                            val labelText = if (!bank.accountNumber.isNullOrBlank()) {
+                                                "${bank.bankName} (..${bank.accountNumber.takeLast(4)})"
+                                            } else {
+                                                bank.bankName
+                                            }
+                                            Text(
+                                                text = labelText,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                VyavsaTextField(
+                    value = referenceId,
+                    onValueChange = { referenceId = it },
+                    label = "Reference / UTR ID (Optional)",
+                    placeholder = "e.g. UTR-9876543210"
+                )
+
+                VyavsaTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = "Note (Optional)",
+                    placeholder = "e.g. Advance for upcoming route supply"
+                )
+
+                if (validationError != null) {
+                    ErrorBanner(message = validationError!!)
+                }
+            }
+        },
+        confirmButton = {
+            VyavsaButton(
+                text = "Record Advance",
+                onClick = {
+                    val parsedAmt = amount.trim().toDoubleOrNull()
+                    if (parsedAmt == null || parsedAmt <= 0.0) {
+                        validationError = "Please enter a valid advance amount greater than ₹0"
+                        return@VyavsaButton
+                    }
+                    if (method == "bank" && selectedBankId.isNullOrBlank()) {
+                        validationError = "Please select a bank account"
+                        return@VyavsaButton
+                    }
+                    val bankObj = banks.find { it.id == selectedBankId }
+                    onConfirm(
+                        amount.trim(),
+                        method,
+                        if (method == "bank") selectedBankId else null,
+                        if (method == "bank") bankObj?.bankName else null,
+                        referenceId.trim().ifBlank { null },
+                        note.trim().ifBlank { null }
+                    )
+                }
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun CustomerAdvanceReceiptDialog(
+    response: CustomerAdvanceResponse,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = {
+            Column {
+                Text("Advance Collection Receipt", fontWeight = FontWeight.ExtraBold)
+                if (!response.receiptNumber.isNullOrBlank()) {
+                    Text("Receipt #${response.receiptNumber}", style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold))
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("Customer:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                            Text(response.customerName, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                        }
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("Date:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                            Text(FormatUtils.formatDateForDisplay(response.paymentDate), style = MaterialTheme.typography.bodySmall)
+                        }
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("Payment Mode:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                            Text(response.paymentMethod.uppercase(), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                        }
+                        if (!response.referenceId.isNullOrBlank()) {
+                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text("Ref / UTR:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                                Text(response.referenceId, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Emerald50.copy(alpha = 0.5f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Emerald600.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("Total Advance Collected:", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                            Text(FormatUtils.formatCurrency(response.amount), style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold, color = Emerald600))
+                        }
+                        val settled = response.settledDues.toDoubleOrNull() ?: 0.0
+                        if (settled > 0.0) {
+                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text("↳ Settled Existing Dues:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                                Text("-${FormatUtils.formatCurrency(settled.toString())}", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = Emerald600))
+                            }
+                        }
+                        val avail = response.availableAmount.toDoubleOrNull() ?: 0.0
+                        if (avail > 0.0) {
+                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text("↳ Added to Advance Balance:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                                Text("+${FormatUtils.formatCurrency(avail.toString())}", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = Blue600))
+                            }
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("Updated Customer Due:", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                            Text(FormatUtils.formatCurrency(response.customerBalance), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                        }
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("Updated Advance Balance:", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                            Text(FormatUtils.formatCurrency(response.advanceBalance), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = Blue600))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            VyavsaButton(text = "Done", onClick = onDismiss)
+        }
+    )
+}
+
+@Composable
+fun CustomerPaymentReceiptDialog(
+    response: CustomerPaymentResponse,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = {
+            Column {
+                Text("Payment Receipt", fontWeight = FontWeight.ExtraBold)
+                if (!response.receiptNumber.isNullOrBlank()) {
+                    Text("Receipt #${response.receiptNumber}", style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold))
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("Customer:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                            Text(response.customerName, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                        }
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("Date:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                            Text(FormatUtils.formatDateForDisplay(response.paymentDate), style = MaterialTheme.typography.bodySmall)
+                        }
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("Payment Mode:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                            Text(response.paymentMethod.uppercase(), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                        }
+                        if (!response.referenceId.isNullOrBlank()) {
+                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text("Ref / UTR:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                                Text(response.referenceId, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Emerald50.copy(alpha = 0.5f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Emerald600.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("Amount Collected:", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                            Text(FormatUtils.formatCurrency(response.amount), style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold, color = Emerald600))
+                        }
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("Previous Due Balance:", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                            Text(FormatUtils.formatCurrency(response.previousBalance), style = MaterialTheme.typography.bodySmall)
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("Updated Outstanding Due:", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                            Text(FormatUtils.formatCurrency(response.customerBalance), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = if ((response.customerBalance.toDoubleOrNull() ?: 0.0) > 0) Crimson600 else Emerald600))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            VyavsaButton(text = "Done", onClick = onDismiss)
         }
     )
 }

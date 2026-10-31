@@ -5,6 +5,7 @@ import com.vyavsa.app.core.model.CashTransaction
 import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.CounterSalePayment
 import com.vyavsa.app.core.model.CreateCounterSaleRequest
+import com.vyavsa.app.core.model.CreateCustomerRequest
 import com.vyavsa.app.core.model.CreateExpenseRequest
 import com.vyavsa.app.core.model.CreateLineSaleRequest
 import com.vyavsa.app.core.model.CreatePurchaseRequest
@@ -31,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import okhttp3.ResponseBody
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -61,7 +63,10 @@ interface TransactionsRepository {
     fun createExpense(request: CreateExpenseRequest): Flow<Resource<Expense>>
     fun listCashTransactions(): Flow<Resource<List<CashTransaction>>>
     fun listSubscriptionTransactions(): Flow<Resource<List<PlanTransaction>>>
-    fun listCustomers(): Flow<Resource<List<Customer>>>
+    fun listCustomers(search: String? = null, page: Int = 1, pageSize: Int = 50): Flow<Resource<List<Customer>>>
+    fun createCustomer(name: String, phone: String?, openingBalance: String): Flow<Resource<Customer>>
+    suspend fun downloadLineSalePdf(id: String): ResponseBody
+    suspend fun downloadCounterSalePdf(id: String): ResponseBody
     fun listSuppliers(): Flow<Resource<List<Supplier>>>
     fun listEmployees(): Flow<Resource<List<Employee>>>
 }
@@ -474,10 +479,10 @@ class TransactionsRepositoryImpl @Inject constructor(
         }
     }.flowOn(Dispatchers.IO)
 
-    override fun listCustomers(): Flow<Resource<List<Customer>>> = flow {
+    override fun listCustomers(search: String?, page: Int, pageSize: Int): Flow<Resource<List<Customer>>> = flow {
         emit(Resource.Loading)
         try {
-            val response = apiService.listCustomers()
+            val response = apiService.listCustomers(page = page, pageSize = pageSize, search = search)
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
@@ -487,6 +492,34 @@ class TransactionsRepositoryImpl @Inject constructor(
             emit(ApiErrorParser.parse(e, "Network error loading customers"))
         }
     }.flowOn(Dispatchers.IO)
+
+    override fun createCustomer(name: String, phone: String?, openingBalance: String): Flow<Resource<Customer>> = flow {
+        emit(Resource.Loading)
+        try {
+            val req = CreateCustomerRequest(
+                customerName = name,
+                phone = phone?.ifBlank { null },
+                openingBalance = openingBalance.ifBlank { "0.00" }
+            )
+            val response = apiService.createCustomer(req)
+            if (response.success && response.data != null) {
+                refreshCoordinator.notifyMutation(DataMutation.DUES)
+                emit(Resource.Success(response.data))
+            } else {
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to create customer"))
+            }
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error creating customer"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override suspend fun downloadLineSalePdf(id: String): ResponseBody {
+        return apiService.downloadLineSalePdf(id)
+    }
+
+    override suspend fun downloadCounterSalePdf(id: String): ResponseBody {
+        return apiService.downloadCounterSalePdf(id)
+    }
 
     override fun listSuppliers(): Flow<Resource<List<Supplier>>> = flow {
         emit(Resource.Loading)

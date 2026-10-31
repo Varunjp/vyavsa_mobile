@@ -115,13 +115,26 @@ object ThermalInvoiceFormatter {
         if (data.discount > 0.0) {
             sb.appendLine(formatKeyValue("Discount:", "-${formatCurrency(data.discount)}", width))
         }
+        if (data.previousBalance > 0.0) {
+            sb.appendLine(formatKeyValue("Prev Customer Due:", formatCurrency(data.previousBalance), width))
+        }
         sb.appendLine(formatKeyValue("TOTAL AMOUNT:", formatCurrency(data.totalAmount), width))
-        sb.appendLine(formatKeyValue("Amount Paid:", formatCurrency(data.amountPaid), width))
+        val directReceived = if (data.amountReceivedDirect > 0.0) data.amountReceivedDirect else data.amountPaid
+        sb.appendLine(formatKeyValue("Amount Paid:", formatCurrency(directReceived), width))
+        if (data.advanceApplied > 0.0) {
+            sb.appendLine(formatKeyValue("Paid via Advance:", formatCurrency(data.advanceApplied), width))
+            val totalSettled = if (data.totalSettledForSale > 0.0) data.totalSettledForSale else (directReceived + data.advanceApplied)
+            sb.appendLine(formatKeyValue("Total Settled:", formatCurrency(totalSettled), width))
+        }
 
         if (data.balanceDue > 0.0) {
             sb.appendLine(formatKeyValue("BALANCE DUE:", formatCurrency(data.balanceDue), width))
         } else {
             sb.appendLine(centerText("*** PAID IN FULL ***", width))
+        }
+
+        if (data.hasCustomerLedger && (data.updatedCustomerBalance > 0.0 || data.previousBalance > 0.0)) {
+            sb.appendLine(formatKeyValue("Updated Customer Due:", formatCurrency(data.updatedCustomerBalance), width))
         }
 
         // 5. Payment Details & Notes
@@ -229,11 +242,22 @@ object ThermalInvoiceFormatter {
             out.write(encodeString(formatKeyValue("Discount:", "-${formatCurrency(data.discount)}", width) + "\n"))
         }
 
+        if (data.previousBalance > 0.0) {
+            out.write(encodeString(formatKeyValue("Prev Customer Due:", formatCurrency(data.previousBalance), width) + "\n"))
+        }
+
         out.write(EscPosCommands.BOLD_ON)
         out.write(encodeString(formatKeyValue("TOTAL AMOUNT:", formatCurrency(data.totalAmount), width) + "\n"))
         out.write(EscPosCommands.BOLD_OFF)
 
-        out.write(encodeString(formatKeyValue("Amount Paid:", formatCurrency(data.amountPaid), width) + "\n"))
+        val directReceived = if (data.amountReceivedDirect > 0.0) data.amountReceivedDirect else data.amountPaid
+        out.write(encodeString(formatKeyValue("Amount Paid:", formatCurrency(directReceived), width) + "\n"))
+
+        if (data.advanceApplied > 0.0) {
+            out.write(encodeString(formatKeyValue("Paid via Advance:", formatCurrency(data.advanceApplied), width) + "\n"))
+            val totalSettled = if (data.totalSettledForSale > 0.0) data.totalSettledForSale else (directReceived + data.advanceApplied)
+            out.write(encodeString(formatKeyValue("Total Settled:", formatCurrency(totalSettled), width) + "\n"))
+        }
 
         if (data.balanceDue > 0.0) {
             out.write(EscPosCommands.BOLD_ON)
@@ -245,6 +269,10 @@ object ThermalInvoiceFormatter {
             out.write(encodeString("*** PAID IN FULL ***\n"))
             out.write(EscPosCommands.BOLD_OFF)
             out.write(EscPosCommands.ALIGN_LEFT)
+        }
+
+        if (data.hasCustomerLedger && (data.updatedCustomerBalance > 0.0 || data.previousBalance > 0.0)) {
+            out.write(encodeString(formatKeyValue("Updated Customer Due:", formatCurrency(data.updatedCustomerBalance), width) + "\n"))
         }
 
         if (content.showPaymentInfo && data.paymentSummary.isNotBlank()) {

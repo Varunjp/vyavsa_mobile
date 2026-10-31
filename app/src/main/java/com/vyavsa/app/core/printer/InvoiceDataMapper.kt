@@ -31,6 +31,26 @@ object InvoiceDataMapper {
         val bank = sale.bankAmount.toDoubleOrNull() ?: 0.0
         val paid = sale.collectedAmount.toDoubleOrNull() ?: (cash + bank)
         val due = sale.balance.toDoubleOrNull() ?: 0.0
+        val advApplied = sale.advanceApplied.toDoubleOrNull() ?: 0.0
+        val prevBal = sale.previousBalance.toDoubleOrNull() ?: 0.0
+        val updatedBal = sale.updatedBalance.toDoubleOrNull() ?: (prevBal + due)
+        val directReceived = sale.collectedAmount.toDoubleOrNull() ?: (cash + bank)
+        val prevDuesSettled = sale.previousDuesSettled.toDoubleOrNull() ?: 0.0
+        val advGenerated = sale.advanceGenerated.toDoubleOrNull() ?: 0.0
+        val totalSettled = (directReceived.coerceAtMost((tot - advApplied).coerceAtLeast(0.0)) + advApplied)
+
+        val paymentsList = sale.payments.filter { p ->
+            val n = (p.note ?: "").lowercase()
+            !n.startsWith("customer collection")
+        }.map { p ->
+            InvoicePaymentEntry(
+                method = p.paymentMethod,
+                amount = p.amount.toDoubleOrNull() ?: 0.0,
+                bankName = p.bankName,
+                referenceId = p.referenceId,
+                note = p.note
+            )
+        }
 
         return InvoicePrintData(
             businessName = busName,
@@ -41,7 +61,7 @@ object InvoiceDataMapper {
             logoBitmap = logoBitmap,
             invoiceTitle = "Line Sale Invoice",
             invoiceNumber = if (!sale.invoiceNumber.isNullOrBlank()) sale.invoiceNumber else sale.id,
-            invoiceDate = FormatUtils.formatDateTimeForDisplay(sale.createdAt),
+            invoiceDate = if (!sale.saleDate.isNullOrBlank()) sale.saleDate else FormatUtils.formatDateTimeForDisplay(sale.createdAt),
             customerName = sale.customerName.ifBlank { "Line Customer" },
             customerPhone = sale.customerPhone?.ifBlank { null },
             route = sale.route?.ifBlank { null },
@@ -59,6 +79,18 @@ object InvoiceDataMapper {
             totalAmount = tot,
             amountPaid = paid,
             balanceDue = due,
+            previousBalance = prevBal,
+            advanceApplied = advApplied,
+            amountReceivedDirect = directReceived,
+            totalSettledForSale = totalSettled,
+            previousDuesSettled = prevDuesSettled,
+            advanceGenerated = advGenerated,
+            updatedCustomerBalance = updatedBal,
+            hasCustomerLedger = true,
+            cashAmount = cash,
+            bankAmount = bank,
+            paymentMethod = if (bank > 0.0 && cash > 0.0) "split" else if (bank > 0.0) "bank" else "cash",
+            payments = paymentsList,
             paymentSummary = "Cash: ${FormatUtils.formatCurrency(sale.totalCashIn)} | Bank: ${FormatUtils.formatCurrency(sale.bankAmount)}",
             note = sale.note,
             footerHeading = profile?.getEffectiveFooterHeading(),
@@ -80,6 +112,32 @@ object InvoiceDataMapper {
         val sub = sale.subtotal.toDoubleOrNull() ?: (sale.price.toDoubleOrNull() ?: (sale.totalAmount.toDoubleOrNull() ?: 0.0))
         val effectiveSub = if (sub > 0.0) sub else (sale.totalAmount.toDoubleOrNull() ?: 0.0) + disc
         val tot = sale.totalAmount.toDoubleOrNull() ?: 0.0
+        val advApplied = sale.advanceApplied.toDoubleOrNull() ?: 0.0
+        val prevBal = sale.previousBalance.toDoubleOrNull() ?: 0.0
+        val updatedBal = sale.updatedBalance.toDoubleOrNull() ?: 0.0
+        val cash = sale.cash.toDoubleOrNull() ?: 0.0
+        val bank = sale.bankAmount.toDoubleOrNull() ?: 0.0
+        val directReceived = sale.collectedAmount.toDoubleOrNull() ?: (cash + bank)
+        val due = sale.account.toDoubleOrNull() ?: 0.0
+        val prevDuesSettled = sale.previousDuesSettled.toDoubleOrNull() ?: 0.0
+        val advGenerated = sale.advanceGenerated.toDoubleOrNull() ?: 0.0
+        val totalSettled = if (advApplied > 0.0 || directReceived > 0.0) {
+            directReceived.coerceAtMost((tot - advApplied).coerceAtLeast(0.0)) + advApplied
+        } else tot
+        val hasCustomer = !sale.customerId.isNullOrBlank() || !sale.customerName.isNullOrBlank() || prevBal > 0.0 || advApplied > 0.0
+
+        val paymentsList = sale.payments.filter { p ->
+            val n = (p.note ?: "").lowercase()
+            !n.startsWith("customer collection")
+        }.map { p ->
+            InvoicePaymentEntry(
+                method = p.paymentMethod,
+                amount = p.amount.toDoubleOrNull() ?: 0.0,
+                bankName = p.bankName,
+                referenceId = p.referenceId,
+                note = p.note
+            )
+        }
 
         return InvoicePrintData(
             businessName = busName,
@@ -90,8 +148,8 @@ object InvoiceDataMapper {
             logoBitmap = logoBitmap,
             invoiceTitle = "Counter POS Receipt",
             invoiceNumber = if (!sale.invoiceNumber.isNullOrBlank()) sale.invoiceNumber else sale.id,
-            invoiceDate = FormatUtils.formatDateTimeForDisplay(sale.createdAt),
-            customerName = "Walk-in Counter Customer",
+            invoiceDate = if (!sale.saleDate.isNullOrBlank()) sale.saleDate else FormatUtils.formatDateTimeForDisplay(sale.createdAt),
+            customerName = if (!sale.customerName.isNullOrBlank()) sale.customerName else "Walk-in Counter Customer",
             customerPhone = null,
             items = sale.items.map {
                 PrintItem(
@@ -105,8 +163,21 @@ object InvoiceDataMapper {
             subtotal = effectiveSub,
             discount = disc,
             totalAmount = tot,
-            amountPaid = tot,
-            balanceDue = 0.0,
+            amountPaid = if (directReceived > 0.0 || advApplied > 0.0) directReceived else tot,
+            balanceDue = due,
+            previousBalance = prevBal,
+            advanceApplied = advApplied,
+            amountReceivedDirect = directReceived,
+            totalSettledForSale = totalSettled,
+            previousDuesSettled = prevDuesSettled,
+            advanceGenerated = advGenerated,
+            updatedCustomerBalance = updatedBal,
+            hasCustomerLedger = hasCustomer,
+            cashAmount = cash,
+            bankAmount = bank,
+            paymentMethod = sale.paymentMethod.ifBlank { if (bank > 0.0 && cash > 0.0) "split" else if (bank > 0.0) "bank" else "cash" },
+            bankName = paymentsList.firstOrNull { !it.bankName.isNullOrBlank() }?.bankName,
+            payments = paymentsList,
             paymentSummary = "Method: ${sale.paymentMethod.uppercase(Locale.US)} | Cash: ${FormatUtils.formatCurrency(sale.cash)} | Bank: ${FormatUtils.formatCurrency(sale.bankAmount.ifBlank { sale.account })}",
             footerHeading = profile?.getEffectiveFooterHeading(),
             footerParagraph = profile?.getEffectiveFooterParagraph()

@@ -127,4 +127,81 @@ class SaleCalculationUtilsTest {
         assertEquals("123.45", SaleCalculationUtils.formatDecimal(123.454))
         assertEquals("0.00", SaleCalculationUtils.formatDecimal(0.0))
     }
+
+    @Test
+    fun testPosAllocationWithAdvanceApplication() {
+        // Sale total: 1000, Advance: 300, Prev due: 500, Direct payment: 700
+        val preview = SaleCalculationUtils.calculatePosAllocation(
+            saleTotalStr = "1000.00",
+            customerCurrentBalanceStr = "500.00",
+            customerAdvanceBalanceStr = "300.00",
+            directCashStr = "700.00",
+            directBankStr = "0.00"
+        )
+        assertEquals("300.00", preview.advanceAppliedString)
+        assertEquals("700.00", preview.remainingPayableString)
+        assertEquals("700.00", preview.directPaymentCollectedString)
+        assertEquals("0.00", preview.remainingSaleDueString)
+        assertEquals("0.00", preview.excessPaymentString)
+        assertEquals("0.00", preview.previousDuesSettledString)
+        assertEquals("0.00", preview.advanceGeneratedString)
+        assertEquals("500.00", preview.updatedCustomerDueString)
+        assertEquals("0.00", preview.updatedAdvanceBalanceString)
+    }
+
+    @Test
+    fun testPosAllocationExcessPaymentSettlesPreviousDuesAndGeneratesAdvance() {
+        // Previous due: 1000, Sale: 600, Advance: 0, Collected: 2000
+        val preview = SaleCalculationUtils.calculatePosAllocation(
+            saleTotalStr = "600.00",
+            customerCurrentBalanceStr = "1000.00",
+            customerAdvanceBalanceStr = "0.00",
+            directCashStr = "2000.00",
+            directBankStr = "0.00"
+        )
+        assertEquals("0.00", preview.advanceAppliedString)
+        assertEquals("600.00", preview.remainingPayableString)
+        assertEquals("2000.00", preview.directPaymentCollectedString)
+        assertEquals("0.00", preview.remainingSaleDueString)
+        assertEquals("1400.00", preview.excessPaymentString)
+        assertEquals("1000.00", preview.previousDuesSettledString)
+        assertEquals("400.00", preview.advanceGeneratedString)
+        assertEquals("0.00", preview.updatedCustomerDueString)
+        assertEquals("400.00", preview.updatedAdvanceBalanceString)
+    }
+
+    @Test
+    fun testPosAllocationAdvanceExceedsSale() {
+        // Sale: 400, Advance: 1000, Prev due: 200, Direct payment: 0
+        val preview = SaleCalculationUtils.calculatePosAllocation(
+            saleTotalStr = "400.00",
+            customerCurrentBalanceStr = "200.00",
+            customerAdvanceBalanceStr = "1000.00",
+            directCashStr = "0.00",
+            directBankStr = "0.00"
+        )
+        assertEquals("400.00", preview.advanceAppliedString)
+        assertEquals("0.00", preview.remainingPayableString)
+        assertEquals("0.00", preview.remainingSaleDueString)
+        assertEquals("200.00", preview.updatedCustomerDueString)
+        assertEquals("600.00", preview.updatedAdvanceBalanceString)
+    }
+
+    @Test
+    fun testPosAllocationPartialPayment() {
+        // Sale: 1000, Advance: 200, Prev due: 0, Cash: 300
+        val preview = SaleCalculationUtils.calculatePosAllocation(
+            saleTotalStr = "1000.00",
+            customerCurrentBalanceStr = "0.00",
+            customerAdvanceBalanceStr = "200.00",
+            directCashStr = "300.00",
+            directBankStr = "0.00"
+        )
+        assertEquals("200.00", preview.advanceAppliedString)
+        assertEquals("800.00", preview.remainingPayableString)
+        assertEquals("300.00", preview.directPaymentCollectedString)
+        assertEquals("500.00", preview.remainingSaleDueString)
+        assertEquals("500.00", preview.updatedCustomerDueString)
+        assertEquals("0.00", preview.updatedAdvanceBalanceString)
+    }
 }

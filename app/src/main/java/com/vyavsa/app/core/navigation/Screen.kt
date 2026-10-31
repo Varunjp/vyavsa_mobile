@@ -63,8 +63,9 @@ enum class BottomBarDestination(
     companion object {
         fun destinationsForRole(role: com.vyavsa.app.core.model.UserRole): List<BottomBarDestination> {
             return when (role) {
-                com.vyavsa.app.core.model.UserRole.SALES -> listOf(HOME, SALES, PRODUCTS, MORE)
-                com.vyavsa.app.core.model.UserRole.OFFICE -> listOf(HOME, COUNTER_SALES, TRANSACTIONS, STAFF, MORE)
+                com.vyavsa.app.core.model.UserRole.SALES,
+                com.vyavsa.app.core.model.UserRole.LINE -> listOf(HOME, SALES, DUES, PRODUCTS, MORE)
+                com.vyavsa.app.core.model.UserRole.OFFICE -> listOf(HOME, COUNTER_SALES, TRANSACTIONS, DUES, STAFF, MORE)
                 com.vyavsa.app.core.model.UserRole.ADMIN,
                 com.vyavsa.app.core.model.UserRole.USER -> listOf(HOME, SALES, TRANSACTIONS, DUES, STAFF, MORE)
             }

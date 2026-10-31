@@ -95,6 +95,15 @@ data class PrintItem(
     val lineTotal: String
 )
 
+@Immutable
+data class InvoicePaymentEntry(
+    val method: String,
+    val amount: Double,
+    val bankName: String? = null,
+    val referenceId: String? = null,
+    val note: String? = null
+)
+
 /**
  * 2D raster image interface decoupling bitmap conversion from Android framework classes,
  * enabling robust JVM unit testing of ESC/POS raster image generation.
@@ -134,6 +143,19 @@ data class InvoicePrintData(
     val totalAmount: Double,
     val amountPaid: Double,
     val balanceDue: Double = 0.0,
+    val previousBalance: Double = 0.0,
+    val advanceApplied: Double = 0.0,
+    val amountReceivedDirect: Double = 0.0,
+    val totalSettledForSale: Double = 0.0,
+    val previousDuesSettled: Double = 0.0,
+    val advanceGenerated: Double = 0.0,
+    val updatedCustomerBalance: Double = 0.0,
+    val hasCustomerLedger: Boolean = false,
+    val cashAmount: Double = 0.0,
+    val bankAmount: Double = 0.0,
+    val paymentMethod: String = "",
+    val bankName: String? = null,
+    val payments: List<InvoicePaymentEntry> = emptyList(),
     val paymentSummary: String,
     val note: String? = null,
     val footerHeading: String? = null,

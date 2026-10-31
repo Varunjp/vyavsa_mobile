@@ -264,4 +264,44 @@ class ThermalInvoiceFormatterTest {
         // First data byte (row 0): bit 7 set for black pixel at (0, 0) -> 0x80 (128)
         assertEquals(0x80.toByte(), rasterBytes[11])
     }
+
+    @Test
+    fun testFormatThermalReceiptWithCustomerAdvanceAndBalanceBreakdown() {
+        val invoiceData = sampleData.copy(
+            subtotal = 1000.00,
+            discount = 0.00,
+            totalAmount = 1000.00,
+            amountPaid = 1000.00,
+            amountReceivedDirect = 700.00,
+            advanceApplied = 300.00,
+            totalSettledForSale = 1000.00,
+            balanceDue = 0.00,
+            previousBalance = 500.00,
+            previousDuesSettled = 0.00,
+            advanceGenerated = 0.00,
+            updatedCustomerBalance = 500.00,
+            hasCustomerLedger = true
+        )
+
+        val receipt = ThermalInvoiceFormatter.formatPlainTextReceipt(invoiceData, PaperWidth.WIDTH_58MM)
+
+        assertTrue(receipt.contains("Prev Customer Due:"))
+        assertTrue(receipt.contains("Rs. 500.00"))
+        assertTrue(receipt.contains("TOTAL AMOUNT:"))
+        assertTrue(receipt.contains("Rs. 1,000.00"))
+        assertTrue(receipt.contains("Amount Paid:"))
+        assertTrue(receipt.contains("Rs. 700.00"))
+        assertTrue(receipt.contains("Paid via Advance:"))
+        assertTrue(receipt.contains("Rs. 300.00"))
+        assertTrue(receipt.contains("Total Settled:"))
+        assertTrue(receipt.contains("Rs. 1,000.00"))
+        assertTrue(receipt.contains("Updated Customer Due:"))
+        assertTrue(receipt.contains("Rs. 500.00"))
+
+        val escPosBytes = ThermalInvoiceFormatter.formatEscPosReceipt(invoiceData, PaperWidth.WIDTH_58MM)
+        val escPosText = String(escPosBytes, Charsets.US_ASCII)
+        assertTrue(escPosText.contains("Prev Customer Due:"))
+        assertTrue(escPosText.contains("Paid via Advance:"))
+        assertTrue(escPosText.contains("Updated Customer Due:"))
+    }
 }

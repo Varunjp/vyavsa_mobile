@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import com.vyavsa.app.core.common.FormatUtils
+import com.vyavsa.app.core.document.InvoiceShareManager
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -426,6 +428,52 @@ class SaleDetailsViewModel @Inject constructor(
     }
 
     fun getCachedLogoBitmap(): Bitmap? = cachedLogoBitmap
+
+    fun shareSalePdf(context: Context, onComplete: ((Boolean, String?) -> Unit)? = null) {
+        val state = _detailState.value
+        if (state !is UiState.Success) return
+        val currentSale = state.data
+        viewModelScope.launch {
+            try {
+                val profile = _companyProfile.value
+                val logoBmp = cachedLogoBitmap
+                val (invoiceNumber, fallbackPrintData, downloader) = when (currentSale) {
+                    is SaleDetailData.Line -> {
+                        val fullSale = currentSale.sale
+                        val printData = InvoiceDataMapper.fromLineSale(fullSale, profile, logoBmp)
+                        Triple(printData.invoiceNumber, printData, suspend { repository.downloadLineSalePdf(fullSale.id) })
+                    }
+                    is SaleDetailData.Counter -> {
+                        val fullSale = currentSale.sale
+                        val printData = InvoiceDataMapper.fromCounterSale(fullSale, profile, logoBmp)
+                        Triple(printData.invoiceNumber, printData, suspend { repository.downloadCounterSalePdf(fullSale.id) })
+                    }
+                }
+
+                val res = InvoiceShareManager.shareSalePdf(
+                    context = context,
+                    invoiceNumber = invoiceNumber,
+                    fallbackPrintData = fallbackPrintData,
+                    pdfDownloader = downloader
+                )
+                if (res.isSuccess) {
+                    onComplete?.invoke(true, null)
+                } else {
+                    onComplete?.invoke(false, res.exceptionOrNull()?.message ?: "Failed to share PDF")
+                }
+            } catch (e: Exception) {
+                onComplete?.invoke(false, e.message ?: "Error sharing PDF")
+            }
+        }
+    }
+
+    fun shareLineSalePdf(context: Context, sale: LineSale, onComplete: ((Boolean, String?) -> Unit)? = null) {
+        shareSalePdf(context, onComplete)
+    }
+
+    fun shareCounterSalePdf(context: Context, sale: CounterSale, onComplete: ((Boolean, String?) -> Unit)? = null) {
+        shareSalePdf(context, onComplete)
+    }
 
     fun getReceiptPreviewText(): String {
         val printData = getInvoicePrintData() ?: return "No invoice data available"
