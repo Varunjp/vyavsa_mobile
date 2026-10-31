@@ -76,24 +76,24 @@ class RoleBasedDashboardTest {
     @Test
     fun testDestinationsForRoles() {
         val salesDestinations = BottomBarDestination.destinationsForRole(UserRole.SALES)
-        assertEquals(4, salesDestinations.size)
+        assertEquals(5, salesDestinations.size)
         assertTrue(salesDestinations.contains(BottomBarDestination.HOME))
         assertTrue(salesDestinations.contains(BottomBarDestination.SALES))
+        assertTrue(salesDestinations.contains(BottomBarDestination.DUES))
         assertTrue(salesDestinations.contains(BottomBarDestination.PRODUCTS))
         assertTrue(salesDestinations.contains(BottomBarDestination.MORE))
         assertFalse(salesDestinations.contains(BottomBarDestination.COUNTER_SALES))
         assertFalse(salesDestinations.contains(BottomBarDestination.STAFF))
-        assertFalse(salesDestinations.contains(BottomBarDestination.DUES))
 
         val officeDestinations = BottomBarDestination.destinationsForRole(UserRole.OFFICE)
-        assertEquals(5, officeDestinations.size)
+        assertEquals(6, officeDestinations.size)
         assertTrue(officeDestinations.contains(BottomBarDestination.HOME))
         assertTrue(officeDestinations.contains(BottomBarDestination.COUNTER_SALES))
         assertTrue(officeDestinations.contains(BottomBarDestination.TRANSACTIONS))
+        assertTrue(officeDestinations.contains(BottomBarDestination.DUES))
         assertTrue(officeDestinations.contains(BottomBarDestination.STAFF))
         assertTrue(officeDestinations.contains(BottomBarDestination.MORE))
         assertFalse(officeDestinations.contains(BottomBarDestination.SALES))
-        assertFalse(officeDestinations.contains(BottomBarDestination.DUES))
 
         val adminDestinations = BottomBarDestination.destinationsForRole(UserRole.ADMIN)
         assertEquals(6, adminDestinations.size)

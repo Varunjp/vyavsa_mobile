@@ -4,10 +4,13 @@ import com.vyavsa.app.core.model.AddCashRequest
 import com.vyavsa.app.core.model.AdjustCashRequest
 import com.vyavsa.app.core.model.AdjustCustomerBalanceRequest
 import com.vyavsa.app.core.model.ApiResponse
+import com.vyavsa.app.core.model.ApplyCustomerAdvanceRequest
+import com.vyavsa.app.core.model.ApplyCustomerAdvanceResponse
 import com.vyavsa.app.core.model.AttendanceRecord
 import com.vyavsa.app.core.model.BankTransaction
 import com.vyavsa.app.core.model.CashBalanceResponse
 import com.vyavsa.app.core.model.CashTransaction
+import com.vyavsa.app.core.model.CollectCustomerAdvanceRequest
 import com.vyavsa.app.core.model.CollectCustomerPaymentRequest
 import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.CounterSalePayment
@@ -22,6 +25,7 @@ import com.vyavsa.app.core.model.CreatePurchaseRequest
 import com.vyavsa.app.core.model.CreateSupplierRequest
 import com.vyavsa.app.core.model.CreateTenantUserRequest
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.CustomerAdvanceResponse
 import com.vyavsa.app.core.model.CustomerBalance
 import com.vyavsa.app.core.model.CustomerBalanceAdjustment
 import com.vyavsa.app.core.model.CustomerPaymentResponse
@@ -84,6 +88,7 @@ import com.vyavsa.app.core.model.VerifyPaymentResponse
 import com.vyavsa.app.core.model.VerifyResetOtpRequest
 import com.vyavsa.app.core.model.VerifyResetOtpResponse
 import okhttp3.MultipartBody
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -93,6 +98,7 @@ import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 
 interface VyavsaApiService {
 
@@ -211,6 +217,10 @@ interface VyavsaApiService {
         @Body req: RecordSalePaymentRequest
     ): ApiResponse<LineSalePayment>
 
+    @Streaming
+    @GET("api/v1/tenant/line-sales/{id}/pdf")
+    suspend fun downloadLineSalePdf(@Path("id") id: String): ResponseBody
+
     @GET("api/v1/tenant/counter-sales")
     suspend fun listCounterSales(
         @Query("page") page: Int = 1,
@@ -239,6 +249,10 @@ interface VyavsaApiService {
         @Path("id") id: String,
         @Body req: RecordSalePaymentRequest
     ): ApiResponse<CounterSalePayment>
+
+    @Streaming
+    @GET("api/v1/tenant/counter-sales/{id}/pdf")
+    suspend fun downloadCounterSalePdf(@Path("id") id: String): ResponseBody
 
     // ==========================================
     // 4. Purchases & Customers / Dues
@@ -281,7 +295,8 @@ interface VyavsaApiService {
     suspend fun listCustomers(
         @Query("page") page: Int = 1,
         @Query("page_size") pageSize: Int = 50,
-        @Query("search") search: String? = null
+        @Query("search") search: String? = null,
+        @Query("status") status: String? = null
     ): ApiResponse<List<Customer>>
 
     @POST("api/v1/tenant/customers")
@@ -337,6 +352,40 @@ interface VyavsaApiService {
         @Query("page") page: Int = 1,
         @Query("page_size") pageSize: Int = 100
     ): ApiResponse<List<CustomerPaymentResponse>>
+
+    // Customer Advances
+    @POST("api/v1/tenant/customers/{id}/advances")
+    suspend fun collectCustomerAdvance(
+        @Path("id") id: String,
+        @Body req: CollectCustomerAdvanceRequest
+    ): ApiResponse<CustomerAdvanceResponse>
+
+    @POST("api/v1/tenant/customer-advances")
+    suspend fun collectCustomerAdvanceDirect(
+        @Body req: CollectCustomerAdvanceRequest
+    ): ApiResponse<CustomerAdvanceResponse>
+
+    @GET("api/v1/tenant/customers/{id}/advances")
+    suspend fun listCustomerAdvances(
+        @Path("id") id: String,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 100
+    ): ApiResponse<List<CustomerAdvanceResponse>>
+
+    @GET("api/v1/tenant/customer-advances/{id}")
+    suspend fun getCustomerAdvanceById(
+        @Path("id") id: String
+    ): ApiResponse<CustomerAdvanceResponse>
+
+    @Streaming
+    @GET("api/v1/tenant/customer-advances/{id}/pdf")
+    suspend fun downloadAdvanceReceiptPdf(@Path("id") id: String): ResponseBody
+
+    @POST("api/v1/tenant/customers/{id}/apply-advance")
+    suspend fun applyCustomerAdvance(
+        @Path("id") id: String,
+        @Body req: ApplyCustomerAdvanceRequest
+    ): ApiResponse<ApplyCustomerAdvanceResponse>
 
     // ==========================================
     // 4b. Suppliers & Supplier Payments

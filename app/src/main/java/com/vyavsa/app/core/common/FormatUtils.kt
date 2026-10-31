@@ -129,4 +129,75 @@ object FormatUtils {
             null
         }
     }
+
+    /**
+     * Converts an amount into words following the Indian numbering system (Crores, Lakhs, Thousands).
+     */
+    fun numberToWordsINR(amount: Double): String {
+        val totalPaise = Math.round(amount * 100.0)
+        val rupees = totalPaise / 100
+        val paise = totalPaise % 100
+
+        if (rupees == 0L && paise == 0L) return "Zero Rupees Only"
+
+        val ones = arrayOf(
+            "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+            "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
+            "Seventeen", "Eighteen", "Nineteen"
+        )
+        val tens = arrayOf(
+            "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"
+        )
+
+        fun convertUnderThousand(n: Long): String {
+            if (n == 0L) return ""
+            val sb = java.lang.StringBuilder()
+            var rem = n
+            if (rem >= 100) {
+                sb.append(ones[(rem / 100).toInt()]).append(" Hundred")
+                rem %= 100
+                if (rem > 0) sb.append(" ")
+            }
+            if (rem > 0) {
+                if (rem < 20) {
+                    sb.append(ones[rem.toInt()])
+                } else {
+                    sb.append(tens[(rem / 10).toInt()])
+                    if (rem % 10 > 0) {
+                        sb.append(" ").append(ones[(rem % 10).toInt()])
+                    }
+                }
+            }
+            return sb.toString()
+        }
+
+        val parts = mutableListOf<String>()
+        var num = rupees
+
+        val crore = num / 10000000L
+        num %= 10000000L
+
+        val lakh = num / 100000L
+        num %= 100000L
+
+        val thousand = num / 1000L
+        num %= 1000L
+
+        val hundredsAndBelow = num
+
+        if (crore > 0) parts.add("${convertUnderThousand(crore)} Crore")
+        if (lakh > 0) parts.add("${convertUnderThousand(lakh)} Lakh")
+        if (thousand > 0) parts.add("${convertUnderThousand(thousand)} Thousand")
+        if (hundredsAndBelow > 0) parts.add(convertUnderThousand(hundredsAndBelow))
+
+        val rupeeWords = if (parts.isNotEmpty()) parts.joinToString(" ") + " Rupees" else ""
+        val paiseWords = if (paise > 0) "${convertUnderThousand(paise)} Paise" else ""
+
+        return when {
+            rupeeWords.isNotEmpty() && paiseWords.isNotEmpty() -> "$rupeeWords and $paiseWords Only"
+            rupeeWords.isNotEmpty() -> "$rupeeWords Only"
+            paiseWords.isNotEmpty() -> "$paiseWords Only"
+            else -> "Zero Rupees Only"
+        }
+    }
 }

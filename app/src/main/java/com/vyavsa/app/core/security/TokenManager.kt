@@ -144,7 +144,9 @@ open class TokenManager(
         return role == com.vyavsa.app.core.model.UserRole.ADMIN || rawRole == "tenant_admin" || rawRole == "admin"
     }
 
-    open fun isSales(): Boolean = getUserRole() == com.vyavsa.app.core.model.UserRole.SALES
+    open fun isSales(): Boolean = getUserRole() == com.vyavsa.app.core.model.UserRole.SALES || getUserRole() == com.vyavsa.app.core.model.UserRole.LINE
+
+    open fun isLine(): Boolean = getUserRole() == com.vyavsa.app.core.model.UserRole.LINE
 
     open fun isOffice(): Boolean = getUserRole() == com.vyavsa.app.core.model.UserRole.OFFICE
 
@@ -153,15 +155,23 @@ open class TokenManager(
         return role == com.vyavsa.app.core.model.UserRole.ADMIN || role == com.vyavsa.app.core.model.UserRole.USER
     }
 
-    open fun canAccessLineSales(): Boolean = !isOffice()
+    open fun getPermissions(): Set<AppPermission> {
+        return AppPermission.permissionsForRole(getUserRole())
+    }
 
-    open fun canAccessCounterSales(): Boolean = !isSales()
+    open fun hasPermission(permission: AppPermission): Boolean {
+        return getPermissions().contains(permission)
+    }
 
-    open fun canAccessPurchases(): Boolean = !isSales()
+    open fun canAccessLineSales(): Boolean = hasPermission(AppPermission.CREATE_LINE_SALE)
 
-    open fun canAccessExpenses(): Boolean = !isSales()
+    open fun canAccessCounterSales(): Boolean = hasPermission(AppPermission.CREATE_COUNTER_SALE)
 
-    open fun canAccessStaff(): Boolean = !isSales()
+    open fun canAccessPurchases(): Boolean = isTenantAdmin() || isOffice()
+
+    open fun canAccessExpenses(): Boolean = isTenantAdmin() || isOffice()
+
+    open fun canAccessStaff(): Boolean = hasPermission(AppPermission.MANAGE_STAFF)
 
     open fun canAccessTenantManagement(): Boolean = isTenantAdmin()
 

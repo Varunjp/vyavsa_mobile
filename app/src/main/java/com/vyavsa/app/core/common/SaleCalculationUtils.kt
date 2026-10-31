@@ -152,4 +152,91 @@ object SaleCalculationUtils {
     fun formatDecimal(value: BigDecimal): String {
         return String.format(Locale.US, "%.2f", value.setScale(2, RoundingMode.HALF_UP))
     }
+
+    /**
+     * Preview breakdown of POS financial allocation consistent with backend rules.
+     */
+    data class PosAllocationPreview(
+        val saleTotal: BigDecimal,
+        val availableAdvance: BigDecimal,
+        val advanceApplied: BigDecimal,
+        val remainingPayable: BigDecimal,
+        val directPaymentCollected: BigDecimal,
+        val excessPayment: BigDecimal,
+        val previousDuesSettled: BigDecimal,
+        val advanceGenerated: BigDecimal,
+        val remainingSaleDue: BigDecimal,
+        val updatedCustomerDue: BigDecimal,
+        val updatedAdvanceBalance: BigDecimal
+    ) {
+        val saleTotalString: String get() = String.format(Locale.US, "%.2f", saleTotal)
+        val availableAdvanceString: String get() = String.format(Locale.US, "%.2f", availableAdvance)
+        val advanceAppliedString: String get() = String.format(Locale.US, "%.2f", advanceApplied)
+        val remainingPayableString: String get() = String.format(Locale.US, "%.2f", remainingPayable)
+        val directPaymentCollectedString: String get() = String.format(Locale.US, "%.2f", directPaymentCollected)
+        val excessPaymentString: String get() = String.format(Locale.US, "%.2f", excessPayment)
+        val previousDuesSettledString: String get() = String.format(Locale.US, "%.2f", previousDuesSettled)
+        val advanceGeneratedString: String get() = String.format(Locale.US, "%.2f", advanceGenerated)
+        val remainingSaleDueString: String get() = String.format(Locale.US, "%.2f", remainingSaleDue)
+        val updatedCustomerDueString: String get() = String.format(Locale.US, "%.2f", updatedCustomerDue)
+        val updatedAdvanceBalanceString: String get() = String.format(Locale.US, "%.2f", updatedAdvanceBalance)
+    }
+
+    /**
+     * Computes real-time POS allocation preview:
+     * 1. Automatically applies available advance up to sale total
+     * 2. Direct payment (cash + bank) settles remaining sale payable
+     * 3. Any excess payment automatically settles eligible previous customer dues FIFO
+     * 4. Remaining excess becomes new available customer advance
+     */
+    fun calculatePosAllocation(
+        saleTotalStr: String?,
+        customerCurrentBalanceStr: String?,
+        customerAdvanceBalanceStr: String?,
+        directCashStr: String?,
+        directBankStr: String?
+    ): PosAllocationPreview {
+        val saleTotal = parseAmount(saleTotalStr).max(BigDecimal.ZERO)
+        val prevDue = parseAmount(customerCurrentBalanceStr).max(BigDecimal.ZERO)
+        val availAdv = parseAmount(customerAdvanceBalanceStr).max(BigDecimal.ZERO)
+        val cash = parseAmount(directCashStr).max(BigDecimal.ZERO)
+        val bank = parseAmount(directBankStr).max(BigDecimal.ZERO)
+        val directPaid = cash + bank
+
+        // 1. Apply existing advance to current sale
+        val advanceApplied = availAdv.min(saleTotal)
+        val netSalePayable = (saleTotal - advanceApplied).max(BigDecimal.ZERO)
+
+        // 2. Direct payment applied towards current sale
+        val saleAlloc = directPaid.min(netSalePayable)
+        val dueOnThisSale = (netSalePayable - saleAlloc).max(BigDecimal.ZERO)
+
+        // 3. Excess payment above net sale payable
+        val excess = (directPaid - saleAlloc).max(BigDecimal.ZERO)
+
+        // 4. Settle previous dues using excess payment
+        val previousDuesSettled = excess.min(prevDue)
+        val remExcess = (excess - previousDuesSettled).max(BigDecimal.ZERO)
+
+        // 5. Remaining excess stored as customer advance
+        val advanceGenerated = remExcess
+
+        // 6. Updated balances
+        val updatedCustomerDue = (prevDue + dueOnThisSale - previousDuesSettled).max(BigDecimal.ZERO)
+        val updatedAdvanceBalance = (availAdv - advanceApplied + advanceGenerated).max(BigDecimal.ZERO)
+
+        return PosAllocationPreview(
+            saleTotal = saleTotal,
+            availableAdvance = availAdv,
+            advanceApplied = advanceApplied,
+            remainingPayable = netSalePayable,
+            directPaymentCollected = directPaid,
+            excessPayment = excess,
+            previousDuesSettled = previousDuesSettled,
+            advanceGenerated = advanceGenerated,
+            remainingSaleDue = dueOnThisSale,
+            updatedCustomerDue = updatedCustomerDue,
+            updatedAdvanceBalance = updatedAdvanceBalance
+        )
+    }
 }

@@ -35,14 +35,16 @@ data class TokenResponse(
 enum class UserRole {
     ADMIN,
     SALES,
+    LINE,
     OFFICE,
     USER;
 
     companion object {
         fun fromString(role: String?): UserRole {
             return when (role?.lowercase()?.trim()) {
-                "sales" -> SALES
-                "office" -> OFFICE
+                "sales", "tenant_sales" -> SALES
+                "line", "tenant_line" -> LINE
+                "office", "tenant_office" -> OFFICE
                 "admin", "tenant_admin", "platform_admin" -> ADMIN
                 "user", "tenant_user" -> USER
                 else -> ADMIN

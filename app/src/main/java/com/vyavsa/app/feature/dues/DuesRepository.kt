@@ -2,9 +2,13 @@ package com.vyavsa.app.feature.dues
 
 import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.model.AdjustCustomerBalanceRequest
+import com.vyavsa.app.core.model.ApplyCustomerAdvanceRequest
+import com.vyavsa.app.core.model.ApplyCustomerAdvanceResponse
+import com.vyavsa.app.core.model.CollectCustomerAdvanceRequest
 import com.vyavsa.app.core.model.CollectCustomerPaymentRequest
 import com.vyavsa.app.core.model.CreateCustomerRequest
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.CustomerAdvanceResponse
 import com.vyavsa.app.core.model.CustomerBalance
 import com.vyavsa.app.core.model.CustomerBalanceAdjustment
 import com.vyavsa.app.core.model.CustomerPaymentResponse
@@ -20,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import okhttp3.ResponseBody
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -46,6 +51,24 @@ interface DuesRepository {
         note: String? = null
     ): Flow<Resource<CustomerPaymentResponse>>
     fun listCustomerCollections(customerId: String): Flow<Resource<List<CustomerPaymentResponse>>>
+    fun collectCustomerAdvance(
+        id: String,
+        amount: String,
+        paymentMethod: String,
+        bankId: String? = null,
+        bankName: String? = null,
+        date: String? = null,
+        referenceId: String? = null,
+        note: String? = null
+    ): Flow<Resource<CustomerAdvanceResponse>>
+    fun listCustomerAdvances(customerId: String): Flow<Resource<List<CustomerAdvanceResponse>>>
+    fun applyCustomerAdvance(
+        customerId: String,
+        amount: String,
+        advanceId: String? = null,
+        note: String? = null
+    ): Flow<Resource<ApplyCustomerAdvanceResponse>>
+    suspend fun downloadAdvanceReceiptPdf(id: String): ResponseBody
 }
 
 @Singleton
@@ -295,4 +318,91 @@ class DuesRepositoryImpl @Inject constructor(
             emit(ApiErrorParser.parse(e, "Network error loading customer collections"))
         }
     }.flowOn(Dispatchers.IO)
+
+    override fun collectCustomerAdvance(
+        id: String,
+        amount: String,
+        paymentMethod: String,
+        bankId: String?,
+        bankName: String?,
+        date: String?,
+        referenceId: String?,
+        note: String?
+    ): Flow<Resource<CustomerAdvanceResponse>> = flow {
+        emit(Resource.Loading)
+        try {
+            val normMethod = paymentMethod.lowercase().trim()
+            val req = CollectCustomerAdvanceRequest(
+                customerId = id,
+                amount = amount.trim(),
+                paymentMethod = normMethod,
+                cashAmount = if (normMethod == "cash") amount.trim() else null,
+                bankId = if (normMethod == "bank") bankId else null,
+                bankName = if (normMethod == "bank") bankName else null,
+                paymentDate = date,
+                referenceId = referenceId?.trim()?.ifBlank { null },
+                note = note?.trim()?.ifBlank { null },
+                idempotencyKey = java.util.UUID.randomUUID().toString()
+            )
+            val response = apiService.collectCustomerAdvance(id, req)
+            if (response.success && response.data != null) {
+                refreshCoordinator?.notifyMutation(DataMutation.DUES)
+                if (normMethod == "bank") {
+                    refreshCoordinator?.notifyMutation(DataMutation.BANK)
+                } else {
+                    refreshCoordinator?.notifyMutation(DataMutation.CASH)
+                }
+                emit(Resource.Success(response.data, response.message))
+            } else {
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to collect customer advance"))
+            }
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error collecting customer advance"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun listCustomerAdvances(customerId: String): Flow<Resource<List<CustomerAdvanceResponse>>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.listCustomerAdvances(id = customerId)
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data))
+            } else {
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load customer advances"))
+            }
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading customer advances"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun applyCustomerAdvance(
+        customerId: String,
+        amount: String,
+        advanceId: String?,
+        note: String?
+    ): Flow<Resource<ApplyCustomerAdvanceResponse>> = flow {
+        emit(Resource.Loading)
+        try {
+            val req = ApplyCustomerAdvanceRequest(
+                customerId = customerId,
+                amount = amount,
+                amountToApply = amount,
+                advanceId = advanceId,
+                note = note
+            )
+            val response = apiService.applyCustomerAdvance(customerId, req)
+            if (response.success && response.data != null) {
+                refreshCoordinator?.notifyMutation(DataMutation.DUES)
+                emit(Resource.Success(response.data, response.message))
+            } else {
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to apply customer advance"))
+            }
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error applying customer advance"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override suspend fun downloadAdvanceReceiptPdf(id: String): ResponseBody {
+        return apiService.downloadAdvanceReceiptPdf(id)
+    }
 }

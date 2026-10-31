@@ -2,7 +2,9 @@ package com.vyavsa.app.feature.dues
 
 import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.common.UiState
+import com.vyavsa.app.core.model.ApplyCustomerAdvanceResponse
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.CustomerAdvanceResponse
 import com.vyavsa.app.core.model.CustomerBalance
 import com.vyavsa.app.core.model.CustomerBalanceAdjustment
 import com.vyavsa.app.core.model.CustomerPaymentResponse
@@ -14,6 +16,9 @@ import com.vyavsa.app.core.model.SupplierPaymentResponse
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import com.vyavsa.app.feature.bank.FakeBankRepository
 import com.vyavsa.app.feature.supplier.SupplierRepository
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.ResponseBody
+import okhttp3.ResponseBody.Companion.toResponseBody
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +29,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -358,6 +365,117 @@ class DuesViewModelTest {
         assertEquals("Please select a bank account for bank payout", (actionState as UiState.Error).message)
         assertEquals(0, fakeSupplierRepository.recordedPayments.size)
     }
+
+    @Test
+    fun testCollectCustomerAdvanceCashSuccess() = runTest {
+        val customer = fakeRepository.customers.find { it.id == "cust-1" }!!
+        assertEquals("500.00", customer.currentBalance)
+        assertEquals("0.00", customer.advanceBalance)
+
+        var callbackResponse: CustomerAdvanceResponse? = null
+        viewModel.collectCustomerAdvance(
+            customerId = "cust-1",
+            amount = "800.00",
+            paymentMethod = "cash",
+            note = "Advance collection route 4"
+        ) { resp ->
+            callbackResponse = resp
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val resp = viewModel.lastAdvanceResponse.value
+        assertNotNull("Expected lastAdvanceResponse to be populated", resp)
+        assertEquals("800.00", resp?.amount)
+        assertEquals("500.00", resp?.settledDues)
+        assertEquals("300.00", resp?.availableAmount)
+        assertEquals("0.00", resp?.customerBalance)
+        assertEquals("300.00", resp?.advanceBalance)
+        assertEquals("cash", resp?.paymentMethod)
+        assertEquals(resp, callbackResponse)
+
+        val updatedCustomer = fakeRepository.customers.find { it.id == "cust-1" }!!
+        assertEquals("0.00", updatedCustomer.currentBalance)
+        assertEquals("300.00", updatedCustomer.advanceBalance)
+
+        viewModel.clearLastAdvanceResponse()
+        assertNull(viewModel.lastAdvanceResponse.value)
+    }
+
+    @Test
+    fun testCollectCustomerAdvanceBankRequiresBankId() = runTest {
+        viewModel.collectCustomerAdvance(
+            customerId = "cust-1",
+            amount = "500.00",
+            paymentMethod = "bank",
+            bankId = null
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Error on missing bankId for advance bank collection, got $actionState", actionState is UiState.Error)
+        assertEquals("Please select a bank account for bank advance collection", (actionState as UiState.Error).message)
+        assertEquals(0, fakeRepository.customerAdvances.size)
+    }
+
+    @Test
+    fun testCollectCustomerAdvanceInvalidAmountFails() = runTest {
+        viewModel.collectCustomerAdvance(
+            customerId = "cust-1",
+            amount = "0.00",
+            paymentMethod = "cash"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        var actionState = viewModel.actionState.value
+        assertTrue("Expected Error on zero advance amount, got $actionState", actionState is UiState.Error)
+        assertEquals("Advance amount must be strictly greater than zero", (actionState as UiState.Error).message)
+
+        viewModel.collectCustomerAdvance(
+            customerId = "cust-1",
+            amount = "-50.00",
+            paymentMethod = "cash"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        actionState = viewModel.actionState.value
+        assertTrue("Expected Error on negative advance amount, got $actionState", actionState is UiState.Error)
+        assertEquals("Advance amount must be strictly greater than zero", (actionState as UiState.Error).message)
+        assertEquals(0, fakeRepository.customerAdvances.size)
+    }
+
+    @Test
+    fun testApplyCustomerAdvanceSuccess() = runTest {
+        val cust = fakeRepository.customers.find { it.id == "cust-1" }!!
+        fakeRepository.customers[0] = cust.copy(currentBalance = "500.00", advanceBalance = "300.00")
+
+        var successCallbackCalled = false
+        viewModel.applyCustomerAdvance(
+            customerId = "cust-1",
+            amount = "200.00",
+            note = "Applying 200 from deposit"
+        ) {
+            successCallbackCalled = true
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(successCallbackCalled)
+        val updated = fakeRepository.customers.find { it.id == "cust-1" }!!
+        assertEquals("300.00", updated.currentBalance)
+        assertEquals("100.00", updated.advanceBalance)
+    }
+
+    @Test
+    fun testApplyCustomerAdvanceInvalidAmountFails() = runTest {
+        viewModel.applyCustomerAdvance(
+            customerId = "cust-1",
+            amount = "0.00"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Error on zero apply amount", actionState is UiState.Error)
+        assertEquals("Please enter a valid amount to apply", (actionState as UiState.Error).message)
+    }
 }
 
 class FakeDuesRepository : DuesRepository {
@@ -464,7 +582,7 @@ class FakeDuesRepository : DuesRepository {
         val idx = customers.indexOfFirst { it.id == id }
         if (idx >= 0) {
             val old = customers[idx]
-            val prevBal = old.currentBalance ?: "0.00"
+            val prevBal = old.currentBalance
             val targetBal = newBalance ?: "0.00"
             customers[idx] = old.copy(currentBalance = targetBal)
 
@@ -496,7 +614,7 @@ class FakeDuesRepository : DuesRepository {
             emit(Resource.Success(CustomerBalance(
                 customerId = id,
                 customerName = customer.customerName,
-                currentBalance = customer.currentBalance ?: "0.00"
+                currentBalance = customer.currentBalance
             )))
         } else {
             emit(Resource.Error("Customer not found"))
@@ -570,9 +688,98 @@ class FakeDuesRepository : DuesRepository {
         emit(Resource.Success(response))
     }
 
-    override fun listCustomerCollections(id: String): Flow<Resource<List<CustomerPaymentResponse>>> = flow {
+    override fun listCustomerCollections(customerId: String): Flow<Resource<List<CustomerPaymentResponse>>> = flow {
         emit(Resource.Loading)
-        emit(Resource.Success(customerCollections.filter { it.customerId == id }))
+        emit(Resource.Success(customerCollections.filter { it.customerId == customerId }))
+    }
+
+    val customerAdvances = mutableListOf<CustomerAdvanceResponse>()
+
+    override fun collectCustomerAdvance(
+        id: String,
+        amount: String,
+        paymentMethod: String,
+        bankId: String?,
+        bankName: String?,
+        date: String?,
+        referenceId: String?,
+        note: String?
+    ): Flow<Resource<CustomerAdvanceResponse>> = flow {
+        emit(Resource.Loading)
+        val customer = customers.find { it.id == id }
+        val prevBal = customer?.currentBalance?.toDoubleOrNull() ?: 0.0
+        val advAmt = amount.toDoubleOrNull() ?: 0.0
+        val settledDues = minOf(prevBal, advAmt)
+        val newDue = (prevBal - settledDues).coerceAtLeast(0.0)
+        val availableAdvance = (advAmt - settledDues).coerceAtLeast(0.0)
+        val prevAdv = customer?.advanceBalance?.toDoubleOrNull() ?: 0.0
+        val newAdv = prevAdv + availableAdvance
+        if (customer != null) {
+            val idx = customers.indexOf(customer)
+            customers[idx] = customer.copy(
+                currentBalance = "%.2f".format(newDue),
+                advanceBalance = "%.2f".format(newAdv)
+            )
+        }
+        val response = CustomerAdvanceResponse(
+            id = "adv-${customerAdvances.size + 1}",
+            customerId = id,
+            customerName = customer?.customerName ?: "Customer",
+            receiptNumber = "ADV-20261031-0001",
+            amount = amount,
+            appliedAmount = "%.2f".format(settledDues),
+            availableAmount = "%.2f".format(availableAdvance),
+            settledDues = "%.2f".format(settledDues),
+            paymentMethod = paymentMethod,
+            customerBalance = "%.2f".format(newDue),
+            advanceBalance = "%.2f".format(newAdv),
+            referenceId = referenceId,
+            note = note,
+            paymentDate = date ?: "2026-10-31"
+        )
+        customerAdvances.add(response)
+        emit(Resource.Success(response))
+    }
+
+    override fun listCustomerAdvances(customerId: String): Flow<Resource<List<CustomerAdvanceResponse>>> = flow {
+        emit(Resource.Loading)
+        emit(Resource.Success(customerAdvances.filter { it.customerId == customerId }))
+    }
+
+    override fun applyCustomerAdvance(
+        customerId: String,
+        amount: String,
+        advanceId: String?,
+        note: String?
+    ): Flow<Resource<ApplyCustomerAdvanceResponse>> = flow {
+        emit(Resource.Loading)
+        val amt = amount.toDoubleOrNull() ?: 0.0
+        val customer = customers.find { it.id == customerId }
+        val prevDue = customer?.currentBalance?.toDoubleOrNull() ?: 0.0
+        val prevAdv = customer?.advanceBalance?.toDoubleOrNull() ?: 0.0
+        val remDue = (prevDue - amt).coerceAtLeast(0.0)
+        val remAdv = (prevAdv - amt).coerceAtLeast(0.0)
+        if (customer != null) {
+            val idx = customers.indexOf(customer)
+            customers[idx] = customer.copy(
+                currentBalance = "%.2f".format(remDue),
+                advanceBalance = "%.2f".format(remAdv)
+            )
+        }
+        val response = ApplyCustomerAdvanceResponse(
+            customerId = customerId,
+            customerName = customer?.customerName ?: "Customer",
+            amountApplied = amount,
+            previousCustomerBalance = "%.2f".format(prevDue),
+            updatedCustomerBalance = "%.2f".format(remDue),
+            previousAdvanceBalance = "%.2f".format(prevAdv),
+            updatedAdvanceBalance = "%.2f".format(remAdv)
+        )
+        emit(Resource.Success(response))
+    }
+
+    override suspend fun downloadAdvanceReceiptPdf(id: String): ResponseBody {
+        return "%PDF-1.4 test advance pdf".toResponseBody("application/pdf".toMediaTypeOrNull())
     }
 }
 

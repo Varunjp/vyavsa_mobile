@@ -445,9 +445,9 @@ object InvoicePdfGenerator {
     ) {
         val startY = curY + 10f
 
-        // Right-Side Totals Box (width = 230pt)
+        // Right-Side Totals Box (width = 240pt)
         val totalsBoxRight = PAGE_WIDTH - MARGIN
-        val totalsBoxLeft = totalsBoxRight - 230f
+        val totalsBoxLeft = totalsBoxRight - 240f
         val totalsLabelX = totalsBoxLeft + 8f
         val totalsValX = totalsBoxRight - 8f
 
@@ -456,19 +456,19 @@ object InvoicePdfGenerator {
         // Subtotal
         canvas.drawText("Subtotal:", totalsLabelX, tY + 10f, textPaint)
         canvas.drawText(FormatUtils.formatCurrency(data.subtotal), totalsValX, tY + 10f, textRightPaint)
-        tY += 15f
+        tY += 14f
 
         // Discount
         if (data.discount > 0.0) {
             val greenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.rgb(5, 150, 105)
-                textSize = 9.5f
+                textSize = 9f
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
             val greenRight = Paint(greenPaint).apply { textAlign = Paint.Align.RIGHT }
-            canvas.drawText("Discount:", totalsLabelX, tY + 10f, greenPaint)
+            canvas.drawText("Custom Discount:", totalsLabelX, tY + 10f, greenPaint)
             canvas.drawText("-${FormatUtils.formatCurrency(data.discount)}", totalsValX, tY + 10f, greenRight)
-            tY += 15f
+            tY += 14f
         }
 
         // Total Payable Card Highlight
@@ -487,21 +487,57 @@ object InvoicePdfGenerator {
 
         val totalGrandLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(30, 58, 138)
-            textSize = 10f
+            textSize = 9.5f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         val totalGrandValPaint = Paint(totalGrandLabelPaint).apply { textAlign = Paint.Align.RIGHT }
 
-        canvas.drawText("TOTAL PAYABLE:", totalsLabelX, tY + 14.5f, totalGrandLabelPaint)
+        canvas.drawText("Current Sale Total:", totalsLabelX, tY + 14.5f, totalGrandLabelPaint)
         canvas.drawText(FormatUtils.formatCurrency(data.totalAmount), totalsValX, tY + 14.5f, totalGrandValPaint)
-        tY += 27f
+        tY += 26f
 
-        // Amount Paid
-        canvas.drawText("Amount Paid:", totalsLabelX, tY + 10f, textPaint)
-        canvas.drawText(FormatUtils.formatCurrency(data.amountPaid), totalsValX, tY + 10f, textRightPaint)
-        tY += 15f
+        // Amount Received Directly
+        val directReceived = if (data.amountReceivedDirect > 0.0) data.amountReceivedDirect else data.amountPaid
+        val directReceivedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(22, 163, 74) // Emerald 600
+            textSize = 9f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val directReceivedRight = Paint(directReceivedPaint).apply { textAlign = Paint.Align.RIGHT }
+        canvas.drawText("Amount Received Now:", totalsLabelX, tY + 10f, textPaint)
+        canvas.drawText(FormatUtils.formatCurrency(directReceived), totalsValX, tY + 10f, directReceivedRight)
+        tY += 14f
 
-        // Balance Due / Paid in Full
+        // Advance Applied (if any)
+        if (data.advanceApplied > 0.0) {
+            val bluePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(2, 132, 199) // Sky 600
+                textSize = 9f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+            val blueRight = Paint(bluePaint).apply { textAlign = Paint.Align.RIGHT }
+            canvas.drawText("Paid using Advance Balance:", totalsLabelX, tY + 10f, bluePaint)
+            canvas.drawText(FormatUtils.formatCurrency(data.advanceApplied), totalsValX, tY + 10f, blueRight)
+            tY += 14f
+        }
+
+        // Total Settled for this Sale
+        val settledAmount = if (data.totalSettledForSale > 0.0) {
+            data.totalSettledForSale
+        } else {
+            (directReceived + data.advanceApplied).coerceAtMost(data.totalAmount)
+        }
+        val settledPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(30, 58, 138) // Blue 900
+            textSize = 9f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val settledRight = Paint(settledPaint).apply { textAlign = Paint.Align.RIGHT }
+        canvas.drawText("Total Settled for Sale:", totalsLabelX, tY + 10f, settledPaint)
+        canvas.drawText(FormatUtils.formatCurrency(settledAmount), totalsValX, tY + 10f, settledRight)
+        tY += 14f
+
+        // Balance Due after Sale
         if (data.balanceDue > 0.0) {
             val duePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.rgb(220, 38, 38)
@@ -509,51 +545,153 @@ object InvoicePdfGenerator {
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
             val dueRight = Paint(duePaint).apply { textAlign = Paint.Align.RIGHT }
-            canvas.drawText("Balance Due:", totalsLabelX, tY + 10f, duePaint)
+            canvas.drawText("Balance Due after Sale:", totalsLabelX, tY + 10f, duePaint)
             canvas.drawText(FormatUtils.formatCurrency(data.balanceDue), totalsValX, tY + 10f, dueRight)
         } else {
             val paidFullPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.rgb(5, 150, 105)
-                textSize = 9.5f
+                textSize = 9f
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 textAlign = Paint.Align.RIGHT
             }
-            canvas.drawText("Status:", totalsLabelX, tY + 10f, mutedPaint)
+            canvas.drawText("Payment Status:", totalsLabelX, tY + 10f, mutedPaint)
             canvas.drawText("✓ PAID IN FULL", totalsValX, tY + 10f, paidFullPaint)
         }
         tY += 16f
 
-        // Left-Side Payment & Notes Box
+        // Customer Ledger Summary (if customer ledger present)
+        if (data.hasCustomerLedger) {
+            canvas.drawLine(totalsBoxLeft, tY + 2f, totalsBoxRight, tY + 2f, linePaint)
+            tY += 8f
+
+            val ledgerHeaderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(100, 116, 139)
+                textSize = 7.5f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+            canvas.drawText("CUSTOMER LEDGER OVERVIEW", totalsLabelX, tY + 8f, ledgerHeaderPaint)
+            tY += 13f
+
+            canvas.drawText("Previous Customer Due:", totalsLabelX, tY + 9f, textPaint)
+            canvas.drawText(FormatUtils.formatCurrency(data.previousBalance), totalsValX, tY + 9f, textRightPaint)
+            tY += 13f
+
+            val updatedDuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = if (data.updatedCustomerBalance > 0.0) Color.rgb(220, 38, 38) else Color.rgb(15, 23, 42)
+                textSize = 9f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+            val updatedDueRight = Paint(updatedDuePaint).apply { textAlign = Paint.Align.RIGHT }
+            canvas.drawText("Updated Customer Due:", totalsLabelX, tY + 9f, updatedDuePaint)
+            canvas.drawText(FormatUtils.formatCurrency(data.updatedCustomerBalance), totalsValX, tY + 9f, updatedDueRight)
+            tY += 14f
+        }
+
+        // Left-Side Amount in Words & Payment Record Box
         val notesBoxLeft = MARGIN
         val notesBoxRight = totalsBoxLeft - 14f
-        val notesHeight = maxOf(tY - startY, 60f)
-        val notesRect = RectF(notesBoxLeft, startY, notesBoxRight, startY + notesHeight)
-        canvas.drawRoundRect(notesRect, 5f, 5f, bgPaint)
-        canvas.drawRoundRect(notesRect, 5f, 5f, linePaint)
+        var lY = startY
 
-        val notesHeaderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // 1. Amount in Words Box
+        val amountInWords = FormatUtils.numberToWordsINR(data.totalAmount)
+        if (amountInWords.isNotBlank()) {
+            val wordsCardBg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(240, 253, 244) // Green 50
+                style = Paint.Style.FILL
+            }
+            val wordsCardBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(187, 247, 208) // Green 200
+                style = Paint.Style.STROKE
+                strokeWidth = 0.8f
+            }
+            val wordsH = 34f
+            val wordsRect = RectF(notesBoxLeft, lY, notesBoxRight, lY + wordsH)
+            canvas.drawRoundRect(wordsRect, 5f, 5f, wordsCardBg)
+            canvas.drawRoundRect(wordsRect, 5f, 5f, wordsCardBorder)
+
+            val wordsHeaderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(22, 101, 52)
+                textSize = 7f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+            canvas.drawText("AMOUNT IN WORDS", notesBoxLeft + 8f, lY + 11f, wordsHeaderPaint)
+
+            val wordsBodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(20, 83, 45)
+                textSize = 8f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+            val wrappedWords = wrapText(amountInWords, wordsBodyPaint, notesBoxRight - notesBoxLeft - 16f)
+            wrappedWords.take(1).forEach { line ->
+                canvas.drawText(line, notesBoxLeft + 8f, lY + 23f, wordsBodyPaint)
+            }
+            lY += wordsH + 8f
+        }
+
+        // 2. Payment Record Box
+        val remainingLeftHeight = maxOf(tY - lY, 50f)
+        val pmRect = RectF(notesBoxLeft, lY, notesBoxRight, lY + remainingLeftHeight)
+        canvas.drawRoundRect(pmRect, 5f, 5f, bgPaint)
+        canvas.drawRoundRect(pmRect, 5f, 5f, linePaint)
+
+        val pmHeaderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(100, 116, 139)
-            textSize = 8f
+            textSize = 7.5f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        canvas.drawText("PAYMENT & TRANSACTION DETAILS", notesBoxLeft + 10f, startY + 13f, notesHeaderPaint)
+        canvas.drawText("PAYMENT RECORD", notesBoxLeft + 8f, lY + 12f, pmHeaderPaint)
+        var pmY = lY + 23f
 
-        var nY = startY + 26f
-        val maxNotesWidth = notesBoxRight - notesBoxLeft - 20f
+        val pmItemPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(51, 65, 85)
+            textSize = 8f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        }
 
-        if (data.paymentSummary.isNotBlank()) {
-            val payLines = wrapText("Payment: ${data.paymentSummary}", mutedPaint, maxNotesWidth)
-            payLines.take(2).forEach { line ->
-                canvas.drawText(line, notesBoxLeft + 10f, nY, mutedPaint)
-                nY += 11f
+        if (data.advanceApplied > 0.0) {
+            val advStr = "${FormatUtils.formatCurrency(data.advanceApplied)} via ADVANCE BALANCE"
+            canvas.drawText(advStr, notesBoxLeft + 8f, pmY, pmItemPaint)
+            pmY += 11f
+        }
+
+        if (data.payments.isNotEmpty()) {
+            data.payments.take(3).forEach { p ->
+                var pStr = "${FormatUtils.formatCurrency(p.amount)} via ${p.method.uppercase(Locale.US)}"
+                if (!p.bankName.isNullOrBlank()) pStr += " (${p.bankName})"
+                if (!p.referenceId.isNullOrBlank()) pStr += " [Ref: ${p.referenceId}]"
+                val wrappedP = wrapText(pStr, pmItemPaint, notesBoxRight - notesBoxLeft - 16f)
+                wrappedP.take(1).forEach { line ->
+                    canvas.drawText(line, notesBoxLeft + 8f, pmY, pmItemPaint)
+                    pmY += 11f
+                }
+            }
+        } else {
+            if (data.cashAmount > 0.0) {
+                canvas.drawText("${FormatUtils.formatCurrency(data.cashAmount)} via CASH", notesBoxLeft + 8f, pmY, pmItemPaint)
+                pmY += 11f
+            }
+            if (data.bankAmount > 0.0) {
+                val bStr = "${FormatUtils.formatCurrency(data.bankAmount)} via BANK/ONLINE" + (data.bankName?.let { " ($it)" } ?: "")
+                canvas.drawText(bStr, notesBoxLeft + 8f, pmY, pmItemPaint)
+                pmY += 11f
+            }
+            if (data.cashAmount <= 0.0 && data.bankAmount <= 0.0 && data.amountPaid > 0.0) {
+                val pSummary = if (data.paymentSummary.isNotBlank()) data.paymentSummary else "Total Received: ${FormatUtils.formatCurrency(data.amountPaid)}"
+                canvas.drawText(pSummary, notesBoxLeft + 8f, pmY, pmItemPaint)
+                pmY += 11f
             }
         }
 
         if (!data.note.isNullOrBlank()) {
-            val noteLines = wrapText("Note: ${data.note}", mutedPaint, maxNotesWidth)
-            noteLines.take(2).forEach { line ->
-                canvas.drawText(line, notesBoxLeft + 10f, nY, mutedPaint)
-                nY += 11f
+            val notePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(100, 116, 139)
+                textSize = 7.5f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
+            }
+            val wrappedNote = wrapText("Remarks: ${data.note}", notePaint, notesBoxRight - notesBoxLeft - 16f)
+            wrappedNote.take(2).forEach { line ->
+                canvas.drawText(line, notesBoxLeft + 8f, pmY, notePaint)
+                pmY += 10f
             }
         }
     }

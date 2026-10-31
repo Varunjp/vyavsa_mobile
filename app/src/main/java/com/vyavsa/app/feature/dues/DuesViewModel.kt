@@ -10,12 +10,15 @@ import com.vyavsa.app.core.common.UiMessage
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.CreateBankRequest
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.CustomerAdvanceResponse
 import com.vyavsa.app.core.model.CustomerBalanceAdjustment
+import com.vyavsa.app.core.model.CustomerPaymentResponse
 import com.vyavsa.app.core.model.CustomerStatement
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.Supplier
 import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.model.UpdateBankRequest
+import com.vyavsa.app.core.security.AppPermission
 import com.vyavsa.app.core.security.TokenManager
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
@@ -108,6 +111,23 @@ class DuesViewModel @Inject constructor(
     private val _adjustmentsState = MutableStateFlow<UiState<List<CustomerBalanceAdjustment>>>(UiState.Idle)
     val adjustmentsState: StateFlow<UiState<List<CustomerBalanceAdjustment>>> = _adjustmentsState.asStateFlow()
 
+    private val _customerAdvancesState = MutableStateFlow<UiState<List<CustomerAdvanceResponse>>>(UiState.Idle)
+    val customerAdvancesState: StateFlow<UiState<List<CustomerAdvanceResponse>>> = _customerAdvancesState.asStateFlow()
+
+    private val _lastAdvanceResponse = MutableStateFlow<CustomerAdvanceResponse?>(null)
+    val lastAdvanceResponse: StateFlow<CustomerAdvanceResponse?> = _lastAdvanceResponse.asStateFlow()
+
+    private val _lastPaymentResponse = MutableStateFlow<CustomerPaymentResponse?>(null)
+    val lastPaymentResponse: StateFlow<CustomerPaymentResponse?> = _lastPaymentResponse.asStateFlow()
+
+    fun clearLastAdvanceResponse() {
+        _lastAdvanceResponse.value = null
+    }
+
+    fun clearLastPaymentResponse() {
+        _lastPaymentResponse.value = null
+    }
+
     private val _actionState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val actionState: StateFlow<UiState<Unit>> = _actionState.asStateFlow()
 
@@ -124,6 +144,30 @@ class DuesViewModel @Inject constructor(
 
     val isAdmin: Boolean
         get() = adminOverrideForTesting ?: (tokenManager?.isTenantAdmin() ?: false)
+
+    val canViewCustomers: Boolean
+        get() = tokenManager?.hasPermission(AppPermission.VIEW_CUSTOMERS) ?: true
+
+    val canCreateCustomer: Boolean
+        get() = tokenManager?.hasPermission(AppPermission.CREATE_CUSTOMERS) ?: isAdmin
+
+    val canUpdateCustomer: Boolean
+        get() = tokenManager?.hasPermission(AppPermission.UPDATE_CUSTOMERS) ?: isAdmin
+
+    val canDeleteCustomer: Boolean
+        get() = tokenManager?.hasPermission(AppPermission.DELETE_CUSTOMERS) ?: isAdmin
+
+    val canAdjustBalance: Boolean
+        get() = tokenManager?.hasPermission(AppPermission.ADJUST_CUSTOMER_BALANCE) ?: isAdmin
+
+    val canCollectPayment: Boolean
+        get() = tokenManager?.hasPermission(AppPermission.COLLECT_CUSTOMER_PAYMENT) ?: true
+
+    val canCollectAdvance: Boolean
+        get() = tokenManager?.hasPermission(AppPermission.COLLECT_CUSTOMER_ADVANCE) ?: true
+
+    val canViewFinancials: Boolean
+        get() = tokenManager?.hasPermission(AppPermission.VIEW_CUSTOMER_FINANCIALS) ?: true
 
     init {
         loadCustomers()
@@ -340,6 +384,7 @@ class DuesViewModel @Inject constructor(
                 _actionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
+                        _lastPaymentResponse.value = res.data
                         loadCustomers()
                         loadCustomerDetails(customerId)
                         loadStatement(customerId)
@@ -400,8 +445,145 @@ class DuesViewModel @Inject constructor(
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
                         loadCustomerSales(id)
+                        loadStatement(id)
+                        loadCustomerAdvances(id)
+                        loadAdjustments(id)
                         UiState.Success(res.data)
                     }
+                    is Resource.Error -> UiState.Error(res.message)
+                }
+            }
+        }
+    }
+
+    fun collectCustomerAdvance(
+        customerId: String,
+        amount: String,
+        paymentMethod: String,
+        bankId: String? = null,
+        bankName: String? = null,
+        paymentDate: String? = null,
+        referenceId: String? = null,
+        note: String? = null,
+        onSuccess: ((CustomerAdvanceResponse) -> Unit)? = null
+    ) {
+        if (_actionState.value is UiState.Loading) return
+
+        val amt = amount.trim().toDoubleOrNull()
+        if (amt == null || amt <= 0.0) {
+            val err = "Advance amount must be strictly greater than zero"
+            _actionState.value = UiState.Error(err)
+            sendUiMessage(err, MessageType.ERROR)
+            return
+        }
+
+        val normMethod = paymentMethod.lowercase().trim()
+        if (normMethod != "cash" && normMethod != "bank") {
+            val err = "Please select a valid payment method (Cash or Bank)"
+            _actionState.value = UiState.Error(err)
+            sendUiMessage(err, MessageType.ERROR)
+            return
+        }
+
+        if (normMethod == "bank" && bankId.isNullOrBlank()) {
+            val err = "Please select a bank account for bank advance collection"
+            _actionState.value = UiState.Error(err)
+            sendUiMessage(err, MessageType.ERROR)
+            return
+        }
+
+        viewModelScope.launch {
+            _actionState.value = UiState.Loading
+            repository.collectCustomerAdvance(
+                id = customerId,
+                amount = amount.trim(),
+                paymentMethod = normMethod,
+                bankId = if (normMethod == "bank") bankId else null,
+                bankName = if (normMethod == "bank") bankName else null,
+                date = paymentDate ?: FormatUtils.todayDateString(),
+                referenceId = referenceId?.trim()?.ifBlank { null },
+                note = note?.trim()?.ifBlank { null }
+            ).collect { res ->
+                _actionState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> {
+                        _lastAdvanceResponse.value = res.data
+                        loadCustomers()
+                        loadCustomerDetails(customerId)
+                        loadStatement(customerId)
+                        loadCustomerAdvances(customerId)
+                        val settled = res.data.settledDues.toDoubleOrNull() ?: 0.0
+                        val avail = res.data.availableAmount.toDoubleOrNull() ?: 0.0
+                        val msg = if (settled > 0.0 && avail > 0.0) {
+                            "Advance recorded: ${FormatUtils.formatCurrency(settled)} settled towards dues, ${FormatUtils.formatCurrency(avail)} added to advance balance"
+                        } else if (settled > 0.0) {
+                            "Advance recorded: ${FormatUtils.formatCurrency(settled)} settled existing customer dues in full"
+                        } else {
+                            "Advance of ${FormatUtils.formatCurrency(avail)} credited to customer balance"
+                        }
+                        sendUiMessage(msg, MessageType.SUCCESS)
+                        onSuccess?.invoke(res.data)
+                        UiState.Success(Unit)
+                    }
+                    is Resource.Error -> {
+                        sendUiMessage(res.message, MessageType.ERROR)
+                        UiState.Error(res.message)
+                    }
+                }
+            }
+        }
+    }
+
+    fun applyCustomerAdvance(
+        customerId: String,
+        amount: String,
+        advanceId: String? = null,
+        note: String? = null,
+        onSuccess: (() -> Unit)? = null
+    ) {
+        if (_actionState.value is UiState.Loading) return
+
+        val parsedAmount = amount.trim().toDoubleOrNull() ?: 0.0
+        if (amount.isBlank() || parsedAmount <= 0.0) {
+            val err = "Please enter a valid amount to apply"
+            _actionState.value = UiState.Error(err)
+            sendUiMessage(err, MessageType.ERROR)
+            return
+        }
+
+        viewModelScope.launch {
+            repository.applyCustomerAdvance(
+                customerId = customerId,
+                amount = amount.trim(),
+                advanceId = advanceId,
+                note = note?.trim()?.ifBlank { null }
+            ).collect { res ->
+                _actionState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> {
+                        loadCustomers()
+                        loadCustomerDetails(customerId)
+                        loadStatement(customerId)
+                        loadCustomerAdvances(customerId)
+                        sendUiMessage("Applied ${FormatUtils.formatCurrency(res.data.amountApplied)} advance towards customer dues", MessageType.SUCCESS)
+                        onSuccess?.invoke()
+                        UiState.Success(Unit)
+                    }
+                    is Resource.Error -> {
+                        sendUiMessage(res.message, MessageType.ERROR)
+                        UiState.Error(res.message)
+                    }
+                }
+            }
+        }
+    }
+
+    fun loadCustomerAdvances(customerId: String) {
+        viewModelScope.launch {
+            repository.listCustomerAdvances(customerId).collect { res ->
+                _customerAdvancesState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> UiState.Success(res.data)
                     is Resource.Error -> UiState.Error(res.message)
                 }
             }

@@ -163,6 +163,13 @@ fun SaleDetailsScreen(
         )
     }
 
+    val handleSharePdf: (SaleDetailData) -> Unit = { data ->
+        when (data) {
+            is SaleDetailData.Line -> viewModel.shareLineSalePdf(context, data.sale)
+            is SaleDetailData.Counter -> viewModel.shareCounterSalePdf(context, data.sale)
+        }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -217,6 +224,7 @@ fun SaleDetailsScreen(
                                 sale = data.sale,
                                 onRecordPaymentClick = { showPaymentDialog = true },
                                 onShowReceiptClick = { showReceiptDialog = true },
+                                onSharePdfClick = { handleSharePdf(data) },
                                 onPrintClick = handlePrint
                             )
                         }
@@ -225,6 +233,7 @@ fun SaleDetailsScreen(
                                 sale = data.sale,
                                 onRecordPaymentClick = { showPaymentDialog = true },
                                 onShowReceiptClick = { showReceiptDialog = true },
+                                onSharePdfClick = { handleSharePdf(data) },
                                 onPrintClick = handlePrint
                             )
                         }
@@ -346,6 +355,9 @@ fun SaleDetailsScreen(
                         showReceiptDialog = false
                         handlePrint()
                     },
+                    onSharePdfClick = {
+                        handleSharePdf(state.data)
+                    },
                     onDismiss = { showReceiptDialog = false }
                 )
             }
@@ -386,6 +398,7 @@ private fun LineSaleDetailsContent(
     sale: LineSale,
     onRecordPaymentClick: () -> Unit,
     onShowReceiptClick: () -> Unit,
+    onSharePdfClick: () -> Unit,
     onPrintClick: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -512,6 +525,15 @@ private fun LineSaleDetailsContent(
                 val sub = sale.subtotal.toDoubleOrNull() ?: (sale.totalAmount.toDoubleOrNull() ?: 0.0)
                 val effectiveSub = if (sub > 0.0) sub else (sale.totalAmount.toDoubleOrNull() ?: 0.0) + disc
 
+                val prevBal = sale.previousBalance?.toDoubleOrNull()
+                val advApplied = sale.advanceApplied?.toDoubleOrNull() ?: 0.0
+                val prevSettled = sale.previousDuesSettled?.toDoubleOrNull() ?: 0.0
+                val advGen = sale.advanceGenerated?.toDoubleOrNull() ?: 0.0
+                val updBal = sale.updatedBalance?.toDoubleOrNull()
+
+                if (prevBal != null) {
+                    FinancialRow(label = "Previous Customer Due", value = FormatUtils.formatCurrency(prevBal.toString()))
+                }
                 FinancialRow(label = "Sale Subtotal", value = FormatUtils.formatCurrency(effectiveSub.toString()))
                 if (disc > 0.0) {
                     FinancialRow(
@@ -521,16 +543,28 @@ private fun LineSaleDetailsContent(
                         isBold = true
                     )
                 }
-                FinancialRow(label = "Final Payable Amount", value = FormatUtils.formatCurrency(sale.totalAmount), isBold = true)
-                FinancialRow(label = "Cash In Drawer", value = FormatUtils.formatCurrency(sale.totalCashIn))
-                FinancialRow(label = "Bank / Online Received", value = FormatUtils.formatCurrency(sale.bankAmount))
-                FinancialRow(label = "Total Collected", value = FormatUtils.formatCurrency(sale.collectedAmount), color = Emerald600)
+                FinancialRow(label = "Current Sale Total", value = FormatUtils.formatCurrency(sale.totalAmount), isBold = true)
+                FinancialRow(label = "Direct Received (Cash + Bank)", value = FormatUtils.formatCurrency(sale.collectedAmount))
+                if (advApplied > 0.0) {
+                    FinancialRow(label = "Paid using Advance", value = FormatUtils.formatCurrency(advApplied.toString()), color = Emerald600, isBold = true)
+                }
+                val totSettled = ((sale.totalAmount.toDoubleOrNull() ?: 0.0) - balanceDue).coerceAtLeast(0.0)
+                FinancialRow(label = "Total Settled for Sale", value = FormatUtils.formatCurrency(totSettled.toString()), color = Emerald600, isBold = true)
                 FinancialRow(
-                    label = "Remaining Balance Due",
+                    label = "Remaining Sale Due",
                     value = FormatUtils.formatCurrency(sale.balance),
                     color = if (balanceDue > 0) Crimson600 else MaterialTheme.colorScheme.onSurface,
                     isBold = true
                 )
+                if (prevSettled > 0.0) {
+                    FinancialRow(label = "↳ Settled Previous Dues", value = FormatUtils.formatCurrency(prevSettled.toString()), color = Emerald600)
+                }
+                if (advGen > 0.0) {
+                    FinancialRow(label = "↳ Added to Advance Balance", value = FormatUtils.formatCurrency(advGen.toString()), color = Blue600)
+                }
+                if (updBal != null) {
+                    FinancialRow(label = "Updated Customer Due", value = FormatUtils.formatCurrency(updBal.toString()), isBold = true, color = if (updBal > 0.0) Crimson600 else MaterialTheme.colorScheme.onSurface)
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
@@ -541,7 +575,7 @@ private fun LineSaleDetailsContent(
                 Spacer(modifier = Modifier.height(14.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     VyavsaOutlinedButton(
                         text = "View Bill",
@@ -549,11 +583,17 @@ private fun LineSaleDetailsContent(
                         onClick = onShowReceiptClick,
                         modifier = Modifier.weight(1f)
                     )
+                    VyavsaOutlinedButton(
+                        text = "Share PDF",
+                        leadingIcon = Icons.Default.Share,
+                        onClick = onSharePdfClick,
+                        modifier = Modifier.weight(1.05f)
+                    )
                     VyavsaButton(
-                        text = "Print Invoice",
+                        text = "Print",
                         leadingIcon = Icons.Default.Print,
                         onClick = onPrintClick,
-                        modifier = Modifier.weight(1.2f)
+                        modifier = Modifier.weight(1f)
                     )
                 }
 
@@ -579,6 +619,7 @@ private fun CounterSaleDetailsContent(
     sale: CounterSale,
     onRecordPaymentClick: () -> Unit,
     onShowReceiptClick: () -> Unit,
+    onSharePdfClick: () -> Unit,
     onPrintClick: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -653,6 +694,15 @@ private fun CounterSaleDetailsContent(
                 val sub = sale.subtotal.toDoubleOrNull() ?: (sale.price.toDoubleOrNull() ?: (sale.totalAmount.toDoubleOrNull() ?: 0.0))
                 val effectiveSub = if (sub > 0.0) sub else (sale.totalAmount.toDoubleOrNull() ?: 0.0) + disc
 
+                val counterPrevBal = sale.previousBalance?.toDoubleOrNull()
+                val counterAdvApplied = sale.advanceApplied?.toDoubleOrNull() ?: 0.0
+                val counterPrevSettled = sale.previousDuesSettled?.toDoubleOrNull() ?: 0.0
+                val counterAdvGen = sale.advanceGenerated?.toDoubleOrNull() ?: 0.0
+                val counterUpdBal = sale.updatedBalance?.toDoubleOrNull()
+
+                if (counterPrevBal != null) {
+                    FinancialRow(label = "Previous Customer Due", value = FormatUtils.formatCurrency(counterPrevBal.toString()))
+                }
                 FinancialRow(label = "Sale Subtotal", value = FormatUtils.formatCurrency(effectiveSub.toString()))
                 if (disc > 0.0) {
                     FinancialRow(
@@ -662,9 +712,21 @@ private fun CounterSaleDetailsContent(
                         isBold = true
                     )
                 }
-                FinancialRow(label = "Final Total Amount", value = FormatUtils.formatCurrency(sale.totalAmount), isBold = true)
+                FinancialRow(label = "Current Sale Total", value = FormatUtils.formatCurrency(sale.totalAmount), isBold = true)
                 FinancialRow(label = "Cash Portion", value = FormatUtils.formatCurrency(sale.cash))
                 FinancialRow(label = "Bank / Online Portion", value = FormatUtils.formatCurrency(sale.bankAmount.ifBlank { sale.account }))
+                if (counterAdvApplied > 0.0) {
+                    FinancialRow(label = "Paid using Advance", value = FormatUtils.formatCurrency(counterAdvApplied.toString()), color = Emerald600, isBold = true)
+                }
+                if (counterPrevSettled > 0.0) {
+                    FinancialRow(label = "↳ Settled Previous Dues", value = FormatUtils.formatCurrency(counterPrevSettled.toString()), color = Emerald600)
+                }
+                if (counterAdvGen > 0.0) {
+                    FinancialRow(label = "↳ Added to Advance Balance", value = FormatUtils.formatCurrency(counterAdvGen.toString()), color = Blue600)
+                }
+                if (counterUpdBal != null) {
+                    FinancialRow(label = "Updated Customer Due", value = FormatUtils.formatCurrency(counterUpdBal.toString()), isBold = true, color = if (counterUpdBal > 0.0) Crimson600 else MaterialTheme.colorScheme.onSurface)
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
@@ -675,7 +737,7 @@ private fun CounterSaleDetailsContent(
                 Spacer(modifier = Modifier.height(14.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     VyavsaOutlinedButton(
                         text = "View Bill",
@@ -683,11 +745,17 @@ private fun CounterSaleDetailsContent(
                         onClick = onShowReceiptClick,
                         modifier = Modifier.weight(1f)
                     )
+                    VyavsaOutlinedButton(
+                        text = "Share PDF",
+                        leadingIcon = Icons.Default.Share,
+                        onClick = onSharePdfClick,
+                        modifier = Modifier.weight(1.05f)
+                    )
                     VyavsaButton(
-                        text = "Print Invoice",
+                        text = "Print",
                         leadingIcon = Icons.Default.Print,
                         onClick = onPrintClick,
-                        modifier = Modifier.weight(1.2f)
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -1134,8 +1202,15 @@ private data class ReceiptDisplayData(
     val subtotal: Double,
     val discount: Double,
     val total: Double,
-    val paid: Double,
+    val paidDirect: Double,
+    val advanceApplied: Double,
+    val totalSettledForSale: Double,
     val due: Double,
+    val previousCustomerDue: Double? = null,
+    val previousDuesSettled: Double? = null,
+    val advanceGenerated: Double? = null,
+    val updatedCustomerDue: Double? = null,
+    val hasCustomerLedger: Boolean = false,
     val paymentMethodSummary: String
 )
 
@@ -1145,6 +1220,7 @@ private fun InvoiceReceiptDialog(
     companyProfile: TenantProfile?,
     contentSettings: InvoiceContentSettings = InvoiceContentSettings(),
     onPrintClick: () -> Unit,
+    onSharePdfClick: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1158,7 +1234,13 @@ private fun InvoiceReceiptDialog(
             val effectiveSub = if (sub > 0.0) sub else (sale.totalAmount.toDoubleOrNull() ?: 0.0) + disc
             val tot = sale.totalAmount.toDoubleOrNull() ?: 0.0
             val bal = sale.balance.toDoubleOrNull() ?: 0.0
-            val paidAmt = (tot - bal).coerceAtLeast(0.0)
+            val directPaid = (sale.cash.toDoubleOrNull() ?: 0.0) + (sale.bankAmount.toDoubleOrNull() ?: 0.0)
+            val adv = sale.advanceApplied?.toDoubleOrNull() ?: 0.0
+            val settledForSale = (tot - bal).coerceAtLeast(0.0)
+            val prevBal = sale.previousBalance?.toDoubleOrNull()
+            val prevSettled = sale.previousDuesSettled?.toDoubleOrNull()
+            val advGen = sale.advanceGenerated?.toDoubleOrNull()
+            val updBal = sale.updatedBalance?.toDoubleOrNull()
             val customer = buildString {
                 append(sale.customerName.ifBlank { "Line Customer" })
                 if (!sale.route.isNullOrBlank()) append(" (Route: ${sale.route})")
@@ -1173,8 +1255,15 @@ private fun InvoiceReceiptDialog(
                 subtotal = effectiveSub,
                 discount = disc,
                 total = tot,
-                paid = paidAmt,
+                paidDirect = directPaid,
+                advanceApplied = adv,
+                totalSettledForSale = settledForSale,
                 due = bal,
+                previousCustomerDue = prevBal,
+                previousDuesSettled = prevSettled,
+                advanceGenerated = advGen,
+                updatedCustomerDue = updBal,
+                hasCustomerLedger = true,
                 paymentMethodSummary = "Cash: ${FormatUtils.formatCurrency(sale.cash)} | Bank: ${FormatUtils.formatCurrency(sale.bankAmount)}"
             )
         }
@@ -1184,18 +1273,35 @@ private fun InvoiceReceiptDialog(
             val sub = sale.subtotal.toDoubleOrNull() ?: (sale.price.toDoubleOrNull() ?: (sale.totalAmount.toDoubleOrNull() ?: 0.0))
             val effectiveSub = if (sub > 0.0) sub else (sale.totalAmount.toDoubleOrNull() ?: 0.0) + disc
             val tot = sale.totalAmount.toDoubleOrNull() ?: 0.0
+            val directPaid = (sale.cash.toDoubleOrNull() ?: 0.0) + (sale.bankAmount.ifBlank { sale.account }.toDoubleOrNull() ?: 0.0)
+            val adv = sale.advanceApplied.toDoubleOrNull() ?: 0.0
+            val bal = (tot - adv - directPaid).coerceAtLeast(0.0)
+            val settledForSale = (tot - bal).coerceAtLeast(0.0)
+            val prevBal = sale.previousBalance?.toDoubleOrNull()
+            val prevSettled = sale.previousDuesSettled?.toDoubleOrNull()
+            val advGen = sale.advanceGenerated?.toDoubleOrNull()
+            val updBal = sale.updatedBalance?.toDoubleOrNull()
+            val hasLedger = !sale.customerId.isNullOrBlank() || prevBal != null || updBal != null
+            val customer = if (!sale.customerName.isNullOrBlank()) sale.customerName else "Counter Customer (Walk-in)"
             ReceiptDisplayData(
                 title = "Counter Sale Receipt",
                 saleId = sale.id,
                 date = FormatUtils.formatDateTimeForDisplay(sale.createdAt),
-                customerInfo = "Counter Customer (Walk-in)",
+                customerInfo = customer,
                 items = sale.items,
                 singleItemName = sale.item.ifBlank { "Counter Item" },
                 subtotal = effectiveSub,
                 discount = disc,
                 total = tot,
-                paid = tot,
-                due = 0.0,
+                paidDirect = directPaid,
+                advanceApplied = adv,
+                totalSettledForSale = settledForSale,
+                due = bal,
+                previousCustomerDue = prevBal,
+                previousDuesSettled = prevSettled,
+                advanceGenerated = advGen,
+                updatedCustomerDue = updBal,
+                hasCustomerLedger = hasLedger,
                 paymentMethodSummary = "Method: ${sale.paymentMethod.uppercase()} | Cash: ${FormatUtils.formatCurrency(sale.cash)} | Bank: ${FormatUtils.formatCurrency(sale.bankAmount.ifBlank { sale.account })}"
             )
         }
@@ -1239,12 +1345,28 @@ private fun InvoiceReceiptDialog(
         if (receiptData.discount > 0.0) {
             appendLine("Discount: -${FormatUtils.formatCurrency(receiptData.discount.toString())}")
         }
-        appendLine("Total Payable: ${FormatUtils.formatCurrency(receiptData.total.toString())}")
-        appendLine("Amount Paid: ${FormatUtils.formatCurrency(receiptData.paid.toString())}")
+        if (receiptData.hasCustomerLedger && receiptData.previousCustomerDue != null) {
+            appendLine("Prev Customer Due: ${FormatUtils.formatCurrency(receiptData.previousCustomerDue.toString())}")
+        }
+        appendLine("Current Sale Total: ${FormatUtils.formatCurrency(receiptData.total.toString())}")
+        appendLine("Direct Received Now: ${FormatUtils.formatCurrency(receiptData.paidDirect.toString())}")
+        if (receiptData.advanceApplied > 0.0) {
+            appendLine("Paid using Advance: ${FormatUtils.formatCurrency(receiptData.advanceApplied.toString())}")
+        }
+        appendLine("Total Settled for Sale: ${FormatUtils.formatCurrency(receiptData.totalSettledForSale.toString())}")
         if (receiptData.due > 0.0) {
-            appendLine("Balance Due: ${FormatUtils.formatCurrency(receiptData.due.toString())}")
+            appendLine("Remaining Sale Due: ${FormatUtils.formatCurrency(receiptData.due.toString())}")
         } else {
-            appendLine("Payment Status: PAID IN FULL")
+            appendLine("Sale Due: ${FormatUtils.formatCurrency("0.00")} (PAID IN FULL)")
+        }
+        if ((receiptData.previousDuesSettled ?: 0.0) > 0.0) {
+            appendLine("Settled Prev Dues: ${FormatUtils.formatCurrency(receiptData.previousDuesSettled.toString())}")
+        }
+        if ((receiptData.advanceGenerated ?: 0.0) > 0.0) {
+            appendLine("New Advance Added: ${FormatUtils.formatCurrency(receiptData.advanceGenerated.toString())}")
+        }
+        if (receiptData.hasCustomerLedger && receiptData.updatedCustomerDue != null) {
+            appendLine("Updated Customer Due: ${FormatUtils.formatCurrency(receiptData.updatedCustomerDue.toString())}")
         }
         appendLine("Payment: ${receiptData.paymentMethodSummary}")
         appendLine("==================================")
@@ -1253,36 +1375,7 @@ private fun InvoiceReceiptDialog(
     }
 
     fun shareReceipt() {
-        if (isSharingPdf) return
-        coroutineScope.launch {
-            isSharingPdf = true
-            try {
-                val printData = when (saleData) {
-                    is SaleDetailData.Line -> InvoiceDataMapper.fromLineSale(saleData.sale, companyProfile, null)
-                    is SaleDetailData.Counter -> InvoiceDataMapper.fromCounterSale(saleData.sale, companyProfile, null)
-                }
-                val shareResult = InvoiceShareManager.shareInvoicePdf(context, printData)
-                if (shareResult.isFailure) {
-                    val text = buildTextReceipt()
-                    val sendIntent = Intent().apply {
-                        action = Intent.ACTION_SEND
-                        putExtra(Intent.EXTRA_TEXT, text)
-                        type = "text/plain"
-                    }
-                    context.startActivity(Intent.createChooser(sendIntent, "Share Bill Receipt via"))
-                }
-            } catch (_: Exception) {
-                val text = buildTextReceipt()
-                val sendIntent = Intent().apply {
-                    action = Intent.ACTION_SEND
-                    putExtra(Intent.EXTRA_TEXT, text)
-                    type = "text/plain"
-                }
-                context.startActivity(Intent.createChooser(sendIntent, "Share Bill Receipt via"))
-            } finally {
-                isSharingPdf = false
-            }
-        }
+        onSharePdfClick()
     }
 
     Dialog(
@@ -1482,22 +1575,68 @@ private fun InvoiceReceiptDialog(
                     )
                 }
 
+                if (receiptData.hasCustomerLedger && receiptData.previousCustomerDue != null) {
+                    FinancialRow(
+                        label = "Previous Customer Due",
+                        value = FormatUtils.formatCurrency(receiptData.previousCustomerDue.toString())
+                    )
+                }
+
                 FinancialRow(
-                    label = "Total Payable Amount",
+                    label = "Current Sale Total",
                     value = FormatUtils.formatCurrency(receiptData.total.toString()),
                     isBold = true
                 )
 
                 FinancialRow(
-                    label = "Amount Paid",
-                    value = FormatUtils.formatCurrency(receiptData.paid.toString())
+                    label = "Amount Received Directly",
+                    value = FormatUtils.formatCurrency(receiptData.paidDirect.toString())
                 )
 
-                if (receiptData.due > 0.0) {
+                if (receiptData.advanceApplied > 0.0) {
                     FinancialRow(
-                        label = "Balance Due",
-                        value = FormatUtils.formatCurrency(receiptData.due.toString()),
-                        color = Crimson600,
+                        label = "Paid using Advance",
+                        value = FormatUtils.formatCurrency(receiptData.advanceApplied.toString()),
+                        color = Emerald600,
+                        isBold = true
+                    )
+                }
+
+                FinancialRow(
+                    label = "Total Settled for Sale",
+                    value = FormatUtils.formatCurrency(receiptData.totalSettledForSale.toString()),
+                    color = Emerald600,
+                    isBold = true
+                )
+
+                FinancialRow(
+                    label = "Remaining Sale Due",
+                    value = FormatUtils.formatCurrency(receiptData.due.toString()),
+                    color = if (receiptData.due > 0.0) Crimson600 else MaterialTheme.colorScheme.onSurface,
+                    isBold = true
+                )
+
+                if ((receiptData.previousDuesSettled ?: 0.0) > 0.0) {
+                    FinancialRow(
+                        label = "↳ Settled Previous Dues",
+                        value = FormatUtils.formatCurrency(receiptData.previousDuesSettled.toString()),
+                        color = Emerald600
+                    )
+                }
+
+                if ((receiptData.advanceGenerated ?: 0.0) > 0.0) {
+                    FinancialRow(
+                        label = "↳ Stored as Advance",
+                        value = FormatUtils.formatCurrency(receiptData.advanceGenerated.toString()),
+                        color = Blue600
+                    )
+                }
+
+                if (receiptData.hasCustomerLedger && receiptData.updatedCustomerDue != null) {
+                    FinancialRow(
+                        label = "Updated Customer Due",
+                        value = FormatUtils.formatCurrency(receiptData.updatedCustomerDue.toString()),
+                        color = if (receiptData.updatedCustomerDue > 0.0) Crimson600 else MaterialTheme.colorScheme.onSurface,
                         isBold = true
                     )
                 }

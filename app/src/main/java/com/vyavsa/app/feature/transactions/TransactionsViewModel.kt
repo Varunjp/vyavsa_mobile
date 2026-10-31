@@ -146,6 +146,9 @@ class TransactionsViewModel @Inject constructor(
     private val _customersState = MutableStateFlow<UiState<List<Customer>>>(UiState.Idle)
     val customersState: StateFlow<UiState<List<Customer>>> = _customersState.asStateFlow()
 
+    private val _customerSearchQuery = MutableStateFlow("")
+    val customerSearchQuery: StateFlow<String> = _customerSearchQuery.asStateFlow()
+
     private val _suppliersState = MutableStateFlow<UiState<List<Supplier>>>(UiState.Idle)
     val suppliersState: StateFlow<UiState<List<Supplier>>> = _suppliersState.asStateFlow()
 
@@ -451,13 +454,42 @@ class TransactionsViewModel @Inject constructor(
         loadBillingTransactionsData()
     }
 
-    fun loadCustomers() {
+    fun setCustomerSearchQuery(query: String) {
+        _customerSearchQuery.value = query
+        loadCustomers(search = query.ifBlank { null })
+    }
+
+    fun loadCustomers(search: String? = null) {
         viewModelScope.launch {
-            repository.listCustomers().collect { res ->
+            repository.listCustomers(search = search).collect { res ->
                 _customersState.value = when (res) {
-                    is Resource.Loading -> if (_customersState.value is UiState.Success) _customersState.value else UiState.Loading
-                    is Resource.Success -> UiState.Success(res.data)
-                    is Resource.Error -> UiState.Error(res.message)
+                    is Resource.Loading -> if (_customersState.value is UiState.Success && !search.isNullOrBlank()) _customersState.value else UiState.Loading
+                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Error -> UiState.Error(res.message, res.code)
+                }
+            }
+        }
+    }
+
+    fun createCustomer(
+        name: String,
+        phone: String?,
+        openingBalance: String = "0.00",
+        onComplete: ((Boolean, Customer?, String?) -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            repository.createCustomer(name = name, phone = phone, openingBalance = openingBalance).collect { res ->
+                when (res) {
+                    is Resource.Loading -> {}
+                    is Resource.Success -> {
+                        loadCustomers()
+                        sendUiMessage("Customer '${res.data.customerName}' created successfully", MessageType.SUCCESS)
+                        onComplete?.invoke(true, res.data, null)
+                    }
+                    is Resource.Error -> {
+                        sendUiMessage(res.message, MessageType.ERROR)
+                        onComplete?.invoke(false, null, res.message)
+                    }
                 }
             }
         }
@@ -511,7 +543,9 @@ class TransactionsViewModel @Inject constructor(
         note: String? = null,
         items: List<SaleItemRequest> = emptyList(),
         subtotal: String? = null,
-        discount: String? = null
+        discount: String? = null,
+        saleDate: String? = null,
+        advanceToApply: String? = null
     ) {
         if (_createActionState.value is UiState.Loading) return
 
@@ -548,7 +582,6 @@ class TransactionsViewModel @Inject constructor(
         }
 
         val effectiveTotalAmount = calcResult.finalAmountString
-        val total = calcResult.finalAmount.toDouble()
 
         val cash = cashIn.trim().ifBlank { "0.00" }.toDoubleOrNull() ?: 0.0
         if (cash < 0.0) {
@@ -606,11 +639,6 @@ class TransactionsViewModel @Inject constructor(
             }
         }
 
-        if (cash + effectiveBankTotal > total) {
-            _createActionState.value = UiState.Error("Collected amount cannot exceed the total invoice amount")
-            return
-        }
-
         val formattedBankAmount = String.format(java.util.Locale.US, "%.2f", effectiveBankTotal)
 
         viewModelScope.launch {
@@ -628,7 +656,9 @@ class TransactionsViewModel @Inject constructor(
                 bankId = resolvedBankId,
                 bankPayments = effectiveBankSplits,
                 note = note?.trim()?.ifBlank { null },
-                items = items
+                items = items,
+                saleDate = saleDate?.trim()?.ifBlank { null },
+                advanceToApply = advanceToApply?.trim()?.ifBlank { null }
             )
             repository.createLineSale(req).collect { res ->
                 _createActionState.value = when (res) {
@@ -653,7 +683,11 @@ class TransactionsViewModel @Inject constructor(
         bankPayments: List<BankPaymentSplit> = emptyList(),
         items: List<SaleItemRequest> = emptyList(),
         subtotal: String? = null,
-        discount: String? = null
+        discount: String? = null,
+        customerId: String? = null,
+        customerName: String? = null,
+        saleDate: String? = null,
+        advanceToApply: String? = null
     ) {
         if (_createActionState.value is UiState.Loading) return
 
@@ -686,7 +720,6 @@ class TransactionsViewModel @Inject constructor(
         }
 
         val effectiveTotalAmount = calcResult.finalAmountString
-        val total = calcResult.finalAmount.toDouble()
 
         val cashVal = cash.trim().ifBlank { "0.00" }.toDoubleOrNull() ?: 0.0
         if (cashVal < 0.0) {
@@ -744,17 +777,14 @@ class TransactionsViewModel @Inject constructor(
             }
         }
 
-        if (cashVal + effectiveBankTotal > total) {
-            _createActionState.value = UiState.Error("Collected amount cannot exceed the total sale amount")
-            return
-        }
-
         val method = if (cashVal > 0.0 && effectiveBankTotal > 0.0) "split" else if (effectiveBankTotal > 0.0) "bank" else "cash"
         val itemPrice = price?.trim()?.ifBlank { calcResult.subtotalString } ?: calcResult.subtotalString
         val formattedBankAmount = String.format(java.util.Locale.US, "%.2f", effectiveBankTotal)
 
         viewModelScope.launch {
             val req = CreateCounterSaleRequest(
+                customerId = customerId?.trim()?.ifBlank { null },
+                customerName = customerName?.trim()?.ifBlank { null },
                 item = trimmedItem.ifBlank { if (items.isNotEmpty()) items.first().productId else "Sale Item" },
                 price = itemPrice,
                 subtotal = calcResult.subtotalString,
@@ -768,7 +798,9 @@ class TransactionsViewModel @Inject constructor(
                 bankId = resolvedBankId,
                 account = formattedBankAmount,
                 bankPayments = effectiveBankSplits,
-                items = items
+                items = items,
+                saleDate = saleDate?.trim()?.ifBlank { null },
+                advanceToApply = advanceToApply?.trim()?.ifBlank { null }
             )
             repository.createCounterSale(req).collect { res ->
                 _createActionState.value = when (res) {
@@ -1366,7 +1398,12 @@ class TransactionsViewModel @Inject constructor(
                 val profile = ensureCompanyProfile() ?: _companyProfile.value
                 val logoBmp = getCachedLogoBitmap()
                 val printData = InvoiceDataMapper.fromLineSale(fullSale, profile, logoBmp)
-                val res = InvoiceShareManager.shareInvoicePdf(context, printData)
+                val res = InvoiceShareManager.shareSalePdf(
+                    context = context,
+                    invoiceNumber = printData.invoiceNumber,
+                    fallbackPrintData = printData,
+                    pdfDownloader = { repository.downloadLineSalePdf(sale.id) }
+                )
                 if (res.isSuccess) {
                     onComplete?.invoke(true, null)
                 } else {
@@ -1390,7 +1427,12 @@ class TransactionsViewModel @Inject constructor(
                 val profile = ensureCompanyProfile() ?: _companyProfile.value
                 val logoBmp = getCachedLogoBitmap()
                 val printData = InvoiceDataMapper.fromCounterSale(fullSale, profile, logoBmp)
-                val res = InvoiceShareManager.shareInvoicePdf(context, printData)
+                val res = InvoiceShareManager.shareSalePdf(
+                    context = context,
+                    invoiceNumber = printData.invoiceNumber,
+                    fallbackPrintData = printData,
+                    pdfDownloader = { repository.downloadCounterSalePdf(sale.id) }
+                )
                 if (res.isSuccess) {
                     onComplete?.invoke(true, null)
                 } else {

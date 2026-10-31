@@ -31,6 +31,9 @@ import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import com.vyavsa.app.feature.bank.FakeBankRepository
 import com.vyavsa.app.feature.products.FakeProductRepository
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.ResponseBody
+import okhttp3.ResponseBody.Companion.toResponseBody
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -332,7 +335,7 @@ class TransactionsViewModelTest {
     }
 
     @Test
-    fun testCreateLineSaleValidationOverpayment() = runTest {
+    fun testCreateLineSaleExcessPaymentSucceeds() = runTest {
         viewModel.createLineSale(
             customerId = "cust-1",
             totalAmount = "1000.00",
@@ -343,8 +346,7 @@ class TransactionsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         val actionState = viewModel.createActionState.value
-        assertTrue(actionState is UiState.Error)
-        assertEquals("Collected amount cannot exceed the total invoice amount", (actionState as UiState.Error).message)
+        assertTrue(actionState is UiState.Success)
     }
 
     @Test
@@ -422,7 +424,7 @@ class TransactionsViewModelTest {
     }
 
     @Test
-    fun testCreateCounterSaleValidationOverpayment() = runTest {
+    fun testCreateCounterSaleExcessPaymentSucceeds() = runTest {
         viewModel.createCounterSale(
             item = "Soap",
             price = "50.00",
@@ -432,8 +434,7 @@ class TransactionsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         val actionState = viewModel.createActionState.value
-        assertTrue(actionState is UiState.Error)
-        assertEquals("Collected amount cannot exceed the total sale amount", (actionState as UiState.Error).message)
+        assertTrue(actionState is UiState.Success)
     }
 
     @Test
@@ -675,12 +676,11 @@ class TransactionsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         val actionState = viewModel.createActionState.value
-        assertTrue(actionState is UiState.Error)
-        assertEquals("Collected amount cannot exceed the total invoice amount", (actionState as UiState.Error).message)
+        assertTrue(actionState is UiState.Success)
     }
 
     @Test
-    fun testCreateCounterSaleValidationMultipleBanksOverpayment() = runTest {
+    fun testCreateCounterSaleMultipleBanksExcessPaymentSucceeds() = runTest {
         val splits = listOf(
             BankPaymentSplit(bankId = "bank-1", bankName = "HDFC Bank", amount = "300.00"),
             BankPaymentSplit(bankId = "bank-2", bankName = "SBI Bank", amount = "300.00")
@@ -695,8 +695,7 @@ class TransactionsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         val actionState = viewModel.createActionState.value
-        assertTrue(actionState is UiState.Error)
-        assertEquals("Collected amount cannot exceed the total sale amount", (actionState as UiState.Error).message)
+        assertTrue(actionState is UiState.Success)
     }
 
     @Test
@@ -1021,6 +1020,32 @@ class TransactionsViewModelTest {
         assertEquals("1", data?.items?.get(0)?.quantity)
         assertEquals(350.0, data?.totalAmount ?: 0.0, 0.01)
     }
+
+    @Test
+    fun testCustomerSearchAndCreation() = runTest {
+        viewModel.setCustomerSearchQuery("NonExistent")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        var state = viewModel.customersState.value
+        assertTrue("Expected Empty or empty list", state is UiState.Empty || ((state as? UiState.Success)?.data?.isEmpty() == true))
+
+        var createdCustomer: Customer? = null
+        viewModel.createCustomer("New POS Customer", "9988776655", "100.00") { success, cust, _ ->
+            if (success) createdCustomer = cust
+        }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNotNull(createdCustomer)
+        assertEquals("New POS Customer", createdCustomer?.customerName)
+
+        viewModel.setCustomerSearchQuery("New POS")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        state = viewModel.customersState.value
+        assertTrue("Expected Success with filtered customers", state is UiState.Success)
+        val list = (state as UiState.Success).data
+        assertTrue(list.any { it.customerName == "New POS Customer" })
+    }
 }
 
 class FakeTransactionsRepository : TransactionsRepository {
@@ -1259,9 +1284,36 @@ class FakeTransactionsRepository : TransactionsRepository {
         emit(Resource.Success(exp))
     }
 
-    override fun listCustomers(): Flow<Resource<List<Customer>>> = flow {
+    override fun listCustomers(search: String?, page: Int, pageSize: Int): Flow<Resource<List<Customer>>> = flow {
         emit(Resource.Loading)
-        emit(Resource.Success(customers.toList()))
+        val filtered = if (search.isNullOrBlank()) {
+            customers.toList()
+        } else {
+            val q = search.lowercase()
+            customers.filter { it.customerName.lowercase().contains(q) || (it.phone?.lowercase()?.contains(q) == true) }
+        }
+        emit(Resource.Success(filtered))
+    }
+
+    override fun createCustomer(name: String, phone: String?, openingBalance: String): Flow<Resource<Customer>> = flow {
+        emit(Resource.Loading)
+        val newCust = Customer(
+            id = "cust-${customers.size + 1}",
+            customerName = name,
+            phone = phone,
+            openingBalance = openingBalance,
+            currentBalance = openingBalance
+        )
+        customers.add(newCust)
+        emit(Resource.Success(newCust))
+    }
+
+    override suspend fun downloadLineSalePdf(id: String): ResponseBody {
+        return "%PDF-1.4 test line sale pdf".toResponseBody("application/pdf".toMediaTypeOrNull())
+    }
+
+    override suspend fun downloadCounterSalePdf(id: String): ResponseBody {
+        return "%PDF-1.4 test counter sale pdf".toResponseBody("application/pdf".toMediaTypeOrNull())
     }
 
     override fun listSuppliers(): Flow<Resource<List<Supplier>>> = flow {
