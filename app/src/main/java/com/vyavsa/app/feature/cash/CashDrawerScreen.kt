@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -241,14 +242,13 @@ fun CashDrawerScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(
+                        itemsIndexed(
                             items = state.data,
-                            key = { it.id.ifBlank { "${it.transactionDate}_${it.amount}_${it.newBalance}" } },
-                            contentType = { "cash_drawer_tx" }
-                        ) { tx ->
+                            key = { index, it -> "cash_${it.id.ifBlank { "c" }}_$index" },
+                            contentType = { _, _ -> "cash_drawer_tx" }
+                        ) { _, tx ->
                             CashTransactionCard(
-                                tx = tx,
-                                modifier = Modifier.animateItemPlacement()
+                                tx = tx
                             )
                         }
                     }

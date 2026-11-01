@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -478,15 +479,14 @@ fun CustomerDetailsScreen(
                                             )
                                         }
                                     } else {
-                                        items(
+                                        itemsIndexed(
                                             items = entries,
-                                            key = { "cust_stmt_${it.id.ifBlank { "${it.date}_${it.description}_${it.balance}" }}" }
-                                        ) { entry ->
+                                            key = { index, item -> "cust_stmt_${item.id.ifBlank { "entry" }}_${item.entryType}_${item.date}_$index" }
+                                        ) { _, entry ->
                                             CustomerTransactionItemCard(
                                                 entry = entry,
                                                 modifier = Modifier
                                                     .padding(horizontal = 20.dp, vertical = 6.dp)
-                                                    .animateItemPlacement()
                                             )
                                         }
                                     }
@@ -521,15 +521,14 @@ fun CustomerDetailsScreen(
                                     }
                                 }
                                 is UiState.Success -> {
-                                    items(
+                                    itemsIndexed(
                                         items = sState.data,
-                                        key = { "cust_sale_${it.id}" }
-                                    ) { sale ->
+                                        key = { index, sale -> "cust_sale_${sale.id.ifBlank { "s" }}_$index" }
+                                    ) { _, sale ->
                                         CustomerSaleItemCard(
                                             sale = sale,
                                             modifier = Modifier
                                                 .padding(horizontal = 20.dp, vertical = 6.dp)
-                                                .animateItemPlacement()
                                         )
                                     }
                                 }
@@ -563,15 +562,14 @@ fun CustomerDetailsScreen(
                                     }
                                 }
                                 is UiState.Success -> {
-                                    items(
+                                    itemsIndexed(
                                         items = aState.data,
-                                        key = { "cust_adj_${it.id}" }
-                                    ) { adj ->
+                                        key = { index, adj -> "cust_adj_${adj.id.ifBlank { "a" }}_$index" }
+                                    ) { _, adj ->
                                         CustomerAdjustmentItemCard(
                                             adjustment = adj,
                                             modifier = Modifier
                                                 .padding(horizontal = 20.dp, vertical = 6.dp)
-                                                .animateItemPlacement()
                                         )
                                     }
                                 }

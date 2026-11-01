@@ -126,7 +126,10 @@ class StaffViewModel @Inject constructor(
             bankRepository.listBanks().collect { res ->
                 _banksState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
-                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Success -> {
+                        val distinct = res.data.distinctBy { it.id }
+                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
+                    }
                     is Resource.Error -> UiState.Error(res.message)
                 }
             }
@@ -138,7 +141,10 @@ class StaffViewModel @Inject constructor(
             repository.listEmployees().collect { res ->
                 _employeesState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
-                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Success -> {
+                        val distinct = res.data.distinctBy { it.id }
+                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
+                    }
                     is Resource.Error -> UiState.Error(res.message)
                 }
             }
@@ -150,7 +156,10 @@ class StaffViewModel @Inject constructor(
             repository.listAttendance(FormatUtils.todayDateString()).collect { res ->
                 _attendanceState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
-                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Success -> {
+                        val distinct = res.data.distinctBy { it.id }
+                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
+                    }
                     is Resource.Error -> UiState.Error(res.message)
                 }
             }
@@ -162,7 +171,10 @@ class StaffViewModel @Inject constructor(
             repository.listPendingSalaries().collect { res ->
                 _salariesState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
-                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Success -> {
+                        val distinct = res.data.distinctBy { it.id }
+                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
+                    }
                     is Resource.Error -> UiState.Error(res.message)
                 }
             }

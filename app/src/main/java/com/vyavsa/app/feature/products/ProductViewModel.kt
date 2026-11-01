@@ -115,7 +115,8 @@ class ProductViewModel @Inject constructor(
                 _productsState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
-                        if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                        val distinct = res.data.distinctBy { it.id }
+                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
                     }
                     is Resource.Error -> UiState.Error(res.message, res.code)
                 }

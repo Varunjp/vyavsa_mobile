@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -267,11 +268,11 @@ fun DuesScreen(
                                 }
                             }
 
-                            items(
+                            itemsIndexed(
                                 items = customers,
-                                key = { "cust_${it.id}" },
-                                contentType = { "customer_item" }
-                            ) { customer ->
+                                key = { index, it -> "cust_${it.id.ifBlank { "c" }}_$index" },
+                                contentType = { _, _ -> "customer_item" }
+                            ) { _, customer ->
                                 CustomerDuesCard(
                                     customer = customer,
                                     canCollectPayment = viewModel.canCollectPayment,
@@ -367,11 +368,11 @@ fun DuesScreen(
                                 }
                             }
 
-                            items(
+                            itemsIndexed(
                                 items = suppliers,
-                                key = { "supp_${it.id}" },
-                                contentType = { "supplier_item" }
-                            ) { supplier ->
+                                key = { index, it -> "supp_${it.id.ifBlank { "s" }}_$index" },
+                                contentType = { _, _ -> "supplier_item" }
+                            ) { _, supplier ->
                                 SupplierPayableCard(
                                     supplier = supplier,
                                     onPaySupplierClick = { payingSupplier = supplier }

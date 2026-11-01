@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -306,18 +307,17 @@ fun PlansScreen(
                                     verticalArrangement = Arrangement.spacedBy(16.dp),
                                     modifier = Modifier.fillMaxSize()
                                 ) {
-                                    items(
+                                    itemsIndexed(
                                         items = state.data,
-                                        key = { it.id.ifBlank { it.displayName } }
-                                    ) { plan ->
+                                        key = { index, it -> "plan_${it.id.ifBlank { it.displayName.ifBlank { "p" } }}_$index" }
+                                    ) { _, plan ->
                                         val isCurrentPlan = plan.id.isNotBlank() && (plan.id == currentPlanId || plan.displayName.equals(currentSub?.currentPlanName, ignoreCase = true))
 
                                         PlanCard(
                                             plan = plan,
                                             isCurrentPlan = isCurrentPlan,
                                             canUpgrade = isAdmin && !isCurrentPlan,
-                                            onUpgradeClick = { selectedPlanToPurchase = plan },
-                                            modifier = Modifier.animateItemPlacement()
+                                            onUpgradeClick = { selectedPlanToPurchase = plan }
                                         )
                                     }
                                 }
@@ -351,13 +351,12 @@ fun PlansScreen(
                                     verticalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.fillMaxSize()
                                 ) {
-                                    items(
+                                    itemsIndexed(
                                         items = state.data,
-                                        key = { it.id.ifBlank { it.transactionId } }
-                                    ) { tx ->
+                                        key = { index, it -> "tx_${it.id.ifBlank { it.transactionId.ifBlank { "t" } }}_$index" }
+                                    ) { _, tx ->
                                         BillingTransactionCard(
-                                            transaction = tx,
-                                            modifier = Modifier.animateItemPlacement()
+                                            transaction = tx
                                         )
                                     }
                                 }

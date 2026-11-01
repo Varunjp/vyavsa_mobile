@@ -190,8 +190,10 @@ interface VyavsaApiService {
     @GET("api/v1/tenant/line-sales")
     suspend fun listLineSales(
         @Query("page") page: Int = 1,
-        @Query("page_size") pageSize: Int = 20,
+        @Query("page_size") pageSize: Int = 100,
         @Query("date") date: String? = null,
+        @Query("from_date") fromDate: String? = null,
+        @Query("to_date") toDate: String? = null,
         @Query("search") search: String? = null,
         @Query("customer_id") customerId: String? = null
     ): ApiResponse<List<LineSale>>
@@ -224,9 +226,12 @@ interface VyavsaApiService {
     @GET("api/v1/tenant/counter-sales")
     suspend fun listCounterSales(
         @Query("page") page: Int = 1,
-        @Query("page_size") pageSize: Int = 20,
+        @Query("page_size") pageSize: Int = 100,
         @Query("date") date: String? = null,
-        @Query("search") search: String? = null
+        @Query("from_date") fromDate: String? = null,
+        @Query("to_date") toDate: String? = null,
+        @Query("search") search: String? = null,
+        @Query("customer_id") customerId: String? = null
     ): ApiResponse<List<CounterSale>>
 
     @POST("api/v1/tenant/counter-sales")

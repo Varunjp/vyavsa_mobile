@@ -44,6 +44,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -1735,7 +1736,7 @@ fun ProductSelectorBottomSheet(
                                 .fillMaxWidth()
                                 .height(340.dp)
                         ) {
-                            items(products, key = { it.id }) { product ->
+                            itemsIndexed(products, key = { index, product -> "sel_prod_${product.id.ifBlank { "p" }}_$index" }) { _, product ->
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
                                     color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -2373,7 +2374,7 @@ fun CustomerSelectorBottomSheet(
                             }
                         }
 
-                        items(filteredCustomers, key = { it.id }) { customer ->
+                        itemsIndexed(filteredCustomers, key = { index, customer -> "sel_cust_${customer.id.ifBlank { "c" }}_$index" }) { _, customer ->
                             val currentDue = customer.currentBalance.toDoubleOrNull() ?: 0.0
                             val advanceBal = customer.advanceBalance.toDoubleOrNull() ?: 0.0
 

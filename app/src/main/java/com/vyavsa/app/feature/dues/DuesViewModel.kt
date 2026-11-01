@@ -225,7 +225,7 @@ class DuesViewModel @Inject constructor(
             supplierRepository.listSuppliers(search = search).collect { res ->
                 _suppliersState.value = when (res) {
                     is Resource.Loading -> if (_suppliersState.value is UiState.Success) _suppliersState.value else UiState.Loading
-                    is Resource.Success -> UiState.Success(res.data)
+                    is Resource.Success -> UiState.Success(res.data.distinctBy { it.id })
                     is Resource.Error -> UiState.Error(res.message)
                 }
             }
@@ -431,7 +431,7 @@ class DuesViewModel @Inject constructor(
             repository.listCustomers(search).collect { res ->
                 _customersState.value = when (res) {
                     is Resource.Loading -> if (_customersState.value is UiState.Success) _customersState.value else UiState.Loading
-                    is Resource.Success -> UiState.Success(res.data)
+                    is Resource.Success -> UiState.Success(res.data.distinctBy { it.id })
                     is Resource.Error -> UiState.Error(res.message)
                 }
             }

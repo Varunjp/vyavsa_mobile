@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -420,11 +421,11 @@ private fun AttendanceTabContent(
             }
         }
 
-        items(
+        itemsIndexed(
             items = employees,
-            key = { "att_${it.id}" },
-            contentType = { "employee_attendance" }
-        ) { employee ->
+            key = { index, it -> "att_${it.id.ifBlank { "emp" }}_$index" },
+            contentType = { _, _ -> "employee_attendance" }
+        ) { _, employee ->
             val record = attendanceMap[employee.id]
             Card(
                 shape = RoundedCornerShape(24.dp),
@@ -432,7 +433,6 @@ private fun AttendanceTabContent(
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .animateItemPlacement()
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
             ) {
                 Row(
@@ -599,18 +599,17 @@ private fun SalariesTabContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(
+                itemsIndexed(
                     items = salariesState.data,
-                    key = { it.id.ifBlank { it.employeeId } },
-                    contentType = { "salary_item" }
-                ) { salary ->
+                    key = { index, it -> "sal_${it.id.ifBlank { it.employeeId.ifBlank { "s" } }}_$index" },
+                    contentType = { _, _ -> "salary_item" }
+                ) { _, salary ->
                     Card(
                         shape = RoundedCornerShape(24.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .animateItemPlacement()
                             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
                     ) {
                         Column(modifier = Modifier.padding(18.dp)) {
@@ -720,18 +719,17 @@ private fun RosterTabContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize()
     ) {
-        items(
+        itemsIndexed(
             items = employees,
-            key = { "roster_${it.id}" },
-            contentType = { "employee_roster" }
-        ) { employee ->
+            key = { index, it -> "roster_${it.id.ifBlank { "emp" }}_$index" },
+            contentType = { _, _ -> "employee_roster" }
+        ) { _, employee ->
             Card(
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .animateItemPlacement()
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
             ) {
                 Row(

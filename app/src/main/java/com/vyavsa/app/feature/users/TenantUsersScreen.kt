@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -176,16 +177,15 @@ fun TenantUsersScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(
+                        itemsIndexed(
                             items = users,
-                            key = { it.id.ifBlank { it.email } },
-                            contentType = { "tenant_user" }
-                        ) { user ->
+                            key = { index, it -> "user_${it.id.ifBlank { it.email.ifBlank { "u" } }}_$index" },
+                            contentType = { _, _ -> "tenant_user" }
+                        ) { _, user ->
                             TenantUserCard(
                                 user = user,
                                 onEditClick = { userToEdit = user },
-                                onDeleteClick = { userToDelete = user },
-                                modifier = Modifier.animateItemPlacement()
+                                onDeleteClick = { userToDelete = user }
                             )
                         }
                     }
