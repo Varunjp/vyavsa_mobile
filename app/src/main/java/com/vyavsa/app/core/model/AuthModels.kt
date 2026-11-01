@@ -54,6 +54,44 @@ enum class UserRole {
 }
 
 @Immutable
+data class AssignableTenantRole(
+    val id: String,
+    val displayName: String,
+    val description: String
+)
+
+object TenantRoleRegistry {
+    val ADMIN = AssignableTenantRole(
+        id = "admin",
+        displayName = "Tenant Admin",
+        description = "Full administrative access & settings"
+    )
+    val SALES = AssignableTenantRole(
+        id = "sales",
+        displayName = "Sales",
+        description = "Line sales, field visits & route collections"
+    )
+    val OFFICE = AssignableTenantRole(
+        id = "office",
+        displayName = "Office",
+        description = "Counter sales, POS cash desk & staff attendance"
+    )
+    val USER = AssignableTenantRole(
+        id = "user",
+        displayName = "Standard User",
+        description = "Standard operational & ledger access"
+    )
+
+    val ALL: List<AssignableTenantRole> = listOf(ADMIN, SALES, OFFICE, USER)
+
+    val VALID_ROLE_KEYS: Set<String> = ALL.map { it.id }.toSet()
+
+    fun fromKey(key: String?): AssignableTenantRole {
+        return ALL.firstOrNull { it.id.equals(key?.trim(), ignoreCase = true) } ?: USER
+    }
+}
+
+@Immutable
 @Serializable
 data class UserProfile(
     val id: String = "",

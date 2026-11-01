@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.CreateTenantUserRequest
+import com.vyavsa.app.core.model.TenantRoleRegistry
 import com.vyavsa.app.core.model.TenantUser
 import com.vyavsa.app.core.model.UpdateTenantUserRequest
 import com.vyavsa.app.core.security.TokenManager
@@ -86,12 +87,18 @@ class TenantUsersViewModel @Inject constructor(
             return
         }
 
+        val normalizedRole = role.lowercase().trim()
+        if (normalizedRole !in TenantRoleRegistry.VALID_ROLE_KEYS) {
+            _actionState.value = UiState.Error("Invalid role. Role must be one of: ${TenantRoleRegistry.VALID_ROLE_KEYS.joinToString(", ")}")
+            return
+        }
+
         viewModelScope.launch {
             val req = CreateTenantUserRequest(
                 name = name.trim(),
                 email = email.trim(),
                 password = password,
-                role = role
+                role = normalizedRole
             )
             repository.createUser(req).collect { res ->
                 _actionState.value = when (res) {
@@ -112,10 +119,16 @@ class TenantUsersViewModel @Inject constructor(
             return
         }
 
+        val normalizedRole = role?.lowercase()?.trim()
+        if (normalizedRole != null && normalizedRole !in TenantRoleRegistry.VALID_ROLE_KEYS) {
+            _actionState.value = UiState.Error("Invalid role. Role must be one of: ${TenantRoleRegistry.VALID_ROLE_KEYS.joinToString(", ")}")
+            return
+        }
+
         viewModelScope.launch {
             val req = UpdateTenantUserRequest(
                 name = name?.trim()?.ifBlank { null },
-                role = role?.ifBlank { null },
+                role = normalizedRole?.ifBlank { null },
                 status = status?.ifBlank { null },
                 password = password?.ifBlank { null }
             )

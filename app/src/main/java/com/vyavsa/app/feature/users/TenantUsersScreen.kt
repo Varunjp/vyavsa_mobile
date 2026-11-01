@@ -59,6 +59,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.UiState
+import com.vyavsa.app.core.designsystem.Amber50
+import com.vyavsa.app.core.designsystem.Amber600
 import com.vyavsa.app.core.designsystem.AvatarInitialCircle
 import com.vyavsa.app.core.designsystem.Blue50
 import com.vyavsa.app.core.designsystem.Blue600
@@ -73,6 +75,8 @@ import com.vyavsa.app.core.designsystem.VyavsaPasswordField
 import com.vyavsa.app.core.designsystem.VyavsaSearchBar
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
+import com.vyavsa.app.core.model.AssignableTenantRole
+import com.vyavsa.app.core.model.TenantRoleRegistry
 import com.vyavsa.app.core.model.TenantUser
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -283,10 +287,16 @@ private fun TenantUserCard(
                         modifier = Modifier.weight(1f, fill = false)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
+                    val (roleBg, roleText) = when (user.role.lowercase().trim()) {
+                        "admin" -> Blue50 to Blue600
+                        "sales" -> Emerald50 to Emerald600
+                        "office" -> Amber50 to Amber600
+                        else -> MaterialTheme.colorScheme.surfaceContainerHigh to MaterialTheme.colorScheme.onSurfaceVariant
+                    }
                     StatBadge(
-                        text = user.role.uppercase(),
-                        backgroundColor = if (user.role.equals("admin", ignoreCase = true)) Blue50 else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        textColor = if (user.role.equals("admin", ignoreCase = true)) Blue600 else MaterialTheme.colorScheme.onSurfaceVariant
+                        text = TenantRoleRegistry.fromKey(user.role).displayName.uppercase(),
+                        backgroundColor = roleBg,
+                        textColor = roleText
                     )
                 }
 
@@ -395,34 +405,10 @@ private fun CreateTenantUserDialog(
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = role == "user",
-                        onClick = { role = "user" },
-                        shape = CircleShape,
-                        label = { Text("Standard User", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    FilterChip(
-                        selected = role == "admin",
-                        onClick = { role = "admin" },
-                        shape = CircleShape,
-                        label = { Text("Tenant Admin", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Blue50,
-                            selectedLabelColor = Blue600
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                RoleSelectionGrid(
+                    selectedRole = role,
+                    onRoleSelected = { role = it }
+                )
             }
         },
         confirmButton = {
@@ -473,26 +459,10 @@ private fun EditTenantUserDialog(
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = role == "user",
-                        onClick = { role = "user" },
-                        shape = CircleShape,
-                        label = { Text("Standard User", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    FilterChip(
-                        selected = role == "admin",
-                        onClick = { role = "admin" },
-                        shape = CircleShape,
-                        label = { Text("Tenant Admin", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                RoleSelectionGrid(
+                    selectedRole = role,
+                    onRoleSelected = { role = it }
+                )
 
                 Text(
                     text = "Account Status:",
@@ -551,5 +521,102 @@ private fun EditTenantUserDialog(
                 Text("Cancel")
             }
         }
+    )
+}
+
+@Composable
+private fun RoleSelectionGrid(
+    selectedRole: String,
+    onRoleSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        val roles = TenantRoleRegistry.ALL
+        // Row 1: Admin, Sales
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val adminRole = roles[0] // admin
+            val salesRole = roles[1] // sales
+
+            RoleChip(
+                role = adminRole,
+                isSelected = selectedRole.equals(adminRole.id, ignoreCase = true),
+                onClick = { onRoleSelected(adminRole.id) },
+                selectedContainerColor = Blue50,
+                selectedContentColor = Blue600,
+                modifier = Modifier.weight(1f)
+            )
+
+            RoleChip(
+                role = salesRole,
+                isSelected = selectedRole.equals(salesRole.id, ignoreCase = true),
+                onClick = { onRoleSelected(salesRole.id) },
+                selectedContainerColor = Emerald50,
+                selectedContentColor = Emerald600,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        // Row 2: Office, Standard User
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val officeRole = roles[2] // office
+            val userRole = roles[3] // user
+
+            RoleChip(
+                role = officeRole,
+                isSelected = selectedRole.equals(officeRole.id, ignoreCase = true),
+                onClick = { onRoleSelected(officeRole.id) },
+                selectedContainerColor = Amber50,
+                selectedContentColor = Amber600,
+                modifier = Modifier.weight(1f)
+            )
+
+            RoleChip(
+                role = userRole,
+                isSelected = selectedRole.equals(userRole.id, ignoreCase = true),
+                onClick = { onRoleSelected(userRole.id) },
+                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun RoleChip(
+    role: AssignableTenantRole,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    selectedContainerColor: Color,
+    selectedContentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    FilterChip(
+        selected = isSelected,
+        onClick = onClick,
+        shape = CircleShape,
+        label = {
+            Text(
+                text = role.displayName,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = selectedContainerColor,
+            selectedLabelColor = selectedContentColor
+        ),
+        modifier = modifier
     )
 }
