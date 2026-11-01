@@ -13,6 +13,7 @@ import com.vyavsa.app.core.model.CreateExpenseRequest
 import com.vyavsa.app.core.model.CreateLineSaleRequest
 import com.vyavsa.app.core.model.CreatePurchaseRequest
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.CustomerBalance
 import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.LineSale
@@ -285,6 +286,14 @@ class TransactionsViewModel @Inject constructor(
     private var counterSalesJob: Job? = null
     private var purchasesJob: Job? = null
     private var expensesJob: Job? = null
+    private var lineSaleCustomerBalanceJob: Job? = null
+    private var counterSaleCustomerBalanceJob: Job? = null
+
+    private val _lineSaleCustomerBalanceState = MutableStateFlow<UiState<CustomerBalance>>(UiState.Idle)
+    val lineSaleCustomerBalanceState: StateFlow<UiState<CustomerBalance>> = _lineSaleCustomerBalanceState.asStateFlow()
+
+    private val _counterSaleCustomerBalanceState = MutableStateFlow<UiState<CustomerBalance>>(UiState.Idle)
+    val counterSaleCustomerBalanceState: StateFlow<UiState<CustomerBalance>> = _counterSaleCustomerBalanceState.asStateFlow()
 
     fun sendUiMessage(text: String, type: MessageType = MessageType.INFO) {
         eventEmitter.emit(text, type)
@@ -413,6 +422,97 @@ class TransactionsViewModel @Inject constructor(
         _selectedCustomer.value = customer
         searchJob?.cancel()
         loadFilterableData(activeTabOnly = true)
+    }
+
+    fun selectLineSaleCustomer(customer: Customer?) {
+        lineSaleCustomerBalanceJob?.cancel()
+        if (customer == null) {
+            _lineSaleCustomerBalanceState.value = UiState.Idle
+            return
+        }
+        // Immediately clear previous customer's balance to prevent stale cross-customer data
+        _lineSaleCustomerBalanceState.value = UiState.Loading
+        lineSaleCustomerBalanceJob = viewModelScope.launch {
+            repository.getCustomerBalance(customer.id).collect { res ->
+                _lineSaleCustomerBalanceState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> UiState.Success(res.data)
+                    is Resource.Error -> UiState.Error(res.message, res.code)
+                }
+            }
+        }
+    }
+
+    fun selectCounterSaleCustomer(customer: Customer?) {
+        counterSaleCustomerBalanceJob?.cancel()
+        if (customer == null) {
+            _counterSaleCustomerBalanceState.value = UiState.Idle
+            return
+        }
+        // Immediately clear previous customer's balance to prevent stale cross-customer data
+        _counterSaleCustomerBalanceState.value = UiState.Loading
+        counterSaleCustomerBalanceJob = viewModelScope.launch {
+            repository.getCustomerBalance(customer.id).collect { res ->
+                _counterSaleCustomerBalanceState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> UiState.Success(res.data)
+                    is Resource.Error -> UiState.Error(res.message, res.code)
+                }
+            }
+        }
+    }
+
+    fun retryFetchLineSaleCustomerBalance(customerId: String) {
+        if (customerId.isBlank()) return
+        lineSaleCustomerBalanceJob?.cancel()
+        _lineSaleCustomerBalanceState.value = UiState.Loading
+        lineSaleCustomerBalanceJob = viewModelScope.launch {
+            repository.getCustomerBalance(customerId).collect { res ->
+                _lineSaleCustomerBalanceState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> UiState.Success(res.data)
+                    is Resource.Error -> UiState.Error(res.message, res.code)
+                }
+            }
+        }
+    }
+
+    fun retryFetchCounterSaleCustomerBalance(customerId: String) {
+        if (customerId.isBlank()) return
+        counterSaleCustomerBalanceJob?.cancel()
+        _counterSaleCustomerBalanceState.value = UiState.Loading
+        counterSaleCustomerBalanceJob = viewModelScope.launch {
+            repository.getCustomerBalance(customerId).collect { res ->
+                _counterSaleCustomerBalanceState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> UiState.Success(res.data)
+                    is Resource.Error -> UiState.Error(res.message, res.code)
+                }
+            }
+        }
+    }
+
+    fun refreshCustomerBalance(customerId: String, saleType: SaleType = SaleType.LINE_SALE) {
+        if (customerId.isBlank()) return
+        if (saleType == SaleType.LINE_SALE) {
+            lineSaleCustomerBalanceJob?.cancel()
+            lineSaleCustomerBalanceJob = viewModelScope.launch {
+                repository.getCustomerBalance(customerId).collect { res ->
+                    if (res is Resource.Success) {
+                        _lineSaleCustomerBalanceState.value = UiState.Success(res.data)
+                    }
+                }
+            }
+        } else {
+            counterSaleCustomerBalanceJob?.cancel()
+            counterSaleCustomerBalanceJob = viewModelScope.launch {
+                repository.getCustomerBalance(customerId).collect { res ->
+                    if (res is Resource.Success) {
+                        _counterSaleCustomerBalanceState.value = UiState.Success(res.data)
+                    }
+                }
+            }
+        }
     }
 
     fun clearCustomerFilter() {
@@ -900,6 +1000,8 @@ class TransactionsViewModel @Inject constructor(
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
                         loadData()
+                        loadCustomers()
+                        refreshCustomerBalance(customerId, SaleType.LINE_SALE)
                         onSuccess?.invoke(res.data)
                         UiState.Success(Unit)
                     }
@@ -965,6 +1067,8 @@ class TransactionsViewModel @Inject constructor(
                     }
                     is Resource.Success -> {
                         loadData()
+                        loadCustomers()
+                        refreshCustomerBalance(customerId, SaleType.LINE_SALE)
                         var savedSale = res.data
                         val resolvedCustomerName = if (!customerName.isNullOrBlank()) customerName else savedSale.customerName
                         val resolvedCustomerPhone = if (!customerPhone.isNullOrBlank()) customerPhone else savedSale.customerPhone
@@ -1000,7 +1104,8 @@ class TransactionsViewModel @Inject constructor(
         customerId: String? = null,
         customerName: String? = null,
         saleDate: String? = null,
-        advanceToApply: String? = null
+        advanceToApply: String? = null,
+        onSuccess: ((CounterSale) -> Unit)? = null
     ) {
         if (_createActionState.value is UiState.Loading) return
 
@@ -1120,6 +1225,11 @@ class TransactionsViewModel @Inject constructor(
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
                         loadData()
+                        loadCustomers()
+                        if (!customerId.isNullOrBlank()) {
+                            refreshCustomerBalance(customerId, SaleType.COUNTER_SALE)
+                        }
+                        onSuccess?.invoke(res.data)
                         UiState.Success(Unit)
                     }
                     is Resource.Error -> UiState.Error(res.message, res.code)

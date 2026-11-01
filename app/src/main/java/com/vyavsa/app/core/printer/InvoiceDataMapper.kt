@@ -37,7 +37,13 @@ object InvoiceDataMapper {
         val directReceived = sale.collectedAmount.toDoubleOrNull() ?: (cash + bank)
         val prevDuesSettled = sale.previousDuesSettled.toDoubleOrNull() ?: 0.0
         val advGenerated = sale.advanceGenerated.toDoubleOrNull() ?: 0.0
-        val totalSettled = (directReceived.coerceAtMost((tot - advApplied).coerceAtLeast(0.0)) + advApplied)
+        val parsedAlloc = sale.amountAllocatedToSale.toDoubleOrNull()
+        val allocatedToSale = if (parsedAlloc != null && parsedAlloc > 0.0) {
+            parsedAlloc
+        } else {
+            directReceived.coerceAtMost((tot - advApplied).coerceAtLeast(0.0))
+        }
+        val totalSettled = (allocatedToSale + advApplied).coerceAtMost(tot)
 
         val paymentsList = sale.payments.filter { p ->
             val n = (p.note ?: "").lowercase()
@@ -78,6 +84,7 @@ object InvoiceDataMapper {
             discount = disc,
             totalAmount = tot,
             amountPaid = paid,
+            amountAllocatedToSale = allocatedToSale,
             balanceDue = due,
             previousBalance = prevBal,
             advanceApplied = advApplied,
@@ -121,8 +128,14 @@ object InvoiceDataMapper {
         val due = sale.account.toDoubleOrNull() ?: 0.0
         val prevDuesSettled = sale.previousDuesSettled.toDoubleOrNull() ?: 0.0
         val advGenerated = sale.advanceGenerated.toDoubleOrNull() ?: 0.0
+        val parsedAlloc = sale.amountAllocatedToSale.toDoubleOrNull()
+        val allocatedToSale = if (parsedAlloc != null && parsedAlloc > 0.0) {
+            parsedAlloc
+        } else {
+            directReceived.coerceAtMost((tot - advApplied).coerceAtLeast(0.0))
+        }
         val totalSettled = if (advApplied > 0.0 || directReceived > 0.0) {
-            directReceived.coerceAtMost((tot - advApplied).coerceAtLeast(0.0)) + advApplied
+            (allocatedToSale + advApplied).coerceAtMost(tot)
         } else tot
         val hasCustomer = !sale.customerId.isNullOrBlank() || !sale.customerName.isNullOrBlank() || prevBal > 0.0 || advApplied > 0.0
 
@@ -164,6 +177,7 @@ object InvoiceDataMapper {
             discount = disc,
             totalAmount = tot,
             amountPaid = if (directReceived > 0.0 || advApplied > 0.0) directReceived else tot,
+            amountAllocatedToSale = allocatedToSale,
             balanceDue = due,
             previousBalance = prevBal,
             advanceApplied = advApplied,

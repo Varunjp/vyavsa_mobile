@@ -10,6 +10,7 @@ import com.vyavsa.app.core.model.CreateExpenseRequest
 import com.vyavsa.app.core.model.CreateLineSaleRequest
 import com.vyavsa.app.core.model.CreatePurchaseRequest
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.CustomerBalance
 import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.LineSale
@@ -76,6 +77,7 @@ interface TransactionsRepository {
     fun listCashTransactions(): Flow<Resource<List<CashTransaction>>>
     fun listSubscriptionTransactions(): Flow<Resource<List<PlanTransaction>>>
     fun listCustomers(search: String? = null, page: Int = 1, pageSize: Int = 50): Flow<Resource<List<Customer>>>
+    fun getCustomerBalance(customerId: String): Flow<Resource<CustomerBalance>>
     fun createCustomer(name: String, phone: String?, openingBalance: String): Flow<Resource<Customer>>
     suspend fun downloadLineSalePdf(id: String): ResponseBody
     suspend fun downloadCounterSalePdf(id: String): ResponseBody
@@ -249,6 +251,9 @@ class TransactionsRepositoryImpl @Inject constructor(
                 val cashIn = request.cashAmount?.toDoubleOrNull() ?: request.cash.toDoubleOrNull() ?: 0.0
                 if (cashIn > 0.0) {
                     refreshCoordinator.notifyMutation(DataMutation.CASH)
+                }
+                if (!request.customerId.isNullOrBlank()) {
+                    refreshCoordinator.notifyMutation(DataMutation.DUES)
                 }
                 if (request.items.isNotEmpty()) {
                     refreshCoordinator.notifyMutation(DataMutation.PRODUCTS)
@@ -526,6 +531,20 @@ class TransactionsRepositoryImpl @Inject constructor(
             }
         } catch (e: Throwable) {
             emit(ApiErrorParser.parse(e, "Network error loading customers"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun getCustomerBalance(customerId: String): Flow<Resource<CustomerBalance>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.getCustomerBalance(customerId)
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data))
+            } else {
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load customer balance"))
+            }
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading customer balance"))
         }
     }.flowOn(Dispatchers.IO)
 

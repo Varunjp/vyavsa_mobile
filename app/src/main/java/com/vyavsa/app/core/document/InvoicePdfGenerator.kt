@@ -508,6 +508,18 @@ object InvoicePdfGenerator {
         canvas.drawText(FormatUtils.formatCurrency(directReceived), totalsValX, tY + 10f, directReceivedRight)
         tY += 14f
 
+        // Allocated to Current Sale
+        val allocToSale = if (data.amountAllocatedToSale > 0.0) {
+            data.amountAllocatedToSale
+        } else {
+            directReceived.coerceAtMost((data.totalAmount - data.advanceApplied).coerceAtLeast(0.0))
+        }
+        if (allocToSale > 0.0 && (allocToSale != directReceived || data.previousDuesSettled > 0.0 || data.advanceGenerated > 0.0)) {
+            canvas.drawText("Allocated to Current Sale:", totalsLabelX, tY + 10f, textPaint)
+            canvas.drawText(FormatUtils.formatCurrency(allocToSale), totalsValX, tY + 10f, textRightPaint)
+            tY += 14f
+        }
+
         // Advance Applied (if any)
         if (data.advanceApplied > 0.0) {
             val bluePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -521,23 +533,20 @@ object InvoicePdfGenerator {
             tY += 14f
         }
 
-        // Total Settled for this Sale
-        val settledAmount = if (data.totalSettledForSale > 0.0) {
-            data.totalSettledForSale
-        } else {
-            (directReceived + data.advanceApplied).coerceAtMost(data.totalAmount)
+        // Previous Dues Settled (if any)
+        if (data.previousDuesSettled > 0.0) {
+            val duesSettledPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(37, 99, 235) // Blue 600
+                textSize = 9f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+            val duesSettledRight = Paint(duesSettledPaint).apply { textAlign = Paint.Align.RIGHT }
+            canvas.drawText("Adjusted against Previous Dues:", totalsLabelX, tY + 10f, duesSettledPaint)
+            canvas.drawText(FormatUtils.formatCurrency(data.previousDuesSettled), totalsValX, tY + 10f, duesSettledRight)
+            tY += 14f
         }
-        val settledPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.rgb(30, 58, 138) // Blue 900
-            textSize = 9f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        }
-        val settledRight = Paint(settledPaint).apply { textAlign = Paint.Align.RIGHT }
-        canvas.drawText("Total Settled for Sale:", totalsLabelX, tY + 10f, settledPaint)
-        canvas.drawText(FormatUtils.formatCurrency(settledAmount), totalsValX, tY + 10f, settledRight)
-        tY += 14f
 
-        // Balance Due after Sale
+        // Balance Due after Sale (Current Invoice Outstanding)
         if (data.balanceDue > 0.0) {
             val duePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.rgb(220, 38, 38)
@@ -545,7 +554,7 @@ object InvoicePdfGenerator {
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
             val dueRight = Paint(duePaint).apply { textAlign = Paint.Align.RIGHT }
-            canvas.drawText("Balance Due after Sale:", totalsLabelX, tY + 10f, duePaint)
+            canvas.drawText("Current Invoice Outstanding:", totalsLabelX, tY + 10f, duePaint)
             canvas.drawText(FormatUtils.formatCurrency(data.balanceDue), totalsValX, tY + 10f, dueRight)
         } else {
             val paidFullPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -558,6 +567,19 @@ object InvoicePdfGenerator {
             canvas.drawText("✓ PAID IN FULL", totalsValX, tY + 10f, paidFullPaint)
         }
         tY += 16f
+
+        // Advance Generated (if excess payment generated new customer advance)
+        if (data.advanceGenerated > 0.0) {
+            val advGenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(2, 132, 199) // Sky 600
+                textSize = 9f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+            val advGenRight = Paint(advGenPaint).apply { textAlign = Paint.Align.RIGHT }
+            canvas.drawText("Advance Balance Generated:", totalsLabelX, tY + 10f, advGenPaint)
+            canvas.drawText(FormatUtils.formatCurrency(data.advanceGenerated), totalsValX, tY + 10f, advGenRight)
+            tY += 14f
+        }
 
         // Customer Ledger Summary (if customer ledger present)
         if (data.hasCustomerLedger) {
@@ -582,7 +604,7 @@ object InvoicePdfGenerator {
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
             val updatedDueRight = Paint(updatedDuePaint).apply { textAlign = Paint.Align.RIGHT }
-            canvas.drawText("Updated Customer Due:", totalsLabelX, tY + 9f, updatedDuePaint)
+            canvas.drawText("Remaining Customer Outstanding:", totalsLabelX, tY + 9f, updatedDuePaint)
             canvas.drawText(FormatUtils.formatCurrency(data.updatedCustomerBalance), totalsValX, tY + 9f, updatedDueRight)
             tY += 14f
         }

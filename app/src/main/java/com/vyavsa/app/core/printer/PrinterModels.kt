@@ -142,6 +142,7 @@ data class InvoicePrintData(
     val discount: Double = 0.0,
     val totalAmount: Double,
     val amountPaid: Double,
+    val amountAllocatedToSale: Double = 0.0,
     val balanceDue: Double = 0.0,
     val previousBalance: Double = 0.0,
     val advanceApplied: Double = 0.0,
