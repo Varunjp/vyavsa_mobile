@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -169,14 +169,13 @@ fun CustomerStatementScreen(
                                 Spacer(modifier = Modifier.height(6.dp))
                             }
 
-                            items(
+                            itemsIndexed(
                                 items = entries,
-                                key = { it.id.ifBlank { "${it.date}_${it.description}_${it.balance}" } },
-                                contentType = { "statement_entry" }
-                            ) { entry ->
+                                key = { index, item -> "stmt_${item.id.ifBlank { "entry" }}_${item.entryType}_${item.date}_$index" },
+                                contentType = { _, _ -> "statement_entry" }
+                            ) { _, entry ->
                                 StatementEntryCard(
-                                    entry = entry,
-                                    modifier = Modifier.animateItemPlacement()
+                                    entry = entry
                                 )
                             }
                         }

@@ -37,14 +37,26 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 interface TransactionsRepository {
-    fun listLineSales(date: String?, search: String?): Flow<Resource<List<LineSale>>>
+    fun listLineSales(
+        date: String? = null,
+        search: String? = null,
+        fromDate: String? = null,
+        toDate: String? = null,
+        customerId: String? = null
+    ): Flow<Resource<List<LineSale>>>
     fun createLineSale(request: CreateLineSaleRequest): Flow<Resource<LineSale>>
     fun updateLineSale(id: String, request: UpdateLineSaleRequest): Flow<Resource<LineSale>>
     fun getLineSaleById(id: String): Flow<Resource<LineSale>>
     fun listLineSalePayments(id: String): Flow<Resource<List<LineSalePayment>>>
     fun recordLineSalePayment(id: String, request: RecordSalePaymentRequest): Flow<Resource<LineSalePayment>>
 
-    fun listCounterSales(date: String?, search: String?): Flow<Resource<List<CounterSale>>>
+    fun listCounterSales(
+        date: String? = null,
+        search: String? = null,
+        fromDate: String? = null,
+        toDate: String? = null,
+        customerId: String? = null
+    ): Flow<Resource<List<CounterSale>>>
     fun createCounterSale(request: CreateCounterSaleRequest): Flow<Resource<CounterSale>>
     fun updateCounterSale(id: String, request: UpdateCounterSaleRequest): Flow<Resource<CounterSale>>
     fun getCounterSaleById(id: String): Flow<Resource<CounterSale>>
@@ -77,10 +89,22 @@ class TransactionsRepositoryImpl @Inject constructor(
     private val refreshCoordinator: DataRefreshCoordinator
 ) : TransactionsRepository {
 
-    override fun listLineSales(date: String?, search: String?): Flow<Resource<List<LineSale>>> = flow {
+    override fun listLineSales(
+        date: String?,
+        search: String?,
+        fromDate: String?,
+        toDate: String?,
+        customerId: String?
+    ): Flow<Resource<List<LineSale>>> = flow {
         emit(Resource.Loading)
         try {
-            val response = apiService.listLineSales(date = date, search = search)
+            val response = apiService.listLineSales(
+                date = date,
+                fromDate = fromDate,
+                toDate = toDate,
+                search = search,
+                customerId = customerId
+            )
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
@@ -186,10 +210,22 @@ class TransactionsRepositoryImpl @Inject constructor(
         }
     }.flowOn(Dispatchers.IO)
 
-    override fun listCounterSales(date: String?, search: String?): Flow<Resource<List<CounterSale>>> = flow {
+    override fun listCounterSales(
+        date: String?,
+        search: String?,
+        fromDate: String?,
+        toDate: String?,
+        customerId: String?
+    ): Flow<Resource<List<CounterSale>>> = flow {
         emit(Resource.Loading)
         try {
-            val response = apiService.listCounterSales(date = date, search = search)
+            val response = apiService.listCounterSales(
+                date = date,
+                fromDate = fromDate,
+                toDate = toDate,
+                search = search,
+                customerId = customerId
+            )
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {

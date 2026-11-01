@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -504,13 +505,12 @@ private fun PurchaseDetailsContent(
                 }
             }
             is UiState.Success -> {
-                items(
+                itemsIndexed(
                     items = paymentsState.data,
-                    key = { it.id.ifBlank { "${it.createdAt}_${it.amount}" } }
-                ) { payment ->
+                    key = { index, payment -> "pay_${payment.id.ifBlank { "p" }}_$index" }
+                ) { _, payment ->
                     PaymentRecordCard(
-                        payment = payment,
-                        modifier = Modifier.animateItemPlacement()
+                        payment = payment
                     )
                 }
             }

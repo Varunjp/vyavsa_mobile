@@ -37,6 +37,10 @@ import com.vyavsa.app.core.common.MessageType
 import com.vyavsa.app.core.common.OneTimeEventEmitter
 import com.vyavsa.app.core.common.UiMessage
 import com.vyavsa.app.core.designsystem.LogoMemoryCache
+import java.time.LocalDate
+import java.time.DayOfWeek
+import java.time.temporal.TemporalAdjusters
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.flow.Flow
 import com.vyavsa.app.core.document.InvoiceShareManager
 import com.vyavsa.app.core.model.TenantProfile
@@ -79,6 +83,64 @@ enum class TransactionTab {
 enum class SaleType {
     LINE_SALE,
     COUNTER_SALE
+}
+
+enum class SalesCategoryFilter(val label: String) {
+    ALL("All Sales"),
+    LINE("Line Sales"),
+    COUNTER("Counter Sales")
+}
+
+enum class DateFilterType(val label: String) {
+    TODAY("Today"),
+    YESTERDAY("Yesterday"),
+    THIS_WEEK("This Week"),
+    THIS_MONTH("This Month"),
+    CUSTOM("Custom Range"),
+    ALL_TIME("All Time")
+}
+
+data class DateRangeSelection(
+    val type: DateFilterType = DateFilterType.TODAY,
+    val startDate: String? = FormatUtils.todayDateString(),
+    val endDate: String? = FormatUtils.todayDateString()
+) {
+    val isCustom: Boolean get() = type == DateFilterType.CUSTOM
+    val isAllTime: Boolean get() = type == DateFilterType.ALL_TIME
+}
+
+object DateFilterHelper {
+    private val isoFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", java.util.Locale.US)
+
+    fun calculateDateRange(type: DateFilterType, customStart: String? = null, customEnd: String? = null): DateRangeSelection {
+        val today = LocalDate.now()
+        return when (type) {
+            DateFilterType.TODAY -> {
+                val str = today.format(isoFormatter)
+                DateRangeSelection(DateFilterType.TODAY, str, str)
+            }
+            DateFilterType.YESTERDAY -> {
+                val str = today.minusDays(1).format(isoFormatter)
+                DateRangeSelection(DateFilterType.YESTERDAY, str, str)
+            }
+            DateFilterType.THIS_WEEK -> {
+                val start = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).format(isoFormatter)
+                val end = today.format(isoFormatter)
+                DateRangeSelection(DateFilterType.THIS_WEEK, start, end)
+            }
+            DateFilterType.THIS_MONTH -> {
+                val start = today.withDayOfMonth(1).format(isoFormatter)
+                val end = today.format(isoFormatter)
+                DateRangeSelection(DateFilterType.THIS_MONTH, start, end)
+            }
+            DateFilterType.CUSTOM -> {
+                DateRangeSelection(DateFilterType.CUSTOM, customStart, customEnd)
+            }
+            DateFilterType.ALL_TIME -> {
+                DateRangeSelection(DateFilterType.ALL_TIME, null, null)
+            }
+        }
+    }
 }
 
 @HiltViewModel
@@ -160,6 +222,15 @@ class TransactionsViewModel @Inject constructor(
 
     private val _productsState = MutableStateFlow<UiState<List<Product>>>(UiState.Idle)
     val productsState: StateFlow<UiState<List<Product>>> = _productsState.asStateFlow()
+
+    private val _salesCategoryFilter = MutableStateFlow(SalesCategoryFilter.ALL)
+    val salesCategoryFilter: StateFlow<SalesCategoryFilter> = _salesCategoryFilter.asStateFlow()
+
+    private val _dateRangeSelection = MutableStateFlow(DateFilterHelper.calculateDateRange(DateFilterType.TODAY))
+    val dateRangeSelection: StateFlow<DateRangeSelection> = _dateRangeSelection.asStateFlow()
+
+    private val _selectedCustomer = MutableStateFlow<Customer?>(null)
+    val selectedCustomer: StateFlow<Customer?> = _selectedCustomer.asStateFlow()
 
     private val _dateFilter = MutableStateFlow<String?>(FormatUtils.todayDateString())
     val dateFilter: StateFlow<String?> = _dateFilter.asStateFlow()
@@ -244,7 +315,10 @@ class TransactionsViewModel @Inject constructor(
             productRepository.listProducts(page = 1, pageSize = 100, search = search).collect { res ->
                 _productsState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
-                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Success -> {
+                        val distinct = res.data.distinctBy { it.id }
+                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
+                    }
                     is Resource.Error -> UiState.Error(res.message, res.code)
                 }
             }
@@ -320,38 +394,119 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 
-    fun setDateFilter(date: String?) {
-        _dateFilter.value = date
+    fun setSalesCategoryFilter(filter: SalesCategoryFilter) {
+        if (_salesCategoryFilter.value == filter) return
+        _salesCategoryFilter.value = filter
+        loadFilterableData(activeTabOnly = true)
+    }
+
+    fun setDateRangeFilter(type: DateFilterType, customStart: String? = null, customEnd: String? = null) {
+        val newRange = DateFilterHelper.calculateDateRange(type, customStart, customEnd)
+        _dateRangeSelection.value = newRange
+        _dateFilter.value = if (newRange.startDate == newRange.endDate) newRange.startDate else null
         searchJob?.cancel()
         loadFilterableData(activeTabOnly = true)
     }
 
-    fun loadLineSalesData(date: String? = null, query: String? = null) {
+    fun setSelectedCustomer(customer: Customer?) {
+        if (_selectedCustomer.value == customer) return
+        _selectedCustomer.value = customer
+        searchJob?.cancel()
+        loadFilterableData(activeTabOnly = true)
+    }
+
+    fun clearCustomerFilter() {
+        setSelectedCustomer(null)
+    }
+
+    fun clearAllFilters() {
+        _salesCategoryFilter.value = SalesCategoryFilter.ALL
+        _selectedCustomer.value = null
+        _searchQuery.value = ""
+        val todayRange = DateFilterHelper.calculateDateRange(DateFilterType.TODAY)
+        _dateRangeSelection.value = todayRange
+        _dateFilter.value = todayRange.startDate
+        searchJob?.cancel()
+        loadFilterableData(activeTabOnly = true)
+    }
+
+    fun setDateFilter(date: String?) {
+        _dateFilter.value = date
+        if (date != null) {
+            _dateRangeSelection.value = DateRangeSelection(DateFilterType.CUSTOM, date, date)
+        } else {
+            _dateRangeSelection.value = DateRangeSelection(DateFilterType.ALL_TIME, null, null)
+        }
+        searchJob?.cancel()
+        loadFilterableData(activeTabOnly = true)
+    }
+
+    fun loadLineSalesData(
+        date: String? = null,
+        query: String? = null,
+        fromDate: String? = null,
+        toDate: String? = null,
+        customerId: String? = null
+    ) {
         val q = query ?: _searchQuery.value.ifBlank { null }
-        val d = date ?: _dateFilter.value?.ifBlank { null }
+        val range = _dateRangeSelection.value
+        val fDate = fromDate ?: if (date == null) range.startDate else null
+        val tDate = toDate ?: if (date == null) range.endDate else null
+        val d = date ?: if (fDate != null && fDate == tDate) fDate else null
+        val cId = customerId ?: _selectedCustomer.value?.id
+
         lineSalesJob?.cancel()
         _lineSalesState.value = UiState.Loading
         lineSalesJob = viewModelScope.launch {
-            repository.listLineSales(date = d, search = q).collect { res ->
+            repository.listLineSales(
+                date = d,
+                fromDate = if (d != null) null else fDate,
+                toDate = if (d != null) null else tDate,
+                search = q,
+                customerId = cId
+            ).collect { res ->
                 _lineSalesState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
-                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Success -> {
+                        val distinct = res.data.distinctBy { it.id }
+                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
+                    }
                     is Resource.Error -> UiState.Error(res.message, res.code)
                 }
             }
         }
     }
 
-    fun loadCounterSalesData(date: String? = null, query: String? = null) {
+    fun loadCounterSalesData(
+        date: String? = null,
+        query: String? = null,
+        fromDate: String? = null,
+        toDate: String? = null,
+        customerId: String? = null
+    ) {
         val q = query ?: _searchQuery.value.ifBlank { null }
-        val d = date ?: _dateFilter.value?.ifBlank { null }
+        val range = _dateRangeSelection.value
+        val fDate = fromDate ?: if (date == null) range.startDate else null
+        val tDate = toDate ?: if (date == null) range.endDate else null
+        val d = date ?: if (fDate != null && fDate == tDate) fDate else null
+        val cId = customerId ?: _selectedCustomer.value?.id
+
         counterSalesJob?.cancel()
         _counterSalesState.value = UiState.Loading
         counterSalesJob = viewModelScope.launch {
-            repository.listCounterSales(date = d, search = q).collect { res ->
+            repository.listCounterSales(
+                date = d,
+                fromDate = if (d != null) null else fDate,
+                toDate = if (d != null) null else tDate,
+                search = q,
+                customerId = cId
+            ).collect { res ->
                 _counterSalesState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
-                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Success -> {
+                        val distinct = res.data.distinctBy { it.id }
+                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
+                    }
                     is Resource.Error -> UiState.Error(res.message, res.code)
                 }
             }
@@ -367,7 +522,10 @@ class TransactionsViewModel @Inject constructor(
             repository.listPurchases(date = d, search = q).collect { res ->
                 _purchasesState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
-                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Success -> {
+                        val distinct = res.data.distinctBy { it.id }
+                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
+                    }
                     is Resource.Error -> UiState.Error(res.message, res.code)
                 }
             }
@@ -383,7 +541,10 @@ class TransactionsViewModel @Inject constructor(
             repository.listExpenses(date = d, search = q).collect { res ->
                 _expensesState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
-                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Success -> {
+                        val distinct = res.data.distinctBy { it.id }
+                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
+                    }
                     is Resource.Error -> UiState.Error(res.message, res.code)
                 }
             }
@@ -395,7 +556,10 @@ class TransactionsViewModel @Inject constructor(
             repository.listCashTransactions().collect { res ->
                 _cashTransactionsState.value = when (res) {
                     is Resource.Loading -> if (_cashTransactionsState.value is UiState.Success) _cashTransactionsState.value else UiState.Loading
-                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Success -> {
+                        val distinct = res.data.distinctBy { it.id }
+                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
+                    }
                     is Resource.Error -> UiState.Error(res.message)
                 }
             }
@@ -408,7 +572,10 @@ class TransactionsViewModel @Inject constructor(
                 repository.listSubscriptionTransactions().collect { res ->
                     _billingTransactionsState.value = when (res) {
                         is Resource.Loading -> if (_billingTransactionsState.value is UiState.Success) _billingTransactionsState.value else UiState.Loading
-                        is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                        is Resource.Success -> {
+                        val distinct = res.data.distinctBy { it.id }
+                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
+                    }
                         is Resource.Error -> UiState.Error(res.message)
                     }
                 }
@@ -418,11 +585,30 @@ class TransactionsViewModel @Inject constructor(
 
     fun loadFilterableData(activeTabOnly: Boolean = false) {
         val query = _searchQuery.value.ifBlank { null }
-        val date = _dateFilter.value?.ifBlank { null }
+        val range = _dateRangeSelection.value
+        val fromDate = range.startDate
+        val toDate = range.endDate
+        val date = if (fromDate == toDate && fromDate != null) fromDate else null
+        val customerId = _selectedCustomer.value?.id
+        val category = _salesCategoryFilter.value
 
         if (!activeTabOnly) {
-            loadLineSalesData(date, query)
-            loadCounterSalesData(date, query)
+            when (category) {
+                SalesCategoryFilter.ALL -> {
+                    loadLineSalesData(date = date, fromDate = fromDate, toDate = toDate, query = query, customerId = customerId)
+                    loadCounterSalesData(date = date, fromDate = fromDate, toDate = toDate, query = query, customerId = customerId)
+                }
+                SalesCategoryFilter.LINE -> {
+                    counterSalesJob?.cancel()
+                    _counterSalesState.value = UiState.Success(emptyList())
+                    loadLineSalesData(date = date, fromDate = fromDate, toDate = toDate, query = query, customerId = customerId)
+                }
+                SalesCategoryFilter.COUNTER -> {
+                    lineSalesJob?.cancel()
+                    _lineSalesState.value = UiState.Success(emptyList())
+                    loadCounterSalesData(date = date, fromDate = fromDate, toDate = toDate, query = query, customerId = customerId)
+                }
+            }
             loadPurchasesData(date, query)
             loadExpensesData(date, query)
             return
@@ -430,8 +616,22 @@ class TransactionsViewModel @Inject constructor(
 
         when (_selectedTab.value) {
             TransactionTab.SALES -> {
-                loadLineSalesData(date, query)
-                loadCounterSalesData(date, query)
+                when (category) {
+                    SalesCategoryFilter.ALL -> {
+                        loadLineSalesData(date = date, fromDate = fromDate, toDate = toDate, query = query, customerId = customerId)
+                        loadCounterSalesData(date = date, fromDate = fromDate, toDate = toDate, query = query, customerId = customerId)
+                    }
+                    SalesCategoryFilter.LINE -> {
+                        counterSalesJob?.cancel()
+                        _counterSalesState.value = UiState.Success(emptyList())
+                        loadLineSalesData(date = date, fromDate = fromDate, toDate = toDate, query = query, customerId = customerId)
+                    }
+                    SalesCategoryFilter.COUNTER -> {
+                        lineSalesJob?.cancel()
+                        _lineSalesState.value = UiState.Success(emptyList())
+                        loadCounterSalesData(date = date, fromDate = fromDate, toDate = toDate, query = query, customerId = customerId)
+                    }
+                }
             }
             TransactionTab.PURCHASES -> {
                 loadPurchasesData(date, query)
@@ -464,7 +664,10 @@ class TransactionsViewModel @Inject constructor(
             repository.listCustomers(search = search).collect { res ->
                 _customersState.value = when (res) {
                     is Resource.Loading -> if (_customersState.value is UiState.Success && !search.isNullOrBlank()) _customersState.value else UiState.Loading
-                    is Resource.Success -> if (res.data.isEmpty()) UiState.Empty else UiState.Success(res.data)
+                    is Resource.Success -> {
+                        val distinct = res.data.distinctBy { it.id }
+                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
+                    }
                     is Resource.Error -> UiState.Error(res.message, res.code)
                 }
             }

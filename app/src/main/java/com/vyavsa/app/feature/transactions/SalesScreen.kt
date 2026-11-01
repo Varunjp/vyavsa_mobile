@@ -6,6 +6,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,78 +22,90 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CallReceived
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.FilterAltOff
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonOutline
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DateRangePicker
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.text.style.TextAlign
-import com.vyavsa.app.core.common.MessageType
-import com.vyavsa.app.core.common.ObserveAsEvents
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vyavsa.app.core.common.FormatUtils
+import com.vyavsa.app.core.common.MessageType
+import com.vyavsa.app.core.common.ObserveAsEvents
 import com.vyavsa.app.core.common.UiState
+import com.vyavsa.app.core.designsystem.Amber50
+import com.vyavsa.app.core.designsystem.Amber600
+import com.vyavsa.app.core.designsystem.Blue50
+import com.vyavsa.app.core.designsystem.Blue600
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
+import com.vyavsa.app.core.designsystem.CustomerSelectorBottomSheet
 import com.vyavsa.app.core.designsystem.Emerald50
 import com.vyavsa.app.core.designsystem.Emerald600
 import com.vyavsa.app.core.designsystem.EmptyStateView
 import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaSearchBar
-import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.designsystem.vyavsaClickable
-import com.vyavsa.app.core.model.CounterSale
-import com.vyavsa.app.core.model.LineSale
-import com.vyavsa.app.core.printer.PrintJobStatus
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SalesScreen(
     viewModel: TransactionsViewModel,
@@ -101,6 +115,7 @@ fun SalesScreen(
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val listState = rememberLazyListState()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -112,14 +127,17 @@ fun SalesScreen(
     }
 
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val dateFilter by viewModel.dateFilter.collectAsState()
     val lineSalesState by viewModel.lineSalesState.collectAsState()
     val counterSalesState by viewModel.counterSalesState.collectAsState()
+    val salesCategory by viewModel.salesCategoryFilter.collectAsState()
+    val dateSelection by viewModel.dateRangeSelection.collectAsState()
+    val selectedCustomer by viewModel.selectedCustomer.collectAsState()
+    val customersState by viewModel.customersState.collectAsState()
+    val customerSearchQuery by viewModel.customerSearchQuery.collectAsState()
 
     val activePrintingSaleId by viewModel.activePrintingSaleId.collectAsState()
     val activeSharingSaleId by viewModel.activeSharingSaleId.collectAsState()
 
-    // Consume one-time transient messages safely without replaying on tab restoration
     ObserveAsEvents(viewModel.uiEvents) { event ->
         snackbarHostState.showSnackbar(event.text)
     }
@@ -127,47 +145,66 @@ fun SalesScreen(
     val isSalesRole = viewModel.tokenManager?.isSales() == true
     val isOfficeRole = viewModel.tokenManager?.isOffice() == true
 
-    var selectedSaleFilterIndex by remember(isSalesRole, isOfficeRole) { mutableIntStateOf(0) }
-    val filterTabs = remember(isSalesRole, isOfficeRole) {
-        when {
-            isSalesRole -> listOf("Line Sales")
-            isOfficeRole -> listOf("Counter Sales")
-            else -> listOf("All Sales", "Line Sales", "Counter")
-        }
-    }
+    var showDateRangePicker by remember { mutableStateOf(false) }
+    var showCustomerPicker by remember { mutableStateOf(false) }
 
-    val todayDate = remember {
-        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-    }
-
-    var showDatePicker by remember { mutableStateOf(false) }
-
-    if (showDatePicker) {
-        val datePickerState = rememberDatePickerState()
+    // Date Range Picker Dialog
+    if (showDateRangePicker) {
+        val dateRangePickerState = rememberDateRangePickerState()
         DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
+            onDismissRequest = { showDateRangePicker = false },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        datePickerState.selectedDateMillis?.let { millis ->
+                        val startMillis = dateRangePickerState.selectedStartDateMillis
+                        val endMillis = dateRangePickerState.selectedEndDateMillis ?: startMillis
+                        if (startMillis != null && endMillis != null) {
                             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                            val chosenDate = sdf.format(Date(millis))
-                            viewModel.setDateFilter(chosenDate)
+                            val startStr = sdf.format(Date(startMillis))
+                            val endStr = sdf.format(Date(endMillis))
+                            val finalStart = if (startStr <= endStr) startStr else endStr
+                            val finalEnd = if (startStr <= endStr) endStr else startStr
+                            viewModel.setDateRangeFilter(DateFilterType.CUSTOM, finalStart, finalEnd)
                         }
-                        showDatePicker = false
+                        showDateRangePicker = false
                     }
                 ) {
-                    Text("Select", fontWeight = FontWeight.Bold)
+                    Text("Apply Range", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
+                TextButton(onClick = { showDateRangePicker = false }) {
                     Text("Cancel")
                 }
             }
         ) {
-            DatePicker(state = datePickerState)
+            DateRangePicker(
+                state = dateRangePickerState,
+                title = {
+                    Text(
+                        text = "Select Sales Date Range",
+                        modifier = Modifier.padding(start = 24.dp, top = 16.dp),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                },
+                modifier = Modifier.heightIn(max = 500.dp)
+            )
         }
+    }
+
+    // Customer Selection Bottom Sheet
+    if (showCustomerPicker) {
+        CustomerSelectorBottomSheet(
+            customersState = customersState,
+            searchQuery = customerSearchQuery,
+            onSearchQueryChange = { viewModel.setCustomerSearchQuery(it) },
+            onCustomerSelected = { customer ->
+                viewModel.setSelectedCustomer(customer)
+                showCustomerPicker = false
+            },
+            onDismiss = { showCustomerPicker = false },
+            allowWalkIn = false
+        )
     }
 
     val screenTitle = when {
@@ -214,99 +251,234 @@ fun SalesScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Header Controls: Search bar & Date Filter
+            // Section 1: Search Bar
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
             ) {
                 VyavsaSearchBar(
                     query = searchQuery,
                     onQueryChange = { viewModel.onSearchChange(it) },
                     placeholder = "Search customer, route, invoice #..."
                 )
+            }
 
-                Spacer(modifier = Modifier.height(10.dp))
-
+            // Section 2: Sales Category Filter (Segmented control on full width)
+            if (!isSalesRole && !isOfficeRole) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (filterTabs.size > 1) {
-                        VyavsaSegmentedTabs(
-                            tabs = filterTabs,
-                            selectedIndex = selectedSaleFilterIndex,
-                            onTabSelected = { selectedSaleFilterIndex = it },
+                    val categories = listOf(
+                        SalesCategoryFilter.ALL to "All Sales",
+                        SalesCategoryFilter.LINE to "Line Sales",
+                        SalesCategoryFilter.COUNTER to "Counter Sales"
+                    )
+                    categories.forEach { (cat, label) ->
+                        val isSelected = salesCategory == cat
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { viewModel.setSalesCategoryFilter(cat) },
+                            label = {
+                                Text(
+                                    text = label,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.weight(1f)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FilterChip(
-                            selected = dateFilter == todayDate,
-                            onClick = {
-                                viewModel.setDateFilter(todayDate)
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.CalendarToday,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = "Today",
-                                    fontWeight = if (dateFilter == todayDate) FontWeight.Bold else FontWeight.Medium
-                                )
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        )
-
-                        val isCustomDate = dateFilter != null && dateFilter != todayDate
-                        FilterChip(
-                            selected = isCustomDate,
-                            onClick = { showDatePicker = true },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.CalendarMonth,
-                                    contentDescription = "Pick Date",
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = if (isCustomDate && dateFilter != null) FormatUtils.formatDateForDisplay(dateFilter!!) else "Pick Date",
-                                    fontWeight = if (isCustomDate) FontWeight.Bold else FontWeight.Medium
-                                )
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
                         )
                     }
                 }
             }
 
-            // Sales List
+            // Section 3: Date Filter Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Date:",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+
+                FilterChip(
+                    selected = dateSelection.type == DateFilterType.TODAY,
+                    onClick = { viewModel.setDateRangeFilter(DateFilterType.TODAY) },
+                    label = { Text("Today") },
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                FilterChip(
+                    selected = dateSelection.type == DateFilterType.YESTERDAY,
+                    onClick = { viewModel.setDateRangeFilter(DateFilterType.YESTERDAY) },
+                    label = { Text("Yesterday") },
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                FilterChip(
+                    selected = dateSelection.type == DateFilterType.THIS_WEEK,
+                    onClick = { viewModel.setDateRangeFilter(DateFilterType.THIS_WEEK) },
+                    label = { Text("This Week") },
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                FilterChip(
+                    selected = dateSelection.type == DateFilterType.THIS_MONTH,
+                    onClick = { viewModel.setDateRangeFilter(DateFilterType.THIS_MONTH) },
+                    label = { Text("This Month") },
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                val isCustom = dateSelection.type == DateFilterType.CUSTOM
+                val customLabel = if (isCustom && dateSelection.startDate != null) {
+                    if (dateSelection.startDate == dateSelection.endDate) {
+                        FormatUtils.formatDateForDisplay(dateSelection.startDate)
+                    } else {
+                        "${FormatUtils.formatDateForDisplay(dateSelection.startDate)} - ${FormatUtils.formatDateForDisplay(dateSelection.endDate)}"
+                    }
+                } else {
+                    "Custom Range"
+                }
+
+                FilterChip(
+                    selected = isCustom,
+                    onClick = { showDateRangePicker = true },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    label = { Text(customLabel) },
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
+
+            // Section 4: Customer Filter & Reset Actions Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (selectedCustomer != null) {
+                    InputChip(
+                        selected = true,
+                        onClick = { showCustomerPicker = true },
+                        label = {
+                            Text(
+                                text = "Customer: ${selectedCustomer!!.customerName}",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear Customer",
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clickable { viewModel.clearCustomerFilter() }
+                            )
+                        },
+                        colors = InputChipDefaults.inputChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                } else {
+                    AssistChip(
+                        onClick = { showCustomerPicker = true },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.PersonOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        label = { Text("Filter by Customer") },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+
+                val hasActiveFilters = selectedCustomer != null ||
+                    dateSelection.type != DateFilterType.TODAY ||
+                    salesCategory != SalesCategoryFilter.ALL ||
+                    searchQuery.isNotBlank()
+
+                if (hasActiveFilters) {
+                    SuggestionChip(
+                        onClick = { viewModel.clearAllFilters() },
+                        label = {
+                            Text(
+                                text = "Reset Filters",
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.FilterAltOff,
+                                contentDescription = "Reset Filters",
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = Crimson50
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            enabled = true,
+                            borderColor = Crimson600.copy(alpha = 0.4f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Section 5: Sales List & State Handling
             val showLine = when {
                 isSalesRole -> true
                 isOfficeRole -> false
-                else -> selectedSaleFilterIndex == 0 || selectedSaleFilterIndex == 1
+                else -> salesCategory == SalesCategoryFilter.ALL || salesCategory == SalesCategoryFilter.LINE
             }
             val showCounter = when {
                 isSalesRole -> false
                 isOfficeRole -> true
-                else -> selectedSaleFilterIndex == 0 || selectedSaleFilterIndex == 2
+                else -> salesCategory == SalesCategoryFilter.ALL || salesCategory == SalesCategoryFilter.COUNTER
             }
 
             val isLineLoading = showLine && lineSalesState is UiState.Loading
@@ -359,35 +531,47 @@ fun SalesScreen(
                     }
                 }
             } else if (filteredLineSales.isEmpty() && filteredCounterSales.isEmpty()) {
-                val dateLabel = if (dateFilter == todayDate) "today" else if (dateFilter != null) FormatUtils.formatDateForDisplay(dateFilter!!) else "this date"
+                val hasFilter = selectedCustomer != null || searchQuery.isNotBlank() || dateSelection.type != DateFilterType.TODAY
+                val description = if (searchQuery.isNotBlank()) {
+                    "No sales matched \"$searchQuery\""
+                } else if (selectedCustomer != null) {
+                    "No sales found for customer ${selectedCustomer!!.customerName}"
+                } else {
+                    "No sales recorded for the selected filter criteria"
+                }
+
                 EmptyStateView(
                     title = "No Sales Found",
-                    description = if (searchQuery.isNotBlank()) {
-                        "No sales matched your search criteria"
-                    } else {
-                        "No sales recorded for $dateLabel"
-                    },
+                    description = description,
                     icon = Icons.Default.ReceiptLong,
-                    actionText = "Record Sale",
-                    onActionClick = onNavigateToCreateSale
+                    actionText = if (hasFilter) "Reset Filters" else "Record Sale",
+                    onActionClick = {
+                        if (hasFilter) {
+                            viewModel.clearAllFilters()
+                        } else {
+                            onNavigateToCreateSale()
+                        }
+                    }
                 )
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 88.dp),
+                    state = listState,
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     // Line Sales
                     if (filteredLineSales.isNotEmpty()) {
-                        items(
+                        itemsIndexed(
                             items = filteredLineSales,
-                            key = { "line_${it.id}" }
-                        ) { sale ->
+                            key = { index, sale -> "line_${sale.id.ifBlank { "ls" }}_$index" },
+                            contentType = { _, _ -> "line_sale" }
+                        ) { _, sale ->
                             SaleItemCard(
                                 title = sale.customerName.ifBlank { "Line Customer" },
-                                subtitle = if (!sale.route.isNullOrBlank()) "Route: ${sale.route} • ${FormatUtils.formatDateForDisplay(sale.createdAt)}"
-                                else FormatUtils.formatDateForDisplay(sale.createdAt),
                                 invoiceNumber = sale.id.take(8).uppercase(),
+                                dateString = sale.createdAt,
+                                route = sale.route,
                                 totalAmount = sale.totalAmount,
                                 discount = sale.discount,
                                 balance = sale.balance,
@@ -413,14 +597,16 @@ fun SalesScreen(
 
                     // Counter Sales
                     if (filteredCounterSales.isNotEmpty()) {
-                        items(
+                        itemsIndexed(
                             items = filteredCounterSales,
-                            key = { "counter_${it.id}" }
-                        ) { sale ->
+                            key = { index, sale -> "counter_${sale.id.ifBlank { "cs" }}_$index" },
+                            contentType = { _, _ -> "counter_sale" }
+                        ) { _, sale ->
                             SaleItemCard(
                                 title = sale.item.ifBlank { "Counter Sale" },
-                                subtitle = "POS Bill • ${FormatUtils.formatDateForDisplay(sale.createdAt)}",
                                 invoiceNumber = sale.id.take(8).uppercase(),
+                                dateString = sale.createdAt,
+                                route = null,
                                 totalAmount = sale.totalAmount,
                                 discount = sale.discount,
                                 balance = sale.account,
@@ -452,8 +638,9 @@ fun SalesScreen(
 @Composable
 private fun SaleItemCard(
     title: String,
-    subtitle: String,
     invoiceNumber: String,
+    dateString: String,
+    route: String? = null,
     totalAmount: String,
     discount: String,
     balance: String,
@@ -476,12 +663,12 @@ private fun SaleItemCard(
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Main Card Info Header
+            // Header Row: Avatar, Title, Invoice info and Amounts
             Row(
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -492,15 +679,15 @@ private fun SaleItemCard(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(46.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(if (isCounter) MaterialTheme.colorScheme.secondaryContainer else Emerald50)
+                            .background(if (isCounter) Amber50 else Blue50)
                     ) {
                         Icon(
                             imageVector = if (isCounter) Icons.Default.Storefront else Icons.Default.CallReceived,
                             contentDescription = null,
-                            tint = if (isCounter) MaterialTheme.colorScheme.onSecondaryContainer else Emerald600,
-                            modifier = Modifier.size(20.dp)
+                            tint = if (isCounter) Amber600 else Blue600,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
 
@@ -515,7 +702,14 @@ private fun SaleItemCard(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "#$invoiceNumber • $subtitle",
+                            text = "Invoice: #$invoiceNumber",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                        Text(
+                            text = "Date: ${FormatUtils.formatDateForDisplay(dateString)}${if (!route.isNullOrBlank()) " • Route: $route" else ""}",
                             style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -525,7 +719,7 @@ private fun SaleItemCard(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Amount and status badge
+                // Amounts and Status Badges
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = "+${FormatUtils.formatCurrency(totalAmount)}",
@@ -545,15 +739,26 @@ private fun SaleItemCard(
                             )
                         )
                     }
-                    Spacer(modifier = Modifier.height(2.dp))
-                    if (balVal > 0.0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         StatBadge(
-                            text = "Due: ${FormatUtils.formatCurrency(balance)}",
-                            backgroundColor = Crimson50,
-                            textColor = Crimson600
+                            text = if (isCounter) "Counter" else "Line",
+                            backgroundColor = if (isCounter) Amber50 else Blue50,
+                            textColor = if (isCounter) Amber600 else Blue600
                         )
-                    } else {
-                        StatBadge(text = "Paid")
+                        if (balVal > 0.0) {
+                            StatBadge(
+                                text = "Due: ${FormatUtils.formatCurrency(balance)}",
+                                backgroundColor = Crimson50,
+                                textColor = Crimson600
+                            )
+                        } else {
+                            StatBadge(
+                                text = "Paid",
+                                backgroundColor = Emerald50,
+                                textColor = Emerald600
+                            )
+                        }
                     }
                 }
             }
@@ -563,13 +768,12 @@ private fun SaleItemCard(
                 thickness = 0.8.dp
             )
 
-            // One-Tap Quick Actions: Print and PDF Share
+            // One-Tap Actions: Print & Share PDF
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // One-Tap Print Button
                 FilledTonalButton(
                     onClick = onPrintClick,
                     enabled = !isPrinting && !isSharing,
@@ -601,7 +805,6 @@ private fun SaleItemCard(
                     }
                 }
 
-                // One-Tap Share PDF Button
                 OutlinedButton(
                     onClick = onShareClick,
                     enabled = !isPrinting && !isSharing,

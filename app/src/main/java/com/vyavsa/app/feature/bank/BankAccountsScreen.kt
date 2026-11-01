@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -198,13 +199,12 @@ fun BankAccountsScreen(
                         }
 
                         // Bank Accounts List
-                        items(banks, key = { it.id }) { bank ->
+                        itemsIndexed(banks, key = { index, bank -> "bank_${bank.id.ifBlank { "b" }}_$index" }) { _, bank ->
                             BankCard(
                                 bank = bank,
                                 isAdmin = isAdmin,
                                 onEdit = { editingBank = bank },
-                                onDelete = { deletingBank = bank },
-                                modifier = Modifier.animateItemPlacement()
+                                onDelete = { deletingBank = bank }
                             )
                         }
 

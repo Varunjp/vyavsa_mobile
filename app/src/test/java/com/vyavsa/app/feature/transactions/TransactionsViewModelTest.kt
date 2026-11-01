@@ -1,5 +1,6 @@
 package com.vyavsa.app.feature.transactions
 
+import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.BankPaymentSplit
@@ -1046,6 +1047,97 @@ class TransactionsViewModelTest {
         val list = (state as UiState.Success).data
         assertTrue(list.any { it.customerName == "New POS Customer" })
     }
+
+    @Test
+    fun testSalesCategoryFilter_ChangesFilterStateAndRestrictsLoading() = runTest {
+        assertEquals(SalesCategoryFilter.ALL, viewModel.salesCategoryFilter.value)
+
+        // Switch to LINE sales only
+        viewModel.setSalesCategoryFilter(SalesCategoryFilter.LINE)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(SalesCategoryFilter.LINE, viewModel.salesCategoryFilter.value)
+        val counterState = viewModel.counterSalesState.value
+        assertTrue("Counter sales should be empty success when LINE only is selected", counterState is UiState.Success && counterState.data.isEmpty())
+
+        // Switch to COUNTER sales only
+        viewModel.setSalesCategoryFilter(SalesCategoryFilter.COUNTER)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(SalesCategoryFilter.COUNTER, viewModel.salesCategoryFilter.value)
+        val lineState = viewModel.lineSalesState.value
+        assertTrue("Line sales should be empty success when COUNTER only is selected", lineState is UiState.Success && lineState.data.isEmpty())
+    }
+
+    @Test
+    fun testDateFilter_TodayYesterdayThisWeekThisMonthAndCustomRange() = runTest {
+        // Today
+        viewModel.setDateRangeFilter(DateFilterType.TODAY)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DateFilterType.TODAY, viewModel.dateRangeSelection.value.type)
+        assertEquals(FormatUtils.todayDateString(), viewModel.dateRangeSelection.value.startDate)
+        assertEquals(FormatUtils.todayDateString(), viewModel.dateRangeSelection.value.endDate)
+
+        // Yesterday
+        viewModel.setDateRangeFilter(DateFilterType.YESTERDAY)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DateFilterType.YESTERDAY, viewModel.dateRangeSelection.value.type)
+        assertNotNull(viewModel.dateRangeSelection.value.startDate)
+        assertEquals(viewModel.dateRangeSelection.value.startDate, viewModel.dateRangeSelection.value.endDate)
+
+        // This Week
+        viewModel.setDateRangeFilter(DateFilterType.THIS_WEEK)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DateFilterType.THIS_WEEK, viewModel.dateRangeSelection.value.type)
+        assertNotNull(viewModel.dateRangeSelection.value.startDate)
+        assertEquals(FormatUtils.todayDateString(), viewModel.dateRangeSelection.value.endDate)
+
+        // This Month
+        viewModel.setDateRangeFilter(DateFilterType.THIS_MONTH)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DateFilterType.THIS_MONTH, viewModel.dateRangeSelection.value.type)
+        assertNotNull(viewModel.dateRangeSelection.value.startDate)
+
+        // Custom Range
+        val start = "2026-11-01"
+        val end = "2026-11-07"
+        viewModel.setDateRangeFilter(DateFilterType.CUSTOM, start, end)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DateFilterType.CUSTOM, viewModel.dateRangeSelection.value.type)
+        assertEquals(start, viewModel.dateRangeSelection.value.startDate)
+        assertEquals(end, viewModel.dateRangeSelection.value.endDate)
+    }
+
+    @Test
+    fun testCustomerFilterAndCombinedFiltersWithSearch() = runTest {
+        val cust = Customer(id = "cust-1", customerName = "Sharma Stores")
+        viewModel.setSelectedCustomer(cust)
+        viewModel.setSalesCategoryFilter(SalesCategoryFilter.LINE)
+        viewModel.setDateRangeFilter(DateFilterType.CUSTOM, "2026-10-01", "2026-10-31")
+        viewModel.onSearchChange("Sharma")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("cust-1", viewModel.selectedCustomer.value?.id)
+        assertEquals(SalesCategoryFilter.LINE, viewModel.salesCategoryFilter.value)
+        assertEquals("2026-10-01", viewModel.dateRangeSelection.value.startDate)
+        assertEquals("2026-10-31", viewModel.dateRangeSelection.value.endDate)
+        assertEquals("Sharma", viewModel.searchQuery.value)
+
+        // Verify repository received parameters
+        assertEquals("cust-1", fakeRepo.lastListLineSalesCustomerId)
+        assertEquals("2026-10-01", fakeRepo.lastListLineSalesFromDate)
+        assertEquals("2026-10-31", fakeRepo.lastListLineSalesToDate)
+        assertEquals("Sharma", fakeRepo.lastListLineSalesSearch)
+
+        // Clear all filters
+        viewModel.clearAllFilters()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.selectedCustomer.value)
+        assertEquals(SalesCategoryFilter.ALL, viewModel.salesCategoryFilter.value)
+        assertEquals(DateFilterType.TODAY, viewModel.dateRangeSelection.value.type)
+        assertEquals("", viewModel.searchQuery.value)
+    }
 }
 
 class FakeTransactionsRepository : TransactionsRepository {
@@ -1095,9 +1187,38 @@ class FakeTransactionsRepository : TransactionsRepository {
     var createLineSaleCallCount = 0
     var delayResponse = false
 
-    override fun listLineSales(date: String?, search: String?): Flow<Resource<List<LineSale>>> = flow {
+    var lastListLineSalesDate: String? = null
+    var lastListLineSalesSearch: String? = null
+    var lastListLineSalesFromDate: String? = null
+    var lastListLineSalesToDate: String? = null
+    var lastListLineSalesCustomerId: String? = null
+
+    override fun listLineSales(
+        date: String?,
+        search: String?,
+        fromDate: String?,
+        toDate: String?,
+        customerId: String?
+    ): Flow<Resource<List<LineSale>>> = flow {
+        lastListLineSalesDate = date
+        lastListLineSalesSearch = search
+        lastListLineSalesFromDate = fromDate
+        lastListLineSalesToDate = toDate
+        lastListLineSalesCustomerId = customerId
         emit(Resource.Loading)
-        emit(Resource.Success(lineSales.toList()))
+        var filtered = lineSales.toList()
+        if (!customerId.isNullOrBlank()) {
+            filtered = filtered.filter { it.customerId == customerId }
+        }
+        if (!search.isNullOrBlank()) {
+            val q = search.trim().lowercase()
+            filtered = filtered.filter {
+                it.customerName.lowercase().contains(q) ||
+                    it.route?.lowercase()?.contains(q) == true ||
+                    it.id.lowercase().contains(q)
+            }
+        }
+        emit(Resource.Success(filtered))
     }
 
     override fun createLineSale(request: CreateLineSaleRequest): Flow<Resource<LineSale>> = flow {
@@ -1139,9 +1260,27 @@ class FakeTransactionsRepository : TransactionsRepository {
         }
     }
 
-    override fun listCounterSales(date: String?, search: String?): Flow<Resource<List<CounterSale>>> = flow {
+    override fun listCounterSales(
+        date: String?,
+        search: String?,
+        fromDate: String?,
+        toDate: String?,
+        customerId: String?
+    ): Flow<Resource<List<CounterSale>>> = flow {
         emit(Resource.Loading)
-        emit(Resource.Success(counterSales.toList()))
+        var filtered = counterSales.toList()
+        if (!customerId.isNullOrBlank()) {
+            filtered = filtered.filter { it.customerId == customerId }
+        }
+        if (!search.isNullOrBlank()) {
+            val q = search.trim().lowercase()
+            filtered = filtered.filter {
+                it.item.lowercase().contains(q) ||
+                    it.customerName?.lowercase()?.contains(q) == true ||
+                    it.id.lowercase().contains(q)
+            }
+        }
+        emit(Resource.Success(filtered))
     }
 
     override fun createCounterSale(request: CreateCounterSaleRequest): Flow<Resource<CounterSale>> = flow {

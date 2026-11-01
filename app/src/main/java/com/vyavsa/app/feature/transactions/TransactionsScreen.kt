@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -433,15 +434,14 @@ private fun SalesListContent(
                 )
             }
 
-            items(
+            itemsIndexed(
                 items = lineSales,
-                key = { "line_${it.id}" },
-                contentType = { "line_sale" }
-            ) { sale ->
+                key = { index, sale -> "line_${sale.id.ifBlank { "ls" }}_$index" },
+                contentType = { _, _ -> "line_sale" }
+            ) { _, sale ->
                 LineSaleCard(
                     sale = sale,
-                    onClick = { onSaleClick("line", sale.id) },
-                    modifier = Modifier.animateItemPlacement()
+                    onClick = { onSaleClick("line", sale.id) }
                 )
             }
         }
@@ -456,15 +456,14 @@ private fun SalesListContent(
                 )
             }
 
-            items(
+            itemsIndexed(
                 items = counterSales,
-                key = { "counter_${it.id}" },
-                contentType = { "counter_sale" }
-            ) { sale ->
+                key = { index, sale -> "counter_${sale.id.ifBlank { "cs" }}_$index" },
+                contentType = { _, _ -> "counter_sale" }
+            ) { _, sale ->
                 CounterSaleCard(
                     sale = sale,
-                    onClick = { onSaleClick("counter", sale.id) },
-                    modifier = Modifier.animateItemPlacement()
+                    onClick = { onSaleClick("counter", sale.id) }
                 )
             }
         }
@@ -699,15 +698,14 @@ private fun PurchasesListContent(
                             modifier = Modifier.padding(bottom = 2.dp)
                         )
                     }
-                    items(
+                    itemsIndexed(
                         items = purchases,
-                        key = { it.id },
-                        contentType = { "purchase" }
-                    ) { purchase ->
+                        key = { index, purch -> "purch_${purch.id.ifBlank { "p" }}_$index" },
+                        contentType = { _, _ -> "purchase" }
+                    ) { _, purchase ->
                         PurchaseCard(
                             purchase = purchase,
-                            onClick = { onPurchaseClick(purchase.id) },
-                            modifier = Modifier.animateItemPlacement()
+                            onClick = { onPurchaseClick(purchase.id) }
                         )
                     }
                 }
@@ -856,14 +854,13 @@ private fun ExpensesListContent(
                         modifier = Modifier.padding(bottom = 2.dp)
                     )
                 }
-                items(
+                itemsIndexed(
                     items = expenses,
-                    key = { it.id },
-                    contentType = { "expense" }
-                ) { expense ->
+                    key = { index, exp -> "exp_${exp.id.ifBlank { "e" }}_$index" },
+                    contentType = { _, _ -> "expense" }
+                ) { _, expense ->
                     ExpenseCard(
-                        expense = expense,
-                        modifier = Modifier.animateItemPlacement()
+                        expense = expense
                     )
                 }
             }
@@ -999,14 +996,13 @@ private fun CashBookListContent(
                         modifier = Modifier.padding(bottom = 2.dp)
                     )
                 }
-                items(
+                itemsIndexed(
                     items = transactions,
-                    key = { it.id.ifBlank { "${it.transactionDate}_${it.amount}_${it.newBalance}" } },
-                    contentType = { "cash_txn" }
-                ) { txn ->
+                    key = { index, item -> "cash_${item.id.ifBlank { "c" }}_$index" },
+                    contentType = { _, _ -> "cash_txn" }
+                ) { _, txn ->
                     CashTransactionCard(
-                        txn = txn,
-                        modifier = Modifier.animateItemPlacement()
+                        txn = txn
                     )
                 }
             }
@@ -1123,14 +1119,13 @@ private fun BillingListContent(
                         modifier = Modifier.padding(bottom = 2.dp)
                     )
                 }
-                items(
+                itemsIndexed(
                     items = transactions,
-                    key = { it.id.ifBlank { it.transactionId } },
-                    contentType = { "billing_txn" }
-                ) { txn ->
+                    key = { index, item -> "plan_${item.id.ifBlank { item.transactionId.ifBlank { "b" } }}_$index" },
+                    contentType = { _, _ -> "billing_txn" }
+                ) { _, txn ->
                     PlanTransactionCard(
-                        txn = txn,
-                        modifier = Modifier.animateItemPlacement()
+                        txn = txn
                     )
                 }
             }
