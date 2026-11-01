@@ -1186,6 +1186,8 @@ class FakeTransactionsRepository : TransactionsRepository {
     var lastCreateExpenseRequest: CreateExpenseRequest? = null
     var createLineSaleCallCount = 0
     var delayResponse = false
+    var shouldFailCreateLineSale = false
+    var failureMessage = "Server error creating line sale"
 
     var lastListLineSalesDate: String? = null
     var lastListLineSalesSearch: String? = null
@@ -1225,6 +1227,10 @@ class FakeTransactionsRepository : TransactionsRepository {
         createLineSaleCallCount++
         emit(Resource.Loading)
         lastCreateLineSaleRequest = request
+        if (shouldFailCreateLineSale) {
+            emit(Resource.Error(failureMessage))
+            return@flow
+        }
         if (!delayResponse) {
             val sale = LineSale(
                 id = "sale-${lineSales.size + 1}",

@@ -734,7 +734,7 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 
-    fun createLineSale(
+    fun validateAndBuildLineSaleRequest(
         customerId: String,
         route: String? = null,
         salesman: String? = null,
@@ -749,12 +749,9 @@ class TransactionsViewModel @Inject constructor(
         discount: String? = null,
         saleDate: String? = null,
         advanceToApply: String? = null
-    ) {
-        if (_createActionState.value is UiState.Loading) return
-
+    ): Result<CreateLineSaleRequest> {
         if (customerId.isBlank()) {
-            _createActionState.value = UiState.Error("Customer and total amount are required")
-            return
+            return Result.failure(IllegalArgumentException("Customer and total amount are required"))
         }
 
         val calculatedItemsSubtotal = if (items.isNotEmpty()) {
@@ -768,28 +765,24 @@ class TransactionsViewModel @Inject constructor(
         }
 
         if (rawSubtotal.isBlank()) {
-            _createActionState.value = UiState.Error("Customer and total amount are required")
-            return
+            return Result.failure(IllegalArgumentException("Customer and total amount are required"))
         }
 
         val calcResult = SaleCalculationUtils.calculateResult(rawSubtotal, discount)
         if (!calcResult.isValid) {
-            _createActionState.value = UiState.Error(calcResult.errorMessage ?: "Invalid discount or subtotal")
-            return
+            return Result.failure(IllegalArgumentException(calcResult.errorMessage ?: "Invalid discount or subtotal"))
         }
 
         val subtotalVal = calcResult.subtotal.toDouble()
         if (subtotalVal <= 0.0) {
-            _createActionState.value = UiState.Error("Total invoice amount must be greater than zero")
-            return
+            return Result.failure(IllegalArgumentException("Total invoice amount must be greater than zero"))
         }
 
         val effectiveTotalAmount = calcResult.finalAmountString
 
         val cash = cashIn.trim().ifBlank { "0.00" }.toDoubleOrNull() ?: 0.0
         if (cash < 0.0) {
-            _createActionState.value = UiState.Error("Payment amounts cannot be negative")
-            return
+            return Result.failure(IllegalArgumentException("Payment amounts cannot be negative"))
         }
 
         val effectiveBankSplits: List<BankPaymentSplit>
@@ -799,21 +792,18 @@ class TransactionsViewModel @Inject constructor(
         if (bankPayments.isNotEmpty()) {
             for (bp in bankPayments) {
                 if (bp.bankId.isBlank()) {
-                    _createActionState.value = UiState.Error("Please select a bank account for all bank payment rows")
-                    return
+                    return Result.failure(IllegalArgumentException("Please select a bank account for all bank payment rows"))
                 }
                 val amt = bp.amount.trim().toDoubleOrNull()
                 if (amt == null || amt <= 0.0) {
-                    _createActionState.value = UiState.Error("Bank payment amount must be greater than zero")
-                    return
+                    return Result.failure(IllegalArgumentException("Bank payment amount must be greater than zero"))
                 }
             }
 
             val seenBanks = mutableSetOf<String>()
             for (bp in bankPayments) {
                 if (!seenBanks.add(bp.bankId.trim())) {
-                    _createActionState.value = UiState.Error("Each bank account can only be selected once per sale")
-                    return
+                    return Result.failure(IllegalArgumentException("Each bank account can only be selected once per sale"))
                 }
             }
 
@@ -823,14 +813,12 @@ class TransactionsViewModel @Inject constructor(
         } else {
             val bank = bankAmount.trim().ifBlank { "0.00" }.toDoubleOrNull() ?: 0.0
             if (bank < 0.0) {
-                _createActionState.value = UiState.Error("Payment amounts cannot be negative")
-                return
+                return Result.failure(IllegalArgumentException("Payment amounts cannot be negative"))
             }
 
             val bId = bankId?.trim()?.ifBlank { null }
             if (bank > 0.0 && bId == null) {
-                _createActionState.value = UiState.Error("Please select a bank account for bank payment")
-                return
+                return Result.failure(IllegalArgumentException("Please select a bank account for bank payment"))
             }
 
             effectiveBankTotal = bank
@@ -844,33 +832,155 @@ class TransactionsViewModel @Inject constructor(
 
         val formattedBankAmount = String.format(java.util.Locale.US, "%.2f", effectiveBankTotal)
 
+        val req = CreateLineSaleRequest(
+            customerId = customerId,
+            route = route?.trim()?.ifBlank { null },
+            salesman = salesman?.trim()?.ifBlank { null },
+            subtotal = calcResult.subtotalString,
+            discount = calcResult.discountString,
+            discountAmount = calcResult.discountString,
+            totalAmount = effectiveTotalAmount,
+            totalCashIn = cashIn.trim().ifBlank { "0.00" },
+            cashAmount = cashIn.trim().ifBlank { "0.00" },
+            bankAmount = formattedBankAmount,
+            bankId = resolvedBankId,
+            bankPayments = effectiveBankSplits,
+            note = note?.trim()?.ifBlank { null },
+            items = items,
+            saleDate = saleDate?.trim()?.ifBlank { null },
+            advanceToApply = advanceToApply?.trim()?.ifBlank { null }
+        )
+        return Result.success(req)
+    }
+
+    fun createLineSale(
+        customerId: String,
+        route: String? = null,
+        salesman: String? = null,
+        totalAmount: String,
+        cashIn: String,
+        bankAmount: String = "0.00",
+        bankId: String? = null,
+        bankPayments: List<BankPaymentSplit> = emptyList(),
+        note: String? = null,
+        items: List<SaleItemRequest> = emptyList(),
+        subtotal: String? = null,
+        discount: String? = null,
+        saleDate: String? = null,
+        advanceToApply: String? = null,
+        onSuccess: ((LineSale) -> Unit)? = null
+    ) {
+        if (_createActionState.value is UiState.Loading || _activePrintingSaleId.value != null) return
+
+        val validationResult = validateAndBuildLineSaleRequest(
+            customerId = customerId,
+            route = route,
+            salesman = salesman,
+            totalAmount = totalAmount,
+            cashIn = cashIn,
+            bankAmount = bankAmount,
+            bankId = bankId,
+            bankPayments = bankPayments,
+            note = note,
+            items = items,
+            subtotal = subtotal,
+            discount = discount,
+            saleDate = saleDate,
+            advanceToApply = advanceToApply
+        )
+
+        val req = validationResult.getOrElse { error ->
+            _createActionState.value = UiState.Error(error.message ?: "Validation failed")
+            return
+        }
+
         viewModelScope.launch {
-            val req = CreateLineSaleRequest(
-                customerId = customerId,
-                route = route?.trim()?.ifBlank { null },
-                salesman = salesman?.trim()?.ifBlank { null },
-                subtotal = calcResult.subtotalString,
-                discount = calcResult.discountString,
-                discountAmount = calcResult.discountString,
-                totalAmount = effectiveTotalAmount,
-                totalCashIn = cashIn.trim().ifBlank { "0.00" },
-                cashAmount = cashIn.trim().ifBlank { "0.00" },
-                bankAmount = formattedBankAmount,
-                bankId = resolvedBankId,
-                bankPayments = effectiveBankSplits,
-                note = note?.trim()?.ifBlank { null },
-                items = items,
-                saleDate = saleDate?.trim()?.ifBlank { null },
-                advanceToApply = advanceToApply?.trim()?.ifBlank { null }
-            )
             repository.createLineSale(req).collect { res ->
                 _createActionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
                         loadData()
+                        onSuccess?.invoke(res.data)
                         UiState.Success(Unit)
                     }
                     is Resource.Error -> UiState.Error(res.message, res.code)
+                }
+            }
+        }
+    }
+
+    fun recordAndPrintLineSale(
+        customerId: String,
+        route: String? = null,
+        salesman: String? = null,
+        totalAmount: String,
+        cashIn: String,
+        bankAmount: String = "0.00",
+        bankId: String? = null,
+        bankPayments: List<BankPaymentSplit> = emptyList(),
+        note: String? = null,
+        items: List<SaleItemRequest> = emptyList(),
+        subtotal: String? = null,
+        discount: String? = null,
+        saleDate: String? = null,
+        advanceToApply: String? = null,
+        customerName: String? = null,
+        customerPhone: String? = null,
+        context: Context,
+        onPermissionRequired: ((Array<String>) -> Unit)? = null,
+        onPrintResult: ((savedSale: LineSale, isPrintSuccess: Boolean, errorMessage: String?) -> Unit)? = null
+    ) {
+        if (_createActionState.value is UiState.Loading || _activePrintingSaleId.value != null) return
+
+        val validationResult = validateAndBuildLineSaleRequest(
+            customerId = customerId,
+            route = route,
+            salesman = salesman,
+            totalAmount = totalAmount,
+            cashIn = cashIn,
+            bankAmount = bankAmount,
+            bankId = bankId,
+            bankPayments = bankPayments,
+            note = note,
+            items = items,
+            subtotal = subtotal,
+            discount = discount,
+            saleDate = saleDate,
+            advanceToApply = advanceToApply
+        )
+
+        val req = validationResult.getOrElse { error ->
+            _createActionState.value = UiState.Error(error.message ?: "Validation failed")
+            return
+        }
+
+        viewModelScope.launch {
+            repository.createLineSale(req).collect { res ->
+                when (res) {
+                    is Resource.Loading -> {
+                        _createActionState.value = UiState.Loading
+                    }
+                    is Resource.Error -> {
+                        _createActionState.value = UiState.Error(res.message, res.code)
+                    }
+                    is Resource.Success -> {
+                        loadData()
+                        var savedSale = res.data
+                        val resolvedCustomerName = if (!customerName.isNullOrBlank()) customerName else savedSale.customerName
+                        val resolvedCustomerPhone = if (!customerPhone.isNullOrBlank()) customerPhone else savedSale.customerPhone
+                        savedSale = savedSale.copy(
+                            customerName = resolvedCustomerName,
+                            customerPhone = resolvedCustomerPhone
+                        )
+                        printLineSaleWithResult(
+                            sale = savedSale,
+                            context = context,
+                            onPermissionRequired = onPermissionRequired,
+                            onResult = { isPrintSuccess, printErrorMsg ->
+                                onPrintResult?.invoke(savedSale, isPrintSuccess, printErrorMsg)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1339,7 +1449,19 @@ class TransactionsViewModel @Inject constructor(
         context: Context,
         onPermissionRequired: ((Array<String>) -> Unit)? = null
     ) {
-        if (_activePrintingSaleId.value != null) return
+        printLineSaleWithResult(sale, context, onPermissionRequired, null)
+    }
+
+    fun printLineSaleWithResult(
+        sale: LineSale,
+        context: Context,
+        onPermissionRequired: ((Array<String>) -> Unit)? = null,
+        onResult: ((isSuccess: Boolean, message: String?) -> Unit)? = null
+    ) {
+        if (_activePrintingSaleId.value != null) {
+            onResult?.invoke(false, "Another print job is in progress")
+            return
+        }
         _activePrintingSaleId.value = sale.id
         viewModelScope.launch {
             try {
@@ -1351,7 +1473,9 @@ class TransactionsViewModel @Inject constructor(
                 }
                 val logoBmp = getCachedLogoBitmap()
                 val data = InvoiceDataMapper.fromLineSale(fullSale, profile, logoBmp)
-                executeDirectPrint(data, context, onPermissionRequired)
+                executeDirectPrint(data, context, onPermissionRequired, onResult)
+            } catch (e: Exception) {
+                onResult?.invoke(false, e.message ?: "Print failed")
             } finally {
                 _activePrintingSaleId.value = null
             }
@@ -1385,7 +1509,8 @@ class TransactionsViewModel @Inject constructor(
     private suspend fun executeDirectPrint(
         printData: InvoicePrintData,
         context: Context,
-        onPermissionRequired: ((Array<String>) -> Unit)? = null
+        onPermissionRequired: ((Array<String>) -> Unit)? = null,
+        onResult: ((isSuccess: Boolean, message: String?) -> Unit)? = null
     ) {
         val manager = printerManager
         val prefs = printerPreferences
@@ -1414,6 +1539,7 @@ class TransactionsViewModel @Inject constructor(
             val msg = "Sent to system print service"
             _printJobState.value = PrintJobState(status = PrintJobStatus.SUCCESS, message = msg)
             sendUiMessage(msg, MessageType.SUCCESS)
+            onResult?.invoke(true, msg)
             return
         }
 
@@ -1423,12 +1549,14 @@ class TransactionsViewModel @Inject constructor(
                 val msg = "Bluetooth is not supported on this device."
                 _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = msg)
                 sendUiMessage(msg, MessageType.ERROR)
+                onResult?.invoke(false, msg)
                 return
             }
             if (!manager.isBluetoothEnabled()) {
                 val msg = "Bluetooth is turned off. Please enable Bluetooth."
                 _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = msg)
                 sendUiMessage(msg, MessageType.ERROR)
+                onResult?.invoke(false, msg)
                 return
             }
             if (!manager.hasBluetoothPermission()) {
@@ -1436,6 +1564,7 @@ class TransactionsViewModel @Inject constructor(
                 _printJobState.value = PrintJobState(status = PrintJobStatus.ERROR, message = msg)
                 sendUiMessage(msg, MessageType.ERROR)
                 onPermissionRequired?.invoke(com.vyavsa.app.core.printer.BluetoothPermissionHelper.getRequiredPermissions())
+                onResult?.invoke(false, msg)
                 return
             }
         }
@@ -1463,6 +1592,7 @@ class TransactionsViewModel @Inject constructor(
                 val msg = "Printed successfully on ${targetPrinter.name}"
                 _printJobState.value = PrintJobState(status = PrintJobStatus.SUCCESS, message = msg)
                 sendUiMessage(msg, MessageType.SUCCESS)
+                onResult?.invoke(true, msg)
             } else {
                 val msg = res.exceptionOrNull()?.message ?: "Print failed. Check printer connection or paper roll."
                 _printJobState.value = PrintJobState(
@@ -1470,6 +1600,7 @@ class TransactionsViewModel @Inject constructor(
                     message = msg
                 )
                 sendUiMessage(msg, MessageType.ERROR)
+                onResult?.invoke(false, msg)
             }
         } catch (e: Exception) {
             val msg = e.message ?: "Printer error"
@@ -1478,6 +1609,7 @@ class TransactionsViewModel @Inject constructor(
                 message = msg
             )
             sendUiMessage(msg, MessageType.ERROR)
+            onResult?.invoke(false, msg)
         }
     }
 
