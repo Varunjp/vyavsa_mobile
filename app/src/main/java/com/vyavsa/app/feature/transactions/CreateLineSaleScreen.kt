@@ -118,6 +118,11 @@ import com.vyavsa.app.core.designsystem.VyavsaOutlinedButton
 import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Print
+import androidx.compose.material3.AlertDialog
+import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.BankPaymentSplit
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.Product
@@ -271,10 +276,50 @@ fun CreateSaleScreen(
     var selectorTarget by remember { mutableStateOf(SaleType.LINE_SALE) }
     var productSearchQuery by remember { mutableStateOf("") }
 
+    val activePrintingSaleId by viewModel.activePrintingSaleId.collectAsState()
+    val isPrinting = activePrintingSaleId != null
+
+    var lastClickedLineAction by remember { mutableStateOf<String?>(null) } // "record" or "record_and_print"
+    var savedSaleForPrintFailure by remember { mutableStateOf<LineSale?>(null) }
+    var printFailureMessage by remember { mutableStateOf<String?>(null) }
+    var isRetryingPrint by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val allGranted = grants.values.all { it }
+        if (allGranted) {
+            savedSaleForPrintFailure?.let { sale ->
+                isRetryingPrint = true
+                viewModel.printLineSaleWithResult(
+                    sale = sale,
+                    context = context,
+                    onResult = { isSuccess, err ->
+                        isRetryingPrint = false
+                        if (isSuccess) {
+                            Toast.makeText(context, "Invoice printed successfully", Toast.LENGTH_SHORT).show()
+                            savedSaleForPrintFailure = null
+                            onSaleCreated()
+                            viewModel.resetCreateState()
+                        } else {
+                            printFailureMessage = err ?: "Printer communication error"
+                        }
+                    }
+                )
+            }
+        } else {
+            Toast.makeText(context, "Bluetooth permissions are required for printing.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     LaunchedEffect(createActionState) {
         if (createActionState is UiState.Success) {
-            onSaleCreated()
-            viewModel.resetCreateState()
+            if (lastClickedLineAction != "record_and_print") {
+                onSaleCreated()
+                viewModel.resetCreateState()
+            }
+        } else if (createActionState is UiState.Error) {
+            lastClickedLineAction = null
         }
     }
 
@@ -393,47 +438,137 @@ fun CreateSaleScreen(
                         }
                     }
 
-                    VyavsaButton(
-                        text = if (selectedSaleType == SaleType.LINE_SALE) "Record Line Sale" else "Record Counter Sale",
-                        onClick = {
-                            focusManager.clearFocus()
-                            if (selectedSaleType == SaleType.LINE_SALE) {
-                                val splits = if (lineIncludeBank) {
-                                    lineBankEntries.map {
-                                        BankPaymentSplit(
-                                            bankId = it.bank?.id ?: "",
-                                            bankName = it.bank?.bankName,
-                                            amount = it.amount.trim()
+                    if (selectedSaleType == SaleType.LINE_SALE) {
+                        val isFormBusy = createActionState is UiState.Loading || isPrinting
+                        val areButtonsEnabled = !isFormBusy && savedSaleForPrintFailure == null
+                        val isRecordLoading = lastClickedLineAction == "record" && isFormBusy
+                        val isRecordAndPrintLoading = (lastClickedLineAction == "record_and_print" && isFormBusy) || (isPrinting && lastClickedLineAction != "record")
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            VyavsaOutlinedButton(
+                                text = "Record",
+                                onClick = {
+                                    focusManager.clearFocus()
+                                    if (createActionState is UiState.Loading || isPrinting || savedSaleForPrintFailure != null) return@VyavsaOutlinedButton
+
+                                    val splits = if (lineIncludeBank) {
+                                        lineBankEntries.map {
+                                            BankPaymentSplit(
+                                                bankId = it.bank?.id ?: "",
+                                                bankName = it.bank?.bankName,
+                                                amount = it.amount.trim()
+                                            )
+                                        }
+                                    } else {
+                                        emptyList()
+                                    }
+                                    val bankTotal = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                                    val itemRequests = lineItems.map {
+                                        SaleItemRequest(
+                                            productId = it.productId,
+                                            quantity = it.quantity.trim(),
+                                            unitPrice = it.unitPrice.trim()
                                         )
                                     }
-                                } else {
-                                    emptyList()
-                                }
-                                val bankTotal = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
-                                val itemRequests = lineItems.map {
-                                    SaleItemRequest(
-                                        productId = it.productId,
-                                        quantity = it.quantity.trim(),
-                                        unitPrice = it.unitPrice.trim()
+                                    lastClickedLineAction = "record"
+                                    viewModel.createLineSale(
+                                        customerId = selectedCustomer?.id ?: "",
+                                        route = route,
+                                        salesman = salesman,
+                                        subtotal = lineSubtotal.ifBlank { lineTotalAmount },
+                                        discount = lineDiscount.ifBlank { "0.00" },
+                                        totalAmount = lineTotalAmount,
+                                        cashIn = lineCashIn,
+                                        bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
+                                        bankId = splits.firstOrNull()?.bankId,
+                                        bankPayments = splits,
+                                        note = note,
+                                        items = itemRequests,
+                                        saleDate = saleDate,
+                                        advanceToApply = linePosPreview.advanceAppliedString
                                     )
-                                }
-                                viewModel.createLineSale(
-                                    customerId = selectedCustomer?.id ?: "",
-                                    route = route,
-                                    salesman = salesman,
-                                    subtotal = lineSubtotal.ifBlank { lineTotalAmount },
-                                    discount = lineDiscount.ifBlank { "0.00" },
-                                    totalAmount = lineTotalAmount,
-                                    cashIn = lineCashIn,
-                                    bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
-                                    bankId = splits.firstOrNull()?.bankId,
-                                    bankPayments = splits,
-                                    note = note,
-                                    items = itemRequests,
-                                    saleDate = saleDate,
-                                    advanceToApply = linePosPreview.advanceAppliedString
-                                )
-                            } else {
+                                },
+                                enabled = areButtonsEnabled,
+                                isLoading = isRecordLoading,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            VyavsaButton(
+                                text = if (isPrinting) "Printing..." else "Record & Print",
+                                onClick = {
+                                    focusManager.clearFocus()
+                                    if (createActionState is UiState.Loading || isPrinting || savedSaleForPrintFailure != null) return@VyavsaButton
+
+                                    val splits = if (lineIncludeBank) {
+                                        lineBankEntries.map {
+                                            BankPaymentSplit(
+                                                bankId = it.bank?.id ?: "",
+                                                bankName = it.bank?.bankName,
+                                                amount = it.amount.trim()
+                                            )
+                                        }
+                                    } else {
+                                        emptyList()
+                                    }
+                                    val bankTotal = splits.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+                                    val itemRequests = lineItems.map {
+                                        SaleItemRequest(
+                                            productId = it.productId,
+                                            quantity = it.quantity.trim(),
+                                            unitPrice = it.unitPrice.trim()
+                                        )
+                                    }
+                                    lastClickedLineAction = "record_and_print"
+                                    viewModel.recordAndPrintLineSale(
+                                        customerId = selectedCustomer?.id ?: "",
+                                        route = route,
+                                        salesman = salesman,
+                                        subtotal = lineSubtotal.ifBlank { lineTotalAmount },
+                                        discount = lineDiscount.ifBlank { "0.00" },
+                                        totalAmount = lineTotalAmount,
+                                        cashIn = lineCashIn,
+                                        bankAmount = String.format(java.util.Locale.US, "%.2f", bankTotal),
+                                        bankId = splits.firstOrNull()?.bankId,
+                                        bankPayments = splits,
+                                        note = note,
+                                        items = itemRequests,
+                                        saleDate = saleDate,
+                                        advanceToApply = linePosPreview.advanceAppliedString,
+                                        customerName = selectedCustomer?.customerName,
+                                        customerPhone = selectedCustomer?.phone,
+                                        context = context,
+                                        onPermissionRequired = { perms ->
+                                            permissionLauncher.launch(perms)
+                                        },
+                                        onPrintResult = { savedSale, isPrintSuccess, printErrorMsg ->
+                                            if (isPrintSuccess) {
+                                                Toast.makeText(context, "Line sale recorded and invoice printed successfully", Toast.LENGTH_SHORT).show()
+                                                onSaleCreated()
+                                                viewModel.resetCreateState()
+                                            } else {
+                                                savedSaleForPrintFailure = savedSale
+                                                printFailureMessage = printErrorMsg ?: "Printing invoice failed. Check printer connection or paper roll."
+                                                viewModel.resetCreateState()
+                                            }
+                                            lastClickedLineAction = null
+                                        }
+                                    )
+                                },
+                                enabled = areButtonsEnabled,
+                                isLoading = isRecordAndPrintLoading,
+                                leadingIcon = if (!isRecordAndPrintLoading) Icons.Default.Print else null,
+                                modifier = Modifier.weight(1.3f)
+                            )
+                        }
+                    } else {
+                        VyavsaButton(
+                            text = "Record Counter Sale",
+                            onClick = {
+                                focusManager.clearFocus()
                                 val splits = if (counterIncludeBank) {
                                     counterBankEntries.map {
                                         BankPaymentSplit(
@@ -470,10 +605,10 @@ fun CreateSaleScreen(
                                     saleDate = saleDate,
                                     advanceToApply = if (counterSelectedCustomer != null) counterPosPreview.advanceAppliedString else null
                                 )
-                            }
-                        },
-                        isLoading = createActionState is UiState.Loading
-                    )
+                            },
+                            isLoading = createActionState is UiState.Loading
+                        )
+                    }
                 }
             }
         },
@@ -1318,6 +1453,105 @@ fun CreateSaleScreen(
                             showCustomerSelectorSheet = false
                         }
                     }
+                }
+            )
+        }
+
+        // Print failure dialog after successful sale creation
+        if (savedSaleForPrintFailure != null) {
+            val sale = savedSaleForPrintFailure!!
+            AlertDialog(
+                onDismissRequest = {
+                    savedSaleForPrintFailure = null
+                    onSaleCreated()
+                    viewModel.resetCreateState()
+                },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(32.dp)
+                    )
+                },
+                title = {
+                    Text(
+                        text = "Sale Saved — Print Failed",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                },
+                text = {
+                    Column {
+                        val invoiceNum = if (!sale.invoiceNumber.isNullOrBlank()) sale.invoiceNumber else sale.id.take(8).uppercase()
+                        Text(
+                            text = "Line sale $invoiceNum was successfully saved to your records, but printing the POS invoice failed.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        if (!printFailureMessage.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = printFailureMessage ?: "",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "You can retry printing now, or return to the sales list. The sale is already safely preserved.",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        )
+                    }
+                },
+                confirmButton = {
+                    VyavsaButton(
+                        text = "Retry Print",
+                        leadingIcon = Icons.Default.Print,
+                        isLoading = isRetryingPrint,
+                        enabled = !isRetryingPrint,
+                        onClick = {
+                            isRetryingPrint = true
+                            viewModel.printLineSaleWithResult(
+                                sale = sale,
+                                context = context,
+                                onPermissionRequired = { perms ->
+                                    permissionLauncher.launch(perms)
+                                },
+                                onResult = { isSuccess, err ->
+                                    isRetryingPrint = false
+                                    if (isSuccess) {
+                                        Toast.makeText(context, "Invoice printed successfully", Toast.LENGTH_SHORT).show()
+                                        savedSaleForPrintFailure = null
+                                        onSaleCreated()
+                                        viewModel.resetCreateState()
+                                    } else {
+                                        printFailureMessage = err ?: "Printer connection failed"
+                                    }
+                                }
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                dismissButton = {
+                    VyavsaOutlinedButton(
+                        text = "Done (Back to Sales)",
+                        enabled = !isRetryingPrint,
+                        onClick = {
+                            savedSaleForPrintFailure = null
+                            onSaleCreated()
+                            viewModel.resetCreateState()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             )
         }
