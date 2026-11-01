@@ -9,12 +9,15 @@ import com.vyavsa.app.core.model.RecordAdvanceRequest
 import com.vyavsa.app.core.model.RecordOvertimeRequest
 import com.vyavsa.app.core.model.SalesDashboardResponse
 import com.vyavsa.app.core.model.TenantProfile
+import com.vyavsa.app.core.model.TenantRoleRegistry
 import com.vyavsa.app.core.model.TenantSubscription
 import com.vyavsa.app.core.model.UserProfile
 import com.vyavsa.app.core.model.UserRole
 import com.vyavsa.app.core.navigation.BottomBarDestination
 import com.vyavsa.app.core.security.TokenManager
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
+import com.vyavsa.app.feature.transactions.SalesCategoryFilter
+import com.vyavsa.app.feature.transactions.TransactionTab
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -103,6 +106,27 @@ class RoleBasedDashboardTest {
         assertTrue(adminDestinations.contains(BottomBarDestination.DUES))
         assertTrue(adminDestinations.contains(BottomBarDestination.STAFF))
         assertTrue(adminDestinations.contains(BottomBarDestination.MORE))
+    }
+
+    @Test
+    fun testTenantRoleRegistryParity() {
+        val validKeys = TenantRoleRegistry.VALID_ROLE_KEYS
+        assertEquals(4, validKeys.size)
+        assertTrue(validKeys.contains("admin"))
+        assertTrue(validKeys.contains("sales"))
+        assertTrue(validKeys.contains("office"))
+        assertTrue(validKeys.contains("user"))
+
+        assertEquals("Tenant Admin", TenantRoleRegistry.ADMIN.displayName)
+        assertEquals("Sales", TenantRoleRegistry.SALES.displayName)
+        assertEquals("Office", TenantRoleRegistry.OFFICE.displayName)
+        assertEquals("Standard User", TenantRoleRegistry.USER.displayName)
+
+        assertEquals(TenantRoleRegistry.ADMIN, TenantRoleRegistry.fromKey("admin"))
+        assertEquals(TenantRoleRegistry.SALES, TenantRoleRegistry.fromKey("sales"))
+        assertEquals(TenantRoleRegistry.OFFICE, TenantRoleRegistry.fromKey("office"))
+        assertEquals(TenantRoleRegistry.USER, TenantRoleRegistry.fromKey("user"))
+        assertEquals(TenantRoleRegistry.USER, TenantRoleRegistry.fromKey("invalid_role"))
     }
 
     // -------------------------------------------------------------------------

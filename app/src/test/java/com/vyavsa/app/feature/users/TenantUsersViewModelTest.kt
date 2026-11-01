@@ -85,6 +85,87 @@ class TenantUsersViewModelTest {
     }
 
     @Test
+    fun testAdminCreateSalesUserSuccess() = runTest {
+        viewModel.adminOverrideForTesting = true
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.createUser(
+            name = "Sales Agent",
+            email = "salesman@example.com",
+            password = "secretpassword",
+            role = "sales"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success on sales user create, got $actionState", actionState is UiState.Success)
+        val created = fakeRepository.usersList.find { it.email == "salesman@example.com" }
+        assertEquals("sales", created?.role)
+    }
+
+    @Test
+    fun testAdminCreateOfficeUserSuccess() = runTest {
+        viewModel.adminOverrideForTesting = true
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.createUser(
+            name = "Office Staff",
+            email = "office@example.com",
+            password = "secretpassword",
+            role = "office"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Success on office user create, got $actionState", actionState is UiState.Success)
+        val created = fakeRepository.usersList.find { it.email == "office@example.com" }
+        assertEquals("office", created?.role)
+    }
+
+    @Test
+    fun testAdminCreateUserInvalidRoleRejected() = runTest {
+        viewModel.adminOverrideForTesting = true
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.createUser(
+            name = "Invalid Guy",
+            email = "invalid@example.com",
+            password = "secretpassword",
+            role = "superadmin"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Error on invalid role, got $actionState", actionState is UiState.Error)
+        assertTrue(
+            "Expected role error message, got ${(actionState as UiState.Error).message}",
+            actionState.message.contains("Invalid role")
+        )
+    }
+
+    @Test
+    fun testAdminUpdateUserInvalidRoleRejected() = runTest {
+        viewModel.adminOverrideForTesting = true
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.updateUser(
+            id = "user-2",
+            name = "Staff",
+            role = "root",
+            status = "active",
+            password = null
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val actionState = viewModel.actionState.value
+        assertTrue("Expected Error on invalid role update, got $actionState", actionState is UiState.Error)
+        assertTrue(
+            "Expected role error message, got ${(actionState as UiState.Error).message}",
+            actionState.message.contains("Invalid role")
+        )
+    }
+
+    @Test
     fun testNonAdminCreateUserBlocked() = runTest {
         viewModel.adminOverrideForTesting = false
         testDispatcher.scheduler.advanceUntilIdle()

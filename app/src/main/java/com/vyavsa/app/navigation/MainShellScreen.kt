@@ -2,15 +2,26 @@
 package com.vyavsa.app.navigation
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Badge
@@ -31,9 +42,6 @@ import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
@@ -68,7 +77,9 @@ import com.vyavsa.app.feature.profile.ProfileScreen
 import com.vyavsa.app.feature.profile.ProfileViewModel
 import com.vyavsa.app.feature.staff.StaffScreen
 import com.vyavsa.app.feature.staff.StaffViewModel
+import com.vyavsa.app.feature.transactions.SalesCategoryFilter
 import com.vyavsa.app.feature.transactions.SalesScreen
+import com.vyavsa.app.feature.transactions.TransactionTab
 import com.vyavsa.app.feature.transactions.TransactionsScreen
 import com.vyavsa.app.feature.transactions.TransactionsViewModel
 
@@ -152,77 +163,108 @@ fun MainShellScreen(
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    NavigationBar(
-                        containerColor = Color.Transparent,
-                        tonalElevation = 0.dp,
-                        windowInsets = WindowInsets(0.dp),
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(64.dp)
+                            .height(66.dp)
+                            .padding(horizontal = 4.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         destinations.forEach { destination ->
-                        val isSelected = selectedDestination == destination
-                        val iconScale by animateFloatAsState(
-                            targetValue = if (isSelected) 1.08f else 1.0f,
-                            animationSpec = tween(durationMillis = 140),
-                            label = "BottomNavIconScale"
-                        )
-                        val icon = when (destination) {
-                            BottomBarDestination.HOME -> if (isSelected) Icons.Filled.Home else Icons.Outlined.Home
-                            BottomBarDestination.SALES -> if (isSelected) Icons.Filled.ShoppingCart else Icons.Outlined.ShoppingCart
-                            BottomBarDestination.COUNTER_SALES -> if (isSelected) Icons.Filled.PointOfSale else Icons.Outlined.PointOfSale
-                            BottomBarDestination.TRANSACTIONS -> if (isSelected) Icons.Filled.ReceiptLong else Icons.Outlined.ReceiptLong
-                            BottomBarDestination.DUES -> if (isSelected) Icons.Filled.People else Icons.Outlined.People
-                            BottomBarDestination.STAFF -> if (isSelected) Icons.Filled.Badge else Icons.Outlined.Badge
-                            BottomBarDestination.PRODUCTS -> if (isSelected) Icons.Filled.Inventory2 else Icons.Outlined.Inventory2
-                            BottomBarDestination.MORE -> if (isSelected) Icons.Filled.Menu else Icons.Outlined.Menu
-                        }
-
-                        val navTitle = if (destination.titleResId != 0) {
-                            stringResource(destination.titleResId)
-                        } else {
-                            destination.title
-                        }
-
-                        NavigationBarItem(
-                            selected = isSelected,
-                            onClick = { selectedDestination = destination },
-                            alwaysShowLabel = true,
-                            icon = {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = navTitle,
-                                    modifier = Modifier.graphicsLayer {
-                                        scaleX = iconScale
-                                        scaleY = iconScale
-                                    }
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = navTitle,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 10.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                    )
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                            val isSelected = selectedDestination == destination
+                            val iconScale by animateFloatAsState(
+                                targetValue = if (isSelected) 1.08f else 1.0f,
+                                animationSpec = tween(durationMillis = 150),
+                                label = "BottomNavIconScale"
                             )
-                        )
+                            val pillColor by animateColorAsState(
+                                targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f) else Color.Transparent,
+                                animationSpec = tween(durationMillis = 180),
+                                label = "BottomNavPillColor"
+                            )
+                            val iconColor by animateColorAsState(
+                                targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                animationSpec = tween(durationMillis = 150),
+                                label = "BottomNavIconColor"
+                            )
+                            val textColor by animateColorAsState(
+                                targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                animationSpec = tween(durationMillis = 150),
+                                label = "BottomNavTextColor"
+                            )
+                            val icon = when (destination) {
+                                BottomBarDestination.HOME -> if (isSelected) Icons.Filled.Home else Icons.Outlined.Home
+                                BottomBarDestination.SALES -> if (isSelected) Icons.Filled.ShoppingCart else Icons.Outlined.ShoppingCart
+                                BottomBarDestination.COUNTER_SALES -> if (isSelected) Icons.Filled.PointOfSale else Icons.Outlined.PointOfSale
+                                BottomBarDestination.TRANSACTIONS -> if (isSelected) Icons.Filled.ReceiptLong else Icons.Outlined.ReceiptLong
+                                BottomBarDestination.DUES -> if (isSelected) Icons.Filled.People else Icons.Outlined.People
+                                BottomBarDestination.STAFF -> if (isSelected) Icons.Filled.Badge else Icons.Outlined.Badge
+                                BottomBarDestination.PRODUCTS -> if (isSelected) Icons.Filled.Inventory2 else Icons.Outlined.Inventory2
+                                BottomBarDestination.MORE -> if (isSelected) Icons.Filled.Menu else Icons.Outlined.Menu
+                            }
+
+                            val navTitle = if (destination.titleResId != 0) {
+                                stringResource(destination.titleResId)
+                            } else {
+                                destination.title
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = { selectedDestination = destination }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .height(28.dp)
+                                            .width(44.dp)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(pillColor)
+                                    ) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = navTitle,
+                                            tint = iconColor,
+                                            modifier = Modifier
+                                                .size(20.dp)
+                                                .graphicsLayer {
+                                                    scaleX = iconScale
+                                                    scaleY = iconScale
+                                                }
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Text(
+                                        text = navTitle,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = textColor,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 10.5.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
-        }
-    },
-    modifier = modifier
+        },
+        modifier = modifier
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -245,7 +287,11 @@ fun MainShellScreen(
                                     SalesDashboardScreen(
                                         viewModel = dashboardViewModel,
                                         onNavigateToCreateLineSale = onNavigateToCreateSale,
-                                        onNavigateToLineSales = { selectedDestination = BottomBarDestination.SALES },
+                                        onNavigateToLineSales = {
+                                            transactionsViewModel.selectTab(TransactionTab.SALES)
+                                            transactionsViewModel.setSalesCategoryFilter(SalesCategoryFilter.LINE)
+                                            selectedDestination = BottomBarDestination.SALES
+                                        },
                                         onNavigateToProducts = { selectedDestination = BottomBarDestination.PRODUCTS }
                                     )
                                 }
@@ -256,7 +302,11 @@ fun MainShellScreen(
                                         onNavigateToCreatePurchase = onNavigateToCreatePurchase,
                                         onNavigateToCreateExpense = onNavigateToCreateExpense,
                                         onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF },
-                                        onNavigateToCounterSales = { selectedDestination = BottomBarDestination.COUNTER_SALES }
+                                        onNavigateToCounterSales = {
+                                            transactionsViewModel.selectTab(TransactionTab.SALES)
+                                            transactionsViewModel.setSalesCategoryFilter(SalesCategoryFilter.COUNTER)
+                                            selectedDestination = BottomBarDestination.COUNTER_SALES
+                                        }
                                     )
                                 }
                                 UserRole.ADMIN, UserRole.USER -> {
@@ -268,7 +318,17 @@ fun MainShellScreen(
                                         onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF },
                                         onNavigateToBankAccounts = onNavigateToBankAccounts,
                                         onNavigateToProducts = onNavigateToProducts,
-                                        onNavigateToProductAnalytics = onNavigateToProductAnalytics
+                                        onNavigateToProductAnalytics = onNavigateToProductAnalytics,
+                                        onNavigateToLineSales = {
+                                            transactionsViewModel.selectTab(TransactionTab.SALES)
+                                            transactionsViewModel.setSalesCategoryFilter(SalesCategoryFilter.LINE)
+                                            selectedDestination = BottomBarDestination.SALES
+                                        },
+                                        onNavigateToCounterSales = {
+                                            transactionsViewModel.selectTab(TransactionTab.SALES)
+                                            transactionsViewModel.setSalesCategoryFilter(SalesCategoryFilter.COUNTER)
+                                            selectedDestination = BottomBarDestination.SALES
+                                        }
                                     )
                                 }
                             }
