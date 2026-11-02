@@ -1203,6 +1203,7 @@ private data class ReceiptDisplayData(
     val discount: Double,
     val total: Double,
     val paidDirect: Double,
+    val amountAllocatedToSale: Double = paidDirect,
     val advanceApplied: Double,
     val totalSettledForSale: Double,
     val due: Double,
@@ -1241,6 +1242,8 @@ private fun InvoiceReceiptDialog(
             val prevSettled = sale.previousDuesSettled?.toDoubleOrNull()
             val advGen = sale.advanceGenerated?.toDoubleOrNull()
             val updBal = sale.updatedBalance?.toDoubleOrNull()
+            val parsedAlloc = sale.amountAllocatedToSale.toDoubleOrNull()
+            val allocToSale = if (parsedAlloc != null && parsedAlloc > 0.0) parsedAlloc else directPaid.coerceAtMost((tot - adv).coerceAtLeast(0.0))
             val customer = buildString {
                 append(sale.customerName.ifBlank { "Line Customer" })
                 if (!sale.route.isNullOrBlank()) append(" (Route: ${sale.route})")
@@ -1256,6 +1259,7 @@ private fun InvoiceReceiptDialog(
                 discount = disc,
                 total = tot,
                 paidDirect = directPaid,
+                amountAllocatedToSale = allocToSale,
                 advanceApplied = adv,
                 totalSettledForSale = settledForSale,
                 due = bal,
@@ -1281,6 +1285,8 @@ private fun InvoiceReceiptDialog(
             val prevSettled = sale.previousDuesSettled?.toDoubleOrNull()
             val advGen = sale.advanceGenerated?.toDoubleOrNull()
             val updBal = sale.updatedBalance?.toDoubleOrNull()
+            val parsedAlloc = sale.amountAllocatedToSale.toDoubleOrNull()
+            val allocToSale = if (parsedAlloc != null && parsedAlloc > 0.0) parsedAlloc else directPaid.coerceAtMost((tot - adv).coerceAtLeast(0.0))
             val hasLedger = !sale.customerId.isNullOrBlank() || prevBal != null || updBal != null
             val customer = if (!sale.customerName.isNullOrBlank()) sale.customerName else "Counter Customer (Walk-in)"
             ReceiptDisplayData(
@@ -1294,6 +1300,7 @@ private fun InvoiceReceiptDialog(
                 discount = disc,
                 total = tot,
                 paidDirect = directPaid,
+                amountAllocatedToSale = allocToSale,
                 advanceApplied = adv,
                 totalSettledForSale = settledForSale,
                 due = bal,
@@ -1350,6 +1357,9 @@ private fun InvoiceReceiptDialog(
         }
         appendLine("Current Sale Total: ${FormatUtils.formatCurrency(receiptData.total.toString())}")
         appendLine("Direct Received Now: ${FormatUtils.formatCurrency(receiptData.paidDirect.toString())}")
+        if (receiptData.amountAllocatedToSale > 0.0 && (receiptData.amountAllocatedToSale != receiptData.paidDirect || (receiptData.previousDuesSettled ?: 0.0) > 0.0 || (receiptData.advanceGenerated ?: 0.0) > 0.0)) {
+            appendLine("Allocated to Sale: ${FormatUtils.formatCurrency(receiptData.amountAllocatedToSale.toString())}")
+        }
         if (receiptData.advanceApplied > 0.0) {
             appendLine("Paid using Advance: ${FormatUtils.formatCurrency(receiptData.advanceApplied.toString())}")
         }
@@ -1592,6 +1602,13 @@ private fun InvoiceReceiptDialog(
                     label = "Amount Received Directly",
                     value = FormatUtils.formatCurrency(receiptData.paidDirect.toString())
                 )
+
+                if (receiptData.amountAllocatedToSale > 0.0 && (receiptData.amountAllocatedToSale != receiptData.paidDirect || (receiptData.previousDuesSettled ?: 0.0) > 0.0 || (receiptData.advanceGenerated ?: 0.0) > 0.0)) {
+                    FinancialRow(
+                        label = "Allocated to Current Sale",
+                        value = FormatUtils.formatCurrency(receiptData.amountAllocatedToSale.toString())
+                    )
+                }
 
                 if (receiptData.advanceApplied > 0.0) {
                     FinancialRow(

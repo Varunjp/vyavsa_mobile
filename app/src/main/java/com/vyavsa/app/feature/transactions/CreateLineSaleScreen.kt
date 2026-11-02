@@ -14,9 +14,15 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +64,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
@@ -67,8 +74,11 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import com.vyavsa.app.core.common.DialerUtils
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -104,6 +114,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.ShoppingBag
+import com.vyavsa.app.core.designsystem.Amber50
+import com.vyavsa.app.core.designsystem.Amber600
 import com.vyavsa.app.core.designsystem.Blue600
 import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
@@ -125,6 +137,7 @@ import androidx.compose.material3.AlertDialog
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.BankPaymentSplit
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.CustomerBalance
 import com.vyavsa.app.core.model.Product
 import com.vyavsa.app.core.model.SaleItemRequest
 import com.vyavsa.app.core.model.TenantBank
@@ -235,6 +248,17 @@ fun CreateSaleScreen(
     var counterIncludeBank by remember { mutableStateOf(false) }
     var counterBankEntries by remember { mutableStateOf<List<BankPaymentEntry>>(emptyList()) }
     var counterItems by remember { mutableStateOf<List<SaleItemEntry>>(emptyList()) }
+    var itemToFocusId by remember { mutableStateOf<String?>(null) }
+
+    val lineCustomerBalanceState by viewModel.lineSaleCustomerBalanceState.collectAsState()
+    val counterCustomerBalanceState by viewModel.counterSaleCustomerBalanceState.collectAsState()
+
+    LaunchedEffect(selectedCustomer?.id) {
+        viewModel.selectLineSaleCustomer(selectedCustomer)
+    }
+    LaunchedEffect(counterSelectedCustomer?.id) {
+        viewModel.selectCounterSaleCustomer(counterSelectedCustomer)
+    }
 
     LaunchedEffect(Unit) {
         if (customersState !is UiState.Success || customers.isEmpty()) {
@@ -248,24 +272,47 @@ fun CreateSaleScreen(
         }
     }
 
+    // Authoritative customer financial balances resolved from backend
+    val effectiveLineDue = when (val state = lineCustomerBalanceState) {
+        is UiState.Success -> state.data.currentBalance
+        is UiState.Loading -> "0.00"
+        else -> selectedCustomer?.currentBalance ?: "0.00"
+    }
+    val effectiveLineAdv = when (val state = lineCustomerBalanceState) {
+        is UiState.Success -> state.data.advanceBalance
+        is UiState.Loading -> "0.00"
+        else -> selectedCustomer?.advanceBalance ?: "0.00"
+    }
+
     // Dynamic POS allocation calculation
     val lineBankTotal = if (lineIncludeBank) lineBankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } else 0.0
-    val linePosPreview = remember(lineTotalAmount, selectedCustomer, lineCashIn, lineBankTotal) {
+    val linePosPreview = remember(lineTotalAmount, effectiveLineDue, effectiveLineAdv, lineCashIn, lineBankTotal) {
         SaleCalculationUtils.calculatePosAllocation(
             saleTotalStr = lineTotalAmount,
-            customerCurrentBalanceStr = selectedCustomer?.currentBalance,
-            customerAdvanceBalanceStr = selectedCustomer?.advanceBalance,
+            customerCurrentBalanceStr = effectiveLineDue,
+            customerAdvanceBalanceStr = effectiveLineAdv,
             directCashStr = lineCashIn,
             directBankStr = lineBankTotal.toString()
         )
     }
 
+    val effectiveCounterDue = when (val state = counterCustomerBalanceState) {
+        is UiState.Success -> state.data.currentBalance
+        is UiState.Loading -> "0.00"
+        else -> counterSelectedCustomer?.currentBalance ?: "0.00"
+    }
+    val effectiveCounterAdv = when (val state = counterCustomerBalanceState) {
+        is UiState.Success -> state.data.advanceBalance
+        is UiState.Loading -> "0.00"
+        else -> counterSelectedCustomer?.advanceBalance ?: "0.00"
+    }
+
     val counterBankTotal = if (counterIncludeBank) counterBankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } else 0.0
-    val counterPosPreview = remember(counterTotalAmount, counterSelectedCustomer, counterCash, counterBankTotal) {
+    val counterPosPreview = remember(counterTotalAmount, effectiveCounterDue, effectiveCounterAdv, counterCash, counterBankTotal) {
         SaleCalculationUtils.calculatePosAllocation(
             saleTotalStr = counterTotalAmount,
-            customerCurrentBalanceStr = counterSelectedCustomer?.currentBalance,
-            customerAdvanceBalanceStr = counterSelectedCustomer?.advanceBalance,
+            customerCurrentBalanceStr = effectiveCounterDue,
+            customerAdvanceBalanceStr = effectiveCounterAdv,
             directCashStr = counterCash,
             directBankStr = counterBankTotal.toString()
         )
@@ -773,28 +820,81 @@ fun CreateSaleScreen(
                                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                                                 )
                                                 if (!selectedCustomer!!.phone.isNullOrBlank()) {
-                                                    Text(
-                                                        text = selectedCustomer!!.phone!!,
-                                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                    )
+                                                    val customerPhone = selectedCustomer!!.phone!!.trim()
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                        modifier = Modifier.padding(top = 2.dp)
+                                                    ) {
+                                                        FilledTonalIconButton(
+                                                            onClick = { DialerUtils.dialPhoneNumber(context, customerPhone) },
+                                                            shape = CircleShape,
+                                                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                                contentColor = MaterialTheme.colorScheme.primary
+                                                            ),
+                                                            modifier = Modifier.size(28.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Phone,
+                                                                contentDescription = "Call ${selectedCustomer!!.customerName}",
+                                                                modifier = Modifier.size(15.dp)
+                                                            )
+                                                        }
+                                                        Text(
+                                                            text = customerPhone,
+                                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                                color = MaterialTheme.colorScheme.primary,
+                                                                fontWeight = FontWeight.SemiBold
+                                                            ),
+                                                            modifier = Modifier.clickable {
+                                                                DialerUtils.dialPhoneNumber(context, customerPhone)
+                                                            }
+                                                        )
+                                                    }
                                                 }
                                                 Row(
                                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
                                                     modifier = Modifier.padding(top = 4.dp)
                                                 ) {
-                                                    val due = selectedCustomer!!.currentBalance.toDoubleOrNull() ?: 0.0
-                                                    val adv = selectedCustomer!!.advanceBalance.toDoubleOrNull() ?: 0.0
-                                                    StatBadge(
-                                                        text = "Due: ${FormatUtils.formatCurrency(selectedCustomer!!.currentBalance)}",
-                                                        backgroundColor = if (due > 0) Crimson50 else Emerald50,
-                                                        textColor = if (due > 0) Crimson600 else Emerald600
-                                                    )
-                                                    if (adv > 0) {
-                                                        StatBadge(
-                                                            text = "Adv: ${FormatUtils.formatCurrency(selectedCustomer!!.advanceBalance)}",
-                                                            backgroundColor = Blue50,
-                                                            textColor = Blue600
-                                                        )
+                                                    when (lineCustomerBalanceState) {
+                                                        is UiState.Loading -> {
+                                                            StatBadge(
+                                                                text = "Refreshing balance...",
+                                                                backgroundColor = Blue50,
+                                                                textColor = Blue600
+                                                            )
+                                                        }
+                                                        is UiState.Error -> {
+                                                            val due = effectiveLineDue.toDoubleOrNull() ?: 0.0
+                                                            StatBadge(
+                                                                text = "Due: ${FormatUtils.formatCurrency(effectiveLineDue)}",
+                                                                backgroundColor = if (due > 0) Crimson50 else Emerald50,
+                                                                textColor = if (due > 0) Crimson600 else Emerald600
+                                                            )
+                                                            StatBadge(
+                                                                text = "Offline / Sync",
+                                                                backgroundColor = Amber50,
+                                                                textColor = Amber600
+                                                            )
+                                                        }
+                                                        else -> {
+                                                            val due = effectiveLineDue.toDoubleOrNull() ?: 0.0
+                                                            val adv = effectiveLineAdv.toDoubleOrNull() ?: 0.0
+                                                            StatBadge(
+                                                                text = "Due: ${FormatUtils.formatCurrency(effectiveLineDue)}",
+                                                                backgroundColor = if (due > 0) Crimson50 else Emerald50,
+                                                                textColor = if (due > 0) Crimson600 else Emerald600
+                                                            )
+                                                            if (adv > 0) {
+                                                                StatBadge(
+                                                                    text = "Adv: ${FormatUtils.formatCurrency(effectiveLineAdv)}",
+                                                                    backgroundColor = Blue50,
+                                                                    textColor = Blue600
+                                                                )
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -822,7 +922,9 @@ fun CreateSaleScreen(
                                             Spacer(modifier = Modifier.height(12.dp))
                                             CustomerBalancePreviewBox(
                                                 customer = cust,
-                                                posPreview = linePosPreview
+                                                balanceState = lineCustomerBalanceState,
+                                                posPreview = linePosPreview,
+                                                onRetry = { viewModel.retryFetchLineSaleCustomerBalance(cust.id) }
                                             )
                                         }
                                     }
@@ -861,7 +963,10 @@ fun CreateSaleScreen(
 
                                 SaleItemsSection(
                                     items = lineItems,
+                                    itemToFocusId = itemToFocusId,
+                                    onFocusConsumed = { itemToFocusId = null },
                                     onAddItemClick = {
+                                        focusManager.clearFocus()
                                         selectorTarget = SaleType.LINE_SALE
                                         productSearchQuery = ""
                                         viewModel.loadProducts()
@@ -1114,28 +1219,81 @@ fun CreateSaleScreen(
                                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                                                 )
                                                 if (!counterSelectedCustomer!!.phone.isNullOrBlank()) {
-                                                    Text(
-                                                        text = counterSelectedCustomer!!.phone!!,
-                                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                    )
+                                                    val customerPhone = counterSelectedCustomer!!.phone!!.trim()
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                        modifier = Modifier.padding(top = 2.dp)
+                                                    ) {
+                                                        FilledTonalIconButton(
+                                                            onClick = { DialerUtils.dialPhoneNumber(context, customerPhone) },
+                                                            shape = CircleShape,
+                                                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                                contentColor = MaterialTheme.colorScheme.primary
+                                                            ),
+                                                            modifier = Modifier.size(28.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Phone,
+                                                                contentDescription = "Call ${counterSelectedCustomer!!.customerName}",
+                                                                modifier = Modifier.size(15.dp)
+                                                            )
+                                                        }
+                                                        Text(
+                                                            text = customerPhone,
+                                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                                color = MaterialTheme.colorScheme.primary,
+                                                                fontWeight = FontWeight.SemiBold
+                                                            ),
+                                                            modifier = Modifier.clickable {
+                                                                DialerUtils.dialPhoneNumber(context, customerPhone)
+                                                            }
+                                                        )
+                                                    }
                                                 }
                                                 Row(
                                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
                                                     modifier = Modifier.padding(top = 4.dp)
                                                 ) {
-                                                    val due = counterSelectedCustomer!!.currentBalance.toDoubleOrNull() ?: 0.0
-                                                    val adv = counterSelectedCustomer!!.advanceBalance.toDoubleOrNull() ?: 0.0
-                                                    StatBadge(
-                                                        text = "Due: ${FormatUtils.formatCurrency(counterSelectedCustomer!!.currentBalance)}",
-                                                        backgroundColor = if (due > 0) Crimson50 else Emerald50,
-                                                        textColor = if (due > 0) Crimson600 else Emerald600
-                                                    )
-                                                    if (adv > 0) {
-                                                        StatBadge(
-                                                            text = "Adv: ${FormatUtils.formatCurrency(counterSelectedCustomer!!.advanceBalance)}",
-                                                            backgroundColor = Blue50,
-                                                            textColor = Blue600
-                                                        )
+                                                    when (counterCustomerBalanceState) {
+                                                        is UiState.Loading -> {
+                                                            StatBadge(
+                                                                text = "Refreshing balance...",
+                                                                backgroundColor = Blue50,
+                                                                textColor = Blue600
+                                                            )
+                                                        }
+                                                        is UiState.Error -> {
+                                                            val due = effectiveCounterDue.toDoubleOrNull() ?: 0.0
+                                                            StatBadge(
+                                                                text = "Due: ${FormatUtils.formatCurrency(effectiveCounterDue)}",
+                                                                backgroundColor = if (due > 0) Crimson50 else Emerald50,
+                                                                textColor = if (due > 0) Crimson600 else Emerald600
+                                                            )
+                                                            StatBadge(
+                                                                text = "Offline / Sync",
+                                                                backgroundColor = Amber50,
+                                                                textColor = Amber600
+                                                            )
+                                                        }
+                                                        else -> {
+                                                            val due = effectiveCounterDue.toDoubleOrNull() ?: 0.0
+                                                            val adv = effectiveCounterAdv.toDoubleOrNull() ?: 0.0
+                                                            StatBadge(
+                                                                text = "Due: ${FormatUtils.formatCurrency(effectiveCounterDue)}",
+                                                                backgroundColor = if (due > 0) Crimson50 else Emerald50,
+                                                                textColor = if (due > 0) Crimson600 else Emerald600
+                                                            )
+                                                            if (adv > 0) {
+                                                                StatBadge(
+                                                                    text = "Adv: ${FormatUtils.formatCurrency(effectiveCounterAdv)}",
+                                                                    backgroundColor = Blue50,
+                                                                    textColor = Blue600
+                                                                )
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1152,6 +1310,7 @@ fun CreateSaleScreen(
                                                 TextButton(
                                                     onClick = {
                                                         counterSelectedCustomer = null
+                                                        viewModel.selectCounterSaleCustomer(null)
                                                     }
                                                 ) {
                                                     Text("Walk-in", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
@@ -1171,7 +1330,9 @@ fun CreateSaleScreen(
                                             Spacer(modifier = Modifier.height(12.dp))
                                             CustomerBalancePreviewBox(
                                                 customer = cust,
-                                                posPreview = counterPosPreview
+                                                balanceState = counterCustomerBalanceState,
+                                                posPreview = counterPosPreview,
+                                                onRetry = { viewModel.retryFetchCounterSaleCustomerBalance(cust.id) }
                                             )
                                         }
                                     }
@@ -1186,7 +1347,10 @@ fun CreateSaleScreen(
 
                                 SaleItemsSection(
                                     items = counterItems,
+                                    itemToFocusId = itemToFocusId,
+                                    onFocusConsumed = { itemToFocusId = null },
                                     onAddItemClick = {
+                                        focusManager.clearFocus()
                                         selectorTarget = SaleType.COUNTER_SALE
                                         productSearchQuery = ""
                                         viewModel.loadProducts()
@@ -1357,41 +1521,51 @@ fun CreateSaleScreen(
                 onProductSelected = { selectedProduct ->
                     if (selectorTarget == SaleType.LINE_SALE) {
                         val existing = lineItems.find { it.productId == selectedProduct.id }
+                        val targetId: String
                         val updated = if (existing != null) {
+                            targetId = existing.id
                             val currQ = existing.quantity.toIntOrNull() ?: 1
                             lineItems.map {
                                 if (it.productId == selectedProduct.id) it.copy(quantity = (currQ + 1).toString()) else it
                             }
                         } else {
-                            lineItems + SaleItemEntry(
+                            val newEntry = SaleItemEntry(
                                 productId = selectedProduct.id,
                                 productName = selectedProduct.name,
                                 catalogUnitPrice = selectedProduct.unitPrice,
                                 quantity = "1",
                                 unitPrice = selectedProduct.unitPrice
                             )
+                            targetId = newEntry.id
+                            lineItems + newEntry
                         }
                         lineItems = updated
+                        itemToFocusId = targetId
                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
                         lineSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
                         lineTotalAmount = SaleCalculationUtils.calculateSaleTotal(lineSubtotal, lineDiscount)
                     } else {
                         val existing = counterItems.find { it.productId == selectedProduct.id }
+                        val targetId: String
                         val updated = if (existing != null) {
+                            targetId = existing.id
                             val currQ = existing.quantity.toIntOrNull() ?: 1
                             counterItems.map {
                                 if (it.productId == selectedProduct.id) it.copy(quantity = (currQ + 1).toString()) else it
                             }
                         } else {
-                            counterItems + SaleItemEntry(
+                            val newEntry = SaleItemEntry(
                                 productId = selectedProduct.id,
                                 productName = selectedProduct.name,
                                 catalogUnitPrice = selectedProduct.unitPrice,
                                 quantity = "1",
                                 unitPrice = selectedProduct.unitPrice
                             )
+                            targetId = newEntry.id
+                            counterItems + newEntry
                         }
                         counterItems = updated
+                        itemToFocusId = targetId
                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
                         counterSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
                         counterTotalAmount = SaleCalculationUtils.calculateSaleTotal(counterSubtotal, counterDiscount)
@@ -1558,9 +1732,12 @@ fun CreateSaleScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SaleItemsSection(
     items: List<SaleItemEntry>,
+    itemToFocusId: String? = null,
+    onFocusConsumed: () -> Unit = {},
     onAddItemClick: () -> Unit,
     onQuantityChange: (SaleItemEntry, String) -> Unit,
     onQuantityIncrement: (SaleItemEntry) -> Unit,
@@ -1652,19 +1829,51 @@ private fun SaleItemsSection(
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val keyboardController = LocalSoftwareKeyboardController.current
+
                     items.forEach { item ->
-                        SaleItemCard(
-                            productName = item.productName,
-                            catalogUnitPrice = item.catalogUnitPrice,
-                            quantity = item.quantity,
-                            unitPrice = item.unitPrice,
-                            lineTotal = item.lineTotal,
-                            onQuantityChange = { onQuantityChange(item, it) },
-                            onQuantityIncrement = { onQuantityIncrement(item) },
-                            onQuantityDecrement = { onQuantityDecrement(item) },
-                            onUnitPriceChange = { onUnitPriceChange(item, it) },
-                            onRemove = { onRemoveItem(item) }
-                        )
+                        key(item.id) {
+                            val itemFocusRequester = remember(item.id) { FocusRequester() }
+                            val itemBringIntoViewRequester = remember(item.id) { BringIntoViewRequester() }
+                            val isTargetForFocus = item.id == itemToFocusId
+
+                            if (isTargetForFocus) {
+                                LaunchedEffect(item.id, isTargetForFocus) {
+                                    // Yield to ensure the UI element is attached and layout pass completes
+                                    kotlinx.coroutines.yield()
+                                    kotlinx.coroutines.delay(50)
+                                    try {
+                                        itemBringIntoViewRequester.bringIntoView()
+                                        itemFocusRequester.requestFocus()
+                                        keyboardController?.show()
+                                        itemBringIntoViewRequester.bringIntoView()
+                                    } catch (_: Exception) {
+                                        kotlinx.coroutines.delay(100)
+                                        try {
+                                            itemBringIntoViewRequester.bringIntoView()
+                                            itemFocusRequester.requestFocus()
+                                            keyboardController?.show()
+                                        } catch (_: Exception) {}
+                                    }
+                                    onFocusConsumed()
+                                }
+                            }
+
+                            SaleItemCard(
+                                productName = item.productName,
+                                catalogUnitPrice = item.catalogUnitPrice,
+                                quantity = item.quantity,
+                                unitPrice = item.unitPrice,
+                                lineTotal = item.lineTotal,
+                                onQuantityChange = { onQuantityChange(item, it) },
+                                onQuantityIncrement = { onQuantityIncrement(item) },
+                                onQuantityDecrement = { onQuantityDecrement(item) },
+                                onUnitPriceChange = { onUnitPriceChange(item, it) },
+                                onRemove = { onRemoveItem(item) },
+                                quantityFocusRequester = itemFocusRequester,
+                                modifier = Modifier.bringIntoViewRequester(itemBringIntoViewRequester)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(2.dp))
@@ -2135,15 +2344,22 @@ private fun SaleDateSelectorRow(
 @Composable
 private fun CustomerBalancePreviewBox(
     customer: Customer,
+    balanceState: UiState<CustomerBalance> = UiState.Idle,
     posPreview: PosAllocationPreview,
+    onRetry: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val curDue = customer.currentBalance.toDoubleOrNull() ?: 0.0
-    val availAdv = customer.advanceBalance.toDoubleOrNull() ?: 0.0
+    val isLoading = balanceState is UiState.Loading
+    val isError = balanceState is UiState.Error
+    val authoritativeCustomer = (balanceState as? UiState.Success)?.data
+    val curDue = (authoritativeCustomer?.currentBalance ?: posPreview.previousDuesString).toDoubleOrNull() ?: 0.0
+    val availAdv = (authoritativeCustomer?.advanceBalance ?: posPreview.availableAdvanceString).toDoubleOrNull() ?: 0.0
     val advApplied = posPreview.advanceApplied.toDouble()
     val netPayable = posPreview.remainingPayable.toDouble()
+    val allocToSale = posPreview.amountAllocatedToSale.toDouble()
     val prevSettled = posPreview.previousDuesSettled.toDouble()
     val newAdv = posPreview.advanceGenerated.toDouble()
+    val remInvoiceDue = posPreview.remainingSaleDue.toDouble()
     val updatedDue = posPreview.updatedCustomerDue.toDouble()
     val updatedAdv = posPreview.updatedAdvanceBalance.toDouble()
 
@@ -2159,6 +2375,58 @@ private fun CustomerBalancePreviewBox(
                 .padding(14.dp)
                 .animateContentSize()
         ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp)
+            ) {
+                Text(
+                    text = customer.customerName,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                )
+                Text(
+                    text = "Live Ledger",
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                )
+            }
+            if (isLoading) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Retrieving latest customer balance from server...",
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.primary)
+                    )
+                }
+            } else if (isError) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                ) {
+                    Text(
+                        text = "Could not sync live balance",
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.error)
+                    )
+                    TextButton(onClick = onRetry) {
+                        Text("Retry", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -2235,6 +2503,28 @@ private fun CustomerBalancePreviewBox(
                 }
             }
 
+            if (allocToSale > 0.0 && (allocToSale != (posPreview.directPaymentCollected.toDouble()) || prevSettled > 0.0 || newAdv > 0.0)) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Allocated to Current Sale:",
+                        style = MaterialTheme.typography.bodySmall.copy(color = Emerald600, fontWeight = FontWeight.SemiBold)
+                    )
+                    Text(
+                        text = FormatUtils.formatCurrency(allocToSale.toString()),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = Emerald600
+                        )
+                    )
+                }
+            }
+
             if (prevSettled > 0.0) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
@@ -2244,14 +2534,14 @@ private fun CustomerBalancePreviewBox(
                 ) {
                     Text(
                         text = "Settles Previous Customer Dues:",
-                        style = MaterialTheme.typography.bodySmall.copy(color = Emerald600, fontWeight = FontWeight.SemiBold)
+                        style = MaterialTheme.typography.bodySmall.copy(color = Blue600, fontWeight = FontWeight.SemiBold)
                     )
                     Text(
                         text = "-${FormatUtils.formatCurrency(prevSettled.toString())}",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            color = Emerald600
+                            color = Blue600
                         )
                     )
                 }
@@ -2287,7 +2577,28 @@ private fun CustomerBalancePreviewBox(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "Resulting Outstanding Due:",
+                    text = "Current Invoice Outstanding:",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
+                )
+                Text(
+                    text = FormatUtils.formatCurrency(remInvoiceDue.toString()),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = if (remInvoiceDue > 0.0) Crimson600 else Emerald600
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Remaining Customer Outstanding:",
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
                 )
                 Text(
@@ -2535,12 +2846,40 @@ private fun SaleCalculationBox(
             Spacer(modifier = Modifier.height(4.dp))
 
             if (posAllocationPreview != null) {
+                if (customer != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Payment Allocation (${customer.customerName}):",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    )
+                }
+                if (posAllocationPreview.amountAllocatedToSale.toDouble() > 0.0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Current Invoice Paid:",
+                            style = MaterialTheme.typography.bodySmall.copy(color = Emerald600, fontWeight = FontWeight.SemiBold)
+                        )
+                        Text(
+                            text = FormatUtils.formatCurrency(posAllocationPreview.amountAllocatedToSaleString),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = Emerald600
+                            )
+                        )
+                    }
+                }
+
                 Row(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Balance Due for this Sale:",
+                        text = "Current Invoice Outstanding:",
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
                     Text(
@@ -2553,45 +2892,31 @@ private fun SaleCalculationBox(
                     )
                 }
 
-                if (posAllocationPreview.excessPayment.toDouble() > 0.0) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                if (posAllocationPreview.previousDuesSettled.toDouble() > 0.0) {
+                    Spacer(modifier = Modifier.height(2.dp))
                     Row(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Excess Payment Collected:", style = MaterialTheme.typography.bodySmall.copy(color = Emerald600, fontWeight = FontWeight.SemiBold))
+                        Text("Previous Due Settled:", style = MaterialTheme.typography.bodySmall.copy(color = Blue600, fontWeight = FontWeight.SemiBold))
                         Text(
-                            text = FormatUtils.formatCurrency(posAllocationPreview.excessPaymentString),
-                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = Emerald600)
+                            text = "-${FormatUtils.formatCurrency(posAllocationPreview.previousDuesSettledString)}",
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = Blue600)
                         )
                     }
+                }
 
-                    if (posAllocationPreview.previousDuesSettled.toDouble() > 0.0) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("↳ Settled Previous Dues:", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
-                            Text(
-                                text = "-${FormatUtils.formatCurrency(posAllocationPreview.previousDuesSettledString)}",
-                                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold, color = Emerald600)
-                            )
-                        }
-                    }
-
-                    if (posAllocationPreview.advanceGenerated.toDouble() > 0.0) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("↳ Added to Advance Balance:", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
-                            Text(
-                                text = "+${FormatUtils.formatCurrency(posAllocationPreview.advanceGeneratedString)}",
-                                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold, color = Blue600)
-                            )
-                        }
+                if (posAllocationPreview.advanceGenerated.toDouble() > 0.0) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("New Advance (Excess):", style = MaterialTheme.typography.bodySmall.copy(color = Blue600, fontWeight = FontWeight.SemiBold))
+                        Text(
+                            text = "+${FormatUtils.formatCurrency(posAllocationPreview.advanceGeneratedString)}",
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = Blue600)
+                        )
                     }
                 }
 
@@ -2600,7 +2925,7 @@ private fun SaleCalculationBox(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Updated Customer Total Due:", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                    Text("Remaining Customer Outstanding:", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
                     Text(
                         text = FormatUtils.formatCurrency(posAllocationPreview.updatedCustomerDueString),
                         style = MaterialTheme.typography.titleSmall.copy(

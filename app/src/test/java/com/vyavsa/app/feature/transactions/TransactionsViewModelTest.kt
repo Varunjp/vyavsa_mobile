@@ -10,6 +10,7 @@ import com.vyavsa.app.core.model.CreateExpenseRequest
 import com.vyavsa.app.core.model.CreateLineSaleRequest
 import com.vyavsa.app.core.model.CreatePurchaseRequest
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.CustomerBalance
 import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.LineSale
@@ -1138,6 +1139,131 @@ class TransactionsViewModelTest {
         assertEquals(DateFilterType.TODAY, viewModel.dateRangeSelection.value.type)
         assertEquals("", viewModel.searchQuery.value)
     }
+
+    @Test
+    fun testSelectLineSaleCustomerFetchesAuthoritativeBalance() = runTest {
+        val cust = Customer(id = "cust-1", customerName = "Sharma Stores", currentBalance = "500.00", advanceBalance = "100.00")
+        fakeRepo.customers.clear()
+        fakeRepo.customers.add(cust)
+
+        viewModel.selectLineSaleCustomer(cust)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.lineSaleCustomerBalanceState.value
+        assertTrue(state is UiState.Success)
+        val balance = (state as UiState.Success).data
+        assertEquals("cust-1", balance.customerId)
+        assertEquals("500.00", balance.currentBalance)
+        assertEquals("100.00", balance.advanceBalance)
+        assertEquals(1, fakeRepo.getCustomerBalanceCallCount)
+    }
+
+    @Test
+    fun testSelectLineSaleCustomerNullClearsBalance() = runTest {
+        val cust = Customer(id = "cust-1", customerName = "Sharma Stores", currentBalance = "500.00")
+        viewModel.selectLineSaleCustomer(cust)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(viewModel.lineSaleCustomerBalanceState.value is UiState.Success)
+
+        viewModel.selectLineSaleCustomer(null)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(viewModel.lineSaleCustomerBalanceState.value is UiState.Idle)
+    }
+
+    @Test
+    fun testSelectLineSaleCustomerSwitchingClearsStaleBalance() = runTest {
+        val cust1 = Customer(id = "cust-1", customerName = "Sharma Stores", currentBalance = "500.00", advanceBalance = "50.00")
+        val cust2 = Customer(id = "cust-2", customerName = "Gupta Mart", currentBalance = "250.00", advanceBalance = "0.00")
+        fakeRepo.customers.clear()
+        fakeRepo.customers.addAll(listOf(cust1, cust2))
+
+        viewModel.selectLineSaleCustomer(cust1)
+        testDispatcher.scheduler.advanceUntilIdle()
+        val state1 = viewModel.lineSaleCustomerBalanceState.value
+        assertTrue(state1 is UiState.Success)
+        assertEquals("500.00", (state1 as UiState.Success).data.currentBalance)
+
+        // Switch to cust2
+        viewModel.selectLineSaleCustomer(cust2)
+        // Immediately upon calling selectLineSaleCustomer, state is Loading (stale balance wiped!)
+        assertTrue(viewModel.lineSaleCustomerBalanceState.value is UiState.Loading)
+
+        testDispatcher.scheduler.advanceUntilIdle()
+        val state2 = viewModel.lineSaleCustomerBalanceState.value
+        assertTrue(state2 is UiState.Success)
+        val data2 = (state2 as UiState.Success).data
+        assertEquals("cust-2", data2.customerId)
+        assertEquals("250.00", data2.currentBalance)
+    }
+
+    @Test
+    fun testSelectCounterSaleCustomerFetchesBalanceAndHandlesError() = runTest {
+        val cust = Customer(id = "cust-nonexistent", customerName = "Unknown")
+        viewModel.selectCounterSaleCustomer(cust)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.counterSaleCustomerBalanceState.value
+        assertTrue(state is UiState.Error)
+        assertEquals("Customer not found", (state as UiState.Error).message)
+    }
+
+    @Test
+    fun testCreateLineSaleRefreshesCustomerBalanceOnSuccess() = runTest {
+        val cust = Customer(id = "cust-1", customerName = "Sharma Stores", currentBalance = "500.00")
+        fakeRepo.customers.clear()
+        fakeRepo.customers.add(cust)
+
+        viewModel.selectLineSaleCustomer(cust)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, fakeRepo.getCustomerBalanceCallCount)
+
+        // Customer's balance changes on backend after sale
+        fakeRepo.customers[0] = cust.copy(currentBalance = "0.00", advanceBalance = "200.00")
+
+        viewModel.createLineSale(
+            customerId = "cust-1",
+            totalAmount = "1000.00",
+            cashIn = "1700.00",
+            items = listOf(SaleItemRequest(productId = "prod-1", quantity = "1", unitPrice = "1000.00"))
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Balance should have been automatically refreshed!
+        assertEquals(2, fakeRepo.getCustomerBalanceCallCount)
+        val refreshed = viewModel.lineSaleCustomerBalanceState.value
+        assertTrue(refreshed is UiState.Success)
+        val refreshedData = (refreshed as UiState.Success).data
+        assertEquals("0.00", refreshedData.currentBalance)
+        assertEquals("200.00", refreshedData.advanceBalance)
+    }
+
+    @Test
+    fun testCreateCounterSaleRefreshesCustomerBalanceWhenCustomerPresent() = runTest {
+        val cust = Customer(id = "cust-1", customerName = "Sharma Stores", currentBalance = "300.00")
+        fakeRepo.customers.clear()
+        fakeRepo.customers.add(cust)
+
+        viewModel.selectCounterSaleCustomer(cust)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, fakeRepo.getCustomerBalanceCallCount)
+
+        // Customer's balance settles on backend
+        fakeRepo.customers[0] = cust.copy(currentBalance = "0.00")
+
+        viewModel.createCounterSale(
+            customerId = "cust-1",
+            item = "Retail Items",
+            price = "500.00",
+            totalAmount = "500.00",
+            cash = "500.00"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(2, fakeRepo.getCustomerBalanceCallCount)
+        val refreshed = viewModel.counterSaleCustomerBalanceState.value
+        assertTrue(refreshed is UiState.Success)
+        assertEquals("0.00", (refreshed as UiState.Success).data.currentBalance)
+    }
 }
 
 class FakeTransactionsRepository : TransactionsRepository {
@@ -1185,6 +1311,8 @@ class FakeTransactionsRepository : TransactionsRepository {
     var lastCreatePurchaseRequest: CreatePurchaseRequest? = null
     var lastCreateExpenseRequest: CreateExpenseRequest? = null
     var createLineSaleCallCount = 0
+    var getCustomerBalanceCallCount = 0
+    var lastGetCustomerBalanceId: String? = null
     var delayResponse = false
     var shouldFailCreateLineSale = false
     var failureMessage = "Server error creating line sale"
@@ -1438,6 +1566,24 @@ class FakeTransactionsRepository : TransactionsRepository {
             customers.filter { it.customerName.lowercase().contains(q) || (it.phone?.lowercase()?.contains(q) == true) }
         }
         emit(Resource.Success(filtered))
+    }
+
+    override fun getCustomerBalance(customerId: String): Flow<Resource<CustomerBalance>> = flow {
+        getCustomerBalanceCallCount++
+        lastGetCustomerBalanceId = customerId
+        emit(Resource.Loading)
+        val cust = customers.firstOrNull { it.id == customerId }
+        if (cust != null) {
+            emit(Resource.Success(CustomerBalance(
+                customerId = cust.id,
+                customerName = cust.customerName,
+                currentBalance = cust.currentBalance,
+                advanceBalance = cust.advanceBalance,
+                status = cust.status
+            )))
+        } else {
+            emit(Resource.Error("Customer not found", "404"))
+        }
     }
 
     override fun createCustomer(name: String, phone: String?, openingBalance: String): Flow<Resource<Customer>> = flow {

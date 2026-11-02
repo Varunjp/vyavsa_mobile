@@ -121,16 +121,27 @@ object ThermalInvoiceFormatter {
         sb.appendLine(formatKeyValue("TOTAL AMOUNT:", formatCurrency(data.totalAmount), width))
         val directReceived = if (data.amountReceivedDirect > 0.0) data.amountReceivedDirect else data.amountPaid
         sb.appendLine(formatKeyValue("Amount Paid:", formatCurrency(directReceived), width))
+        val allocToSale = if (data.amountAllocatedToSale > 0.0) data.amountAllocatedToSale else directReceived.coerceAtMost((data.totalAmount - data.advanceApplied).coerceAtLeast(0.0))
+        if (allocToSale > 0.0 && (allocToSale != directReceived || data.previousDuesSettled > 0.0 || data.advanceGenerated > 0.0)) {
+            sb.appendLine(formatKeyValue("Allocated to Sale:", formatCurrency(allocToSale), width))
+        }
         if (data.advanceApplied > 0.0) {
             sb.appendLine(formatKeyValue("Paid via Advance:", formatCurrency(data.advanceApplied), width))
-            val totalSettled = if (data.totalSettledForSale > 0.0) data.totalSettledForSale else (directReceived + data.advanceApplied)
+            val totalSettled = if (data.totalSettledForSale > 0.0) data.totalSettledForSale else (allocToSale + data.advanceApplied)
             sb.appendLine(formatKeyValue("Total Settled:", formatCurrency(totalSettled), width))
+        }
+        if (data.previousDuesSettled > 0.0) {
+            sb.appendLine(formatKeyValue("Settled Prev Dues:", formatCurrency(data.previousDuesSettled), width))
         }
 
         if (data.balanceDue > 0.0) {
             sb.appendLine(formatKeyValue("BALANCE DUE:", formatCurrency(data.balanceDue), width))
         } else {
             sb.appendLine(centerText("*** PAID IN FULL ***", width))
+        }
+
+        if (data.advanceGenerated > 0.0) {
+            sb.appendLine(formatKeyValue("Advance Generated:", formatCurrency(data.advanceGenerated), width))
         }
 
         if (data.hasCustomerLedger && (data.updatedCustomerBalance > 0.0 || data.previousBalance > 0.0)) {
@@ -253,10 +264,19 @@ object ThermalInvoiceFormatter {
         val directReceived = if (data.amountReceivedDirect > 0.0) data.amountReceivedDirect else data.amountPaid
         out.write(encodeString(formatKeyValue("Amount Paid:", formatCurrency(directReceived), width) + "\n"))
 
+        val allocToSale = if (data.amountAllocatedToSale > 0.0) data.amountAllocatedToSale else directReceived.coerceAtMost((data.totalAmount - data.advanceApplied).coerceAtLeast(0.0))
+        if (allocToSale > 0.0 && (allocToSale != directReceived || data.previousDuesSettled > 0.0 || data.advanceGenerated > 0.0)) {
+            out.write(encodeString(formatKeyValue("Allocated to Sale:", formatCurrency(allocToSale), width) + "\n"))
+        }
+
         if (data.advanceApplied > 0.0) {
             out.write(encodeString(formatKeyValue("Paid via Advance:", formatCurrency(data.advanceApplied), width) + "\n"))
-            val totalSettled = if (data.totalSettledForSale > 0.0) data.totalSettledForSale else (directReceived + data.advanceApplied)
+            val totalSettled = if (data.totalSettledForSale > 0.0) data.totalSettledForSale else (allocToSale + data.advanceApplied)
             out.write(encodeString(formatKeyValue("Total Settled:", formatCurrency(totalSettled), width) + "\n"))
+        }
+
+        if (data.previousDuesSettled > 0.0) {
+            out.write(encodeString(formatKeyValue("Settled Prev Dues:", formatCurrency(data.previousDuesSettled), width) + "\n"))
         }
 
         if (data.balanceDue > 0.0) {
@@ -269,6 +289,10 @@ object ThermalInvoiceFormatter {
             out.write(encodeString("*** PAID IN FULL ***\n"))
             out.write(EscPosCommands.BOLD_OFF)
             out.write(EscPosCommands.ALIGN_LEFT)
+        }
+
+        if (data.advanceGenerated > 0.0) {
+            out.write(encodeString(formatKeyValue("Advance Generated:", formatCurrency(data.advanceGenerated), width) + "\n"))
         }
 
         if (data.hasCustomerLedger && (data.updatedCustomerBalance > 0.0 || data.previousBalance > 0.0)) {
