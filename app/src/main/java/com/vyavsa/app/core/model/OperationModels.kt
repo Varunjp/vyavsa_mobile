@@ -1007,3 +1007,29 @@ data class ProductAnalyticsResponse(
     @SerialName("end_date") val endDate: String = ""
 )
 
+@Immutable
+@Serializable
+data class LineSaleBankBreakdown(
+    @SerialName("bank_id") val bankId: String? = null,
+    @SerialName("bank_name") val bankName: String = "",
+    @SerialName("account_number") val accountNumber: String? = null,
+    val amount: String = "0.00",
+    val percentage: Double = 0.0
+)
+
+@Immutable
+@Serializable
+data class LineSalePaymentBreakdown(
+    @SerialName("total_sales") val totalSales: String = "0.00",
+    @SerialName("cash_received") val cashReceived: String = "0.00",
+    @SerialName("bank_received") val bankReceived: String = "0.00",
+    @SerialName("total_received") val totalReceived: String = "0.00",
+    @SerialName("advance_applied") val advanceApplied: String = "0.00",
+    @SerialName("total_due") val totalDue: String = "0.00",
+    @SerialName("sales_count") val salesCount: Long = 0L,
+    @SerialName("start_date") val startDate: String = "",
+    @SerialName("end_date") val endDate: String = "",
+    @SerialName("bank_breakdown") val bankBreakdown: List<LineSaleBankBreakdown> = emptyList()
+)
+
+

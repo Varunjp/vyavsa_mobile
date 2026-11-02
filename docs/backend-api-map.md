@@ -402,6 +402,34 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
   - Response includes `subtotal`, `discount`, `total_amount`, `total_cash_in`, `bank_amount`, `balance`, `items`, `payments`.
 - **Payments**: `GET /api/v1/tenant/line-sales/:id/payments`
 - **Add Payment**: `POST /api/v1/tenant/line-sales/:id/payments`
+- **Payment Breakdown**: `GET /api/v1/tenant/line-sales/breakdown?date=YYYY-MM-DD&start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
+  - Response:
+    ```json
+    {
+      "success": true,
+      "message": "line sale payment breakdown retrieved",
+      "data": {
+        "total_sales": "85000.00",
+        "cash_received": "25000.00",
+        "bank_received": "60000.00",
+        "total_received": "85000.00",
+        "advance_applied": "0.00",
+        "total_due": "0.00",
+        "sales_count": 3,
+        "start_date": "2026-11-02",
+        "end_date": "2026-11-02",
+        "bank_breakdown": [
+          {
+            "bank_id": "uuid-bank-1",
+            "bank_name": "State Bank of India",
+            "account_number": "1234567890",
+            "amount": "30000.00",
+            "percentage": 50.0
+          }
+        ]
+      }
+    }
+    ```
 
 ### 5.2 Counter Sales
 - **List**: `GET /api/v1/tenant/counter-sales?page=1&page_size=20&date=YYYY-MM-DD&search=`

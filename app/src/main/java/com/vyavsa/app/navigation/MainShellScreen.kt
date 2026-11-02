@@ -109,6 +109,7 @@ fun MainShellScreen(
     onNavigateToTenantUsers: () -> Unit = {},
     onNavigateToProducts: () -> Unit = {},
     onNavigateToProductAnalytics: () -> Unit = {},
+    onNavigateToLineSaleOverview: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onLogoutSuccess: () -> Unit,
     settingsPreferences: SettingsPreferences? = null,
@@ -287,11 +288,7 @@ fun MainShellScreen(
                                     SalesDashboardScreen(
                                         viewModel = dashboardViewModel,
                                         onNavigateToCreateLineSale = onNavigateToCreateSale,
-                                        onNavigateToLineSales = {
-                                            transactionsViewModel.selectTab(TransactionTab.SALES)
-                                            transactionsViewModel.setSalesCategoryFilter(SalesCategoryFilter.LINE)
-                                            selectedDestination = BottomBarDestination.SALES
-                                        },
+                                        onNavigateToLineSales = onNavigateToLineSaleOverview,
                                         onNavigateToProducts = { selectedDestination = BottomBarDestination.PRODUCTS }
                                     )
                                 }
@@ -319,11 +316,7 @@ fun MainShellScreen(
                                         onNavigateToBankAccounts = onNavigateToBankAccounts,
                                         onNavigateToProducts = onNavigateToProducts,
                                         onNavigateToProductAnalytics = onNavigateToProductAnalytics,
-                                        onNavigateToLineSales = {
-                                            transactionsViewModel.selectTab(TransactionTab.SALES)
-                                            transactionsViewModel.setSalesCategoryFilter(SalesCategoryFilter.LINE)
-                                            selectedDestination = BottomBarDestination.SALES
-                                        },
+                                        onNavigateToLineSales = onNavigateToLineSaleOverview,
                                         onNavigateToCounterSales = {
                                             transactionsViewModel.selectTab(TransactionTab.SALES)
                                             transactionsViewModel.setSalesCategoryFilter(SalesCategoryFilter.COUNTER)

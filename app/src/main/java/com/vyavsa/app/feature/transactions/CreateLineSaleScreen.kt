@@ -52,6 +52,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import com.vyavsa.app.core.common.SaleCalculationUtils
 import com.vyavsa.app.core.common.SaleCalculationUtils.PosAllocationPreview
 import java.text.SimpleDateFormat
@@ -322,6 +323,19 @@ fun CreateSaleScreen(
     var showProductSelectorSheet by remember { mutableStateOf(false) }
     var selectorTarget by remember { mutableStateOf(SaleType.LINE_SALE) }
     var productSearchQuery by remember { mutableStateOf("") }
+
+    val density = LocalDensity.current
+    val isImeVisible = WindowInsets.ime.getBottom(density) > 0
+
+    var isQuantityEditingActive by remember { mutableStateOf(false) }
+    var focusedQuantityItemId by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(isImeVisible, showProductSelectorSheet) {
+        if (!isImeVisible && !showProductSelectorSheet) {
+            isQuantityEditingActive = false
+            focusedQuantityItemId = null
+        }
+    }
 
     val activePrintingSaleId by viewModel.activePrintingSaleId.collectAsState()
     val isPrinting = activePrintingSaleId != null
@@ -964,9 +978,15 @@ fun CreateSaleScreen(
                                 SaleItemsSection(
                                     items = lineItems,
                                     itemToFocusId = itemToFocusId,
+                                    isQuantityEditingActive = isQuantityEditingActive,
+                                    onQuantityFocusChanged = { entry, isFocused ->
+                                        if (isFocused) {
+                                            isQuantityEditingActive = true
+                                            focusedQuantityItemId = entry.id
+                                        }
+                                    },
                                     onFocusConsumed = { itemToFocusId = null },
                                     onAddItemClick = {
-                                        focusManager.clearFocus()
                                         selectorTarget = SaleType.LINE_SALE
                                         productSearchQuery = ""
                                         viewModel.loadProducts()
@@ -999,6 +1019,8 @@ fun CreateSaleScreen(
                                         }
                                     },
                                     onUnitPriceChange = { entry, newPrice ->
+                                        isQuantityEditingActive = false
+                                        focusedQuantityItemId = null
                                         val updated = lineItems.map { if (it.id == entry.id) it.copy(unitPrice = newPrice) else it }
                                         lineItems = updated
                                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
@@ -1006,6 +1028,10 @@ fun CreateSaleScreen(
                                         lineTotalAmount = SaleCalculationUtils.calculateSaleTotal(lineSubtotal, lineDiscount)
                                     },
                                     onRemoveItem = { entry ->
+                                        if (focusedQuantityItemId == entry.id) {
+                                            isQuantityEditingActive = false
+                                            focusedQuantityItemId = null
+                                        }
                                         val updated = lineItems.filterNot { it.id == entry.id }
                                         lineItems = updated
                                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
@@ -1348,9 +1374,15 @@ fun CreateSaleScreen(
                                 SaleItemsSection(
                                     items = counterItems,
                                     itemToFocusId = itemToFocusId,
+                                    isQuantityEditingActive = isQuantityEditingActive,
+                                    onQuantityFocusChanged = { entry, isFocused ->
+                                        if (isFocused) {
+                                            isQuantityEditingActive = true
+                                            focusedQuantityItemId = entry.id
+                                        }
+                                    },
                                     onFocusConsumed = { itemToFocusId = null },
                                     onAddItemClick = {
-                                        focusManager.clearFocus()
                                         selectorTarget = SaleType.COUNTER_SALE
                                         productSearchQuery = ""
                                         viewModel.loadProducts()
@@ -1383,6 +1415,8 @@ fun CreateSaleScreen(
                                         }
                                     },
                                     onUnitPriceChange = { entry, newPrice ->
+                                        isQuantityEditingActive = false
+                                        focusedQuantityItemId = null
                                         val updated = counterItems.map { if (it.id == entry.id) it.copy(unitPrice = newPrice) else it }
                                         counterItems = updated
                                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
@@ -1390,6 +1424,10 @@ fun CreateSaleScreen(
                                         counterTotalAmount = SaleCalculationUtils.calculateSaleTotal(counterSubtotal, counterDiscount)
                                     },
                                     onRemoveItem = { entry ->
+                                        if (focusedQuantityItemId == entry.id) {
+                                            isQuantityEditingActive = false
+                                            focusedQuantityItemId = null
+                                        }
                                         val updated = counterItems.filterNot { it.id == entry.id }
                                         counterItems = updated
                                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
@@ -1576,6 +1614,9 @@ fun CreateSaleScreen(
                             counterPrice = updated.first().unitPrice
                         }
                     }
+                    if (!isQuantityEditingActive) {
+                        focusManager.clearFocus()
+                    }
                     showProductSelectorSheet = false
                 },
                 onDismiss = { showProductSelectorSheet = false }
@@ -1737,6 +1778,8 @@ fun CreateSaleScreen(
 private fun SaleItemsSection(
     items: List<SaleItemEntry>,
     itemToFocusId: String? = null,
+    isQuantityEditingActive: Boolean = false,
+    onQuantityFocusChanged: (SaleItemEntry, Boolean) -> Unit = { _, _ -> },
     onFocusConsumed: () -> Unit = {},
     onAddItemClick: () -> Unit,
     onQuantityChange: (SaleItemEntry, String) -> Unit,
@@ -1844,16 +1887,21 @@ private fun SaleItemsSection(
                                     kotlinx.coroutines.delay(50)
                                     try {
                                         itemBringIntoViewRequester.bringIntoView()
-                                        itemFocusRequester.requestFocus()
-                                        keyboardController?.show()
-                                        itemBringIntoViewRequester.bringIntoView()
-                                    } catch (_: Exception) {
-                                        kotlinx.coroutines.delay(100)
+                                    } catch (_: Exception) {}
+                                    if (isQuantityEditingActive) {
                                         try {
-                                            itemBringIntoViewRequester.bringIntoView()
                                             itemFocusRequester.requestFocus()
                                             keyboardController?.show()
-                                        } catch (_: Exception) {}
+                                        } catch (_: Exception) {
+                                            kotlinx.coroutines.delay(100)
+                                            try {
+                                                itemBringIntoViewRequester.bringIntoView()
+                                                itemFocusRequester.requestFocus()
+                                                keyboardController?.show()
+                                            } catch (_: Exception) {}
+                                        }
+                                    } else {
+                                        keyboardController?.hide()
                                     }
                                     onFocusConsumed()
                                 }
@@ -1871,6 +1919,7 @@ private fun SaleItemsSection(
                                 onUnitPriceChange = { onUnitPriceChange(item, it) },
                                 onRemove = { onRemoveItem(item) },
                                 quantityFocusRequester = itemFocusRequester,
+                                onQuantityFocusChanged = { isFocused -> onQuantityFocusChanged(item, isFocused) },
                                 modifier = Modifier.bringIntoViewRequester(itemBringIntoViewRequester)
                             )
                         }
