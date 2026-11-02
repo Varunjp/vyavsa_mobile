@@ -104,6 +104,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -1273,7 +1275,8 @@ fun QuantityControl(
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    focusRequester: FocusRequester? = null
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1325,7 +1328,9 @@ fun QuantityControl(
                     color = MaterialTheme.colorScheme.onSurface
                 ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             )
         }
 
@@ -1365,7 +1370,8 @@ fun SaleItemCard(
     onQuantityDecrement: () -> Unit,
     onUnitPriceChange: (String) -> Unit,
     onRemove: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    quantityFocusRequester: FocusRequester? = null
 ) {
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -1437,6 +1443,7 @@ fun SaleItemCard(
                         onQuantityChange = onQuantityChange,
                         onIncrement = onQuantityIncrement,
                         onDecrement = onQuantityDecrement,
+                        focusRequester = quantityFocusRequester,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }

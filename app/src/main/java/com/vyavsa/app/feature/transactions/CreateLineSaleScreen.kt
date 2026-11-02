@@ -14,9 +14,15 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +64,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
@@ -67,8 +74,11 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import com.vyavsa.app.core.common.DialerUtils
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -238,6 +248,7 @@ fun CreateSaleScreen(
     var counterIncludeBank by remember { mutableStateOf(false) }
     var counterBankEntries by remember { mutableStateOf<List<BankPaymentEntry>>(emptyList()) }
     var counterItems by remember { mutableStateOf<List<SaleItemEntry>>(emptyList()) }
+    var itemToFocusId by remember { mutableStateOf<String?>(null) }
 
     val lineCustomerBalanceState by viewModel.lineSaleCustomerBalanceState.collectAsState()
     val counterCustomerBalanceState by viewModel.counterSaleCustomerBalanceState.collectAsState()
@@ -809,10 +820,38 @@ fun CreateSaleScreen(
                                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                                                 )
                                                 if (!selectedCustomer!!.phone.isNullOrBlank()) {
-                                                    Text(
-                                                        text = selectedCustomer!!.phone!!,
-                                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                    )
+                                                    val customerPhone = selectedCustomer!!.phone!!.trim()
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                        modifier = Modifier.padding(top = 2.dp)
+                                                    ) {
+                                                        FilledTonalIconButton(
+                                                            onClick = { DialerUtils.dialPhoneNumber(context, customerPhone) },
+                                                            shape = CircleShape,
+                                                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                                contentColor = MaterialTheme.colorScheme.primary
+                                                            ),
+                                                            modifier = Modifier.size(28.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Phone,
+                                                                contentDescription = "Call ${selectedCustomer!!.customerName}",
+                                                                modifier = Modifier.size(15.dp)
+                                                            )
+                                                        }
+                                                        Text(
+                                                            text = customerPhone,
+                                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                                color = MaterialTheme.colorScheme.primary,
+                                                                fontWeight = FontWeight.SemiBold
+                                                            ),
+                                                            modifier = Modifier.clickable {
+                                                                DialerUtils.dialPhoneNumber(context, customerPhone)
+                                                            }
+                                                        )
+                                                    }
                                                 }
                                                 Row(
                                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -924,7 +963,10 @@ fun CreateSaleScreen(
 
                                 SaleItemsSection(
                                     items = lineItems,
+                                    itemToFocusId = itemToFocusId,
+                                    onFocusConsumed = { itemToFocusId = null },
                                     onAddItemClick = {
+                                        focusManager.clearFocus()
                                         selectorTarget = SaleType.LINE_SALE
                                         productSearchQuery = ""
                                         viewModel.loadProducts()
@@ -1177,10 +1219,38 @@ fun CreateSaleScreen(
                                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                                                 )
                                                 if (!counterSelectedCustomer!!.phone.isNullOrBlank()) {
-                                                    Text(
-                                                        text = counterSelectedCustomer!!.phone!!,
-                                                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                    )
+                                                    val customerPhone = counterSelectedCustomer!!.phone!!.trim()
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                        modifier = Modifier.padding(top = 2.dp)
+                                                    ) {
+                                                        FilledTonalIconButton(
+                                                            onClick = { DialerUtils.dialPhoneNumber(context, customerPhone) },
+                                                            shape = CircleShape,
+                                                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                                contentColor = MaterialTheme.colorScheme.primary
+                                                            ),
+                                                            modifier = Modifier.size(28.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Phone,
+                                                                contentDescription = "Call ${counterSelectedCustomer!!.customerName}",
+                                                                modifier = Modifier.size(15.dp)
+                                                            )
+                                                        }
+                                                        Text(
+                                                            text = customerPhone,
+                                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                                color = MaterialTheme.colorScheme.primary,
+                                                                fontWeight = FontWeight.SemiBold
+                                                            ),
+                                                            modifier = Modifier.clickable {
+                                                                DialerUtils.dialPhoneNumber(context, customerPhone)
+                                                            }
+                                                        )
+                                                    }
                                                 }
                                                 Row(
                                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1277,7 +1347,10 @@ fun CreateSaleScreen(
 
                                 SaleItemsSection(
                                     items = counterItems,
+                                    itemToFocusId = itemToFocusId,
+                                    onFocusConsumed = { itemToFocusId = null },
                                     onAddItemClick = {
+                                        focusManager.clearFocus()
                                         selectorTarget = SaleType.COUNTER_SALE
                                         productSearchQuery = ""
                                         viewModel.loadProducts()
@@ -1448,41 +1521,51 @@ fun CreateSaleScreen(
                 onProductSelected = { selectedProduct ->
                     if (selectorTarget == SaleType.LINE_SALE) {
                         val existing = lineItems.find { it.productId == selectedProduct.id }
+                        val targetId: String
                         val updated = if (existing != null) {
+                            targetId = existing.id
                             val currQ = existing.quantity.toIntOrNull() ?: 1
                             lineItems.map {
                                 if (it.productId == selectedProduct.id) it.copy(quantity = (currQ + 1).toString()) else it
                             }
                         } else {
-                            lineItems + SaleItemEntry(
+                            val newEntry = SaleItemEntry(
                                 productId = selectedProduct.id,
                                 productName = selectedProduct.name,
                                 catalogUnitPrice = selectedProduct.unitPrice,
                                 quantity = "1",
                                 unitPrice = selectedProduct.unitPrice
                             )
+                            targetId = newEntry.id
+                            lineItems + newEntry
                         }
                         lineItems = updated
+                        itemToFocusId = targetId
                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
                         lineSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
                         lineTotalAmount = SaleCalculationUtils.calculateSaleTotal(lineSubtotal, lineDiscount)
                     } else {
                         val existing = counterItems.find { it.productId == selectedProduct.id }
+                        val targetId: String
                         val updated = if (existing != null) {
+                            targetId = existing.id
                             val currQ = existing.quantity.toIntOrNull() ?: 1
                             counterItems.map {
                                 if (it.productId == selectedProduct.id) it.copy(quantity = (currQ + 1).toString()) else it
                             }
                         } else {
-                            counterItems + SaleItemEntry(
+                            val newEntry = SaleItemEntry(
                                 productId = selectedProduct.id,
                                 productName = selectedProduct.name,
                                 catalogUnitPrice = selectedProduct.unitPrice,
                                 quantity = "1",
                                 unitPrice = selectedProduct.unitPrice
                             )
+                            targetId = newEntry.id
+                            counterItems + newEntry
                         }
                         counterItems = updated
+                        itemToFocusId = targetId
                         val subtotal = updated.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
                         counterSubtotal = String.format(java.util.Locale.US, "%.2f", subtotal)
                         counterTotalAmount = SaleCalculationUtils.calculateSaleTotal(counterSubtotal, counterDiscount)
@@ -1649,9 +1732,12 @@ fun CreateSaleScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SaleItemsSection(
     items: List<SaleItemEntry>,
+    itemToFocusId: String? = null,
+    onFocusConsumed: () -> Unit = {},
     onAddItemClick: () -> Unit,
     onQuantityChange: (SaleItemEntry, String) -> Unit,
     onQuantityIncrement: (SaleItemEntry) -> Unit,
@@ -1743,19 +1829,51 @@ private fun SaleItemsSection(
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val keyboardController = LocalSoftwareKeyboardController.current
+
                     items.forEach { item ->
-                        SaleItemCard(
-                            productName = item.productName,
-                            catalogUnitPrice = item.catalogUnitPrice,
-                            quantity = item.quantity,
-                            unitPrice = item.unitPrice,
-                            lineTotal = item.lineTotal,
-                            onQuantityChange = { onQuantityChange(item, it) },
-                            onQuantityIncrement = { onQuantityIncrement(item) },
-                            onQuantityDecrement = { onQuantityDecrement(item) },
-                            onUnitPriceChange = { onUnitPriceChange(item, it) },
-                            onRemove = { onRemoveItem(item) }
-                        )
+                        key(item.id) {
+                            val itemFocusRequester = remember(item.id) { FocusRequester() }
+                            val itemBringIntoViewRequester = remember(item.id) { BringIntoViewRequester() }
+                            val isTargetForFocus = item.id == itemToFocusId
+
+                            if (isTargetForFocus) {
+                                LaunchedEffect(item.id, isTargetForFocus) {
+                                    // Yield to ensure the UI element is attached and layout pass completes
+                                    kotlinx.coroutines.yield()
+                                    kotlinx.coroutines.delay(50)
+                                    try {
+                                        itemBringIntoViewRequester.bringIntoView()
+                                        itemFocusRequester.requestFocus()
+                                        keyboardController?.show()
+                                        itemBringIntoViewRequester.bringIntoView()
+                                    } catch (_: Exception) {
+                                        kotlinx.coroutines.delay(100)
+                                        try {
+                                            itemBringIntoViewRequester.bringIntoView()
+                                            itemFocusRequester.requestFocus()
+                                            keyboardController?.show()
+                                        } catch (_: Exception) {}
+                                    }
+                                    onFocusConsumed()
+                                }
+                            }
+
+                            SaleItemCard(
+                                productName = item.productName,
+                                catalogUnitPrice = item.catalogUnitPrice,
+                                quantity = item.quantity,
+                                unitPrice = item.unitPrice,
+                                lineTotal = item.lineTotal,
+                                onQuantityChange = { onQuantityChange(item, it) },
+                                onQuantityIncrement = { onQuantityIncrement(item) },
+                                onQuantityDecrement = { onQuantityDecrement(item) },
+                                onUnitPriceChange = { onUnitPriceChange(item, it) },
+                                onRemove = { onRemoveItem(item) },
+                                quantityFocusRequester = itemFocusRequester,
+                                modifier = Modifier.bringIntoViewRequester(itemBringIntoViewRequester)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(2.dp))
