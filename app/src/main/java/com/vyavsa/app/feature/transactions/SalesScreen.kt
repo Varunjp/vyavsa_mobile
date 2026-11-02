@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CallReceived
@@ -111,6 +112,7 @@ fun SalesScreen(
     viewModel: TransactionsViewModel,
     onNavigateToCreateSale: () -> Unit,
     onNavigateToSaleDetails: (saleType: String, saleId: String) -> Unit,
+    onNavigateBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -230,7 +232,9 @@ fun SalesScreen(
         topBar = {
             VyavsaTopAppBar(
                 title = screenTitle,
-                subtitle = screenSubtitle
+                subtitle = screenSubtitle,
+                navigationIcon = if (onNavigateBack != null) Icons.AutoMirrored.Filled.ArrowBack else null,
+                onNavigationClick = onNavigateBack
             )
         },
         floatingActionButton = {

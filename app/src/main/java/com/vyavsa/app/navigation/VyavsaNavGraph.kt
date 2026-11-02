@@ -52,6 +52,12 @@ import com.vyavsa.app.core.settings.SettingsPreferences
 import com.vyavsa.app.feature.settings.SettingsScreen
 import com.vyavsa.app.feature.settings.SettingsViewModel
 import com.vyavsa.app.feature.transactions.CreateCounterSaleScreen
+import com.vyavsa.app.feature.transactions.DateFilterType
+import com.vyavsa.app.feature.transactions.LineSaleOverviewScreen
+import com.vyavsa.app.feature.transactions.LineSaleOverviewViewModel
+import com.vyavsa.app.feature.transactions.SalesCategoryFilter
+import com.vyavsa.app.feature.transactions.SalesScreen
+import com.vyavsa.app.feature.transactions.TransactionTab
 
 @Composable
 fun VyavsaNavGraph(
@@ -233,6 +239,9 @@ fun VyavsaNavGraph(
                 },
                 onNavigateToProductAnalytics = {
                     navController.navigate(Screen.ProductAnalytics.route)
+                },
+                onNavigateToLineSaleOverview = {
+                    navController.navigate(Screen.LineSaleOverview.route)
                 },
                 onNavigateToSettings = {
                     navController.navigate(Screen.Settings.route)
@@ -454,6 +463,42 @@ fun VyavsaNavGraph(
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             SettingsScreen(
                 viewModel = settingsViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.LineSaleOverview.route) {
+            val overviewViewModel: LineSaleOverviewViewModel = hiltViewModel()
+            LineSaleOverviewScreen(
+                viewModel = overviewViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onViewTodaySales = {
+                    navController.navigate(Screen.TodayLineSales.route)
+                }
+            )
+        }
+
+        composable(Screen.TodayLineSales.route) {
+            if (tokenManager != null && !tokenManager.canAccessLineSales()) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                return@composable
+            }
+            val transactionsViewModel: TransactionsViewModel = hiltViewModel()
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                transactionsViewModel.selectTab(TransactionTab.SALES)
+                transactionsViewModel.setSalesCategoryFilter(SalesCategoryFilter.LINE)
+                transactionsViewModel.setDateRangeFilter(DateFilterType.TODAY)
+            }
+            SalesScreen(
+                viewModel = transactionsViewModel,
+                onNavigateToCreateSale = {
+                    navController.navigate(Screen.CreateLineSale.route)
+                },
+                onNavigateToSaleDetails = { saleType, saleId ->
+                    navController.navigate(Screen.SaleDetails.createRoute(saleType, saleId))
+                },
                 onNavigateBack = { navController.popBackStack() }
             )
         }

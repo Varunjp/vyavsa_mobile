@@ -43,6 +43,8 @@ sealed class Screen(val route: String) {
     object TenantUsers : Screen("tenant_users")
     object Products : Screen("products")
     object ProductAnalytics : Screen("product_analytics")
+    object LineSaleOverview : Screen("line_sale_overview")
+    object TodayLineSales : Screen("today_line_sales")
     object Settings : Screen("settings")
 }
 

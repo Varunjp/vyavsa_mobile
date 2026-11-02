@@ -42,6 +42,7 @@ import com.vyavsa.app.core.model.InitiateCheckoutRequest
 import com.vyavsa.app.core.model.InitiateCheckoutResponse
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.LineSalePayment
+import com.vyavsa.app.core.model.LineSalePaymentBreakdown
 import com.vyavsa.app.core.model.OfficeDashboardResponse
 import com.vyavsa.app.core.model.PaySalaryRequest
 import com.vyavsa.app.core.model.PlanTransaction
@@ -218,6 +219,13 @@ interface VyavsaApiService {
         @Path("id") id: String,
         @Body req: RecordSalePaymentRequest
     ): ApiResponse<LineSalePayment>
+
+    @GET("api/v1/tenant/line-sales/breakdown")
+    suspend fun getLineSalePaymentBreakdown(
+        @Query("date") date: String? = null,
+        @Query("start_date") startDate: String? = null,
+        @Query("end_date") endDate: String? = null
+    ): ApiResponse<LineSalePaymentBreakdown>
 
     @Streaming
     @GET("api/v1/tenant/line-sales/{id}/pdf")

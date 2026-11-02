@@ -15,6 +15,7 @@ import com.vyavsa.app.core.model.Employee
 import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.LineSalePayment
+import com.vyavsa.app.core.model.LineSalePaymentBreakdown
 import com.vyavsa.app.core.model.PlanTransaction
 import com.vyavsa.app.core.model.Purchase
 import com.vyavsa.app.core.model.PurchasePayment
@@ -50,6 +51,11 @@ interface TransactionsRepository {
     fun getLineSaleById(id: String): Flow<Resource<LineSale>>
     fun listLineSalePayments(id: String): Flow<Resource<List<LineSalePayment>>>
     fun recordLineSalePayment(id: String, request: RecordSalePaymentRequest): Flow<Resource<LineSalePayment>>
+    fun getLineSalePaymentBreakdown(
+        date: String? = null,
+        startDate: String? = null,
+        endDate: String? = null
+    ): Flow<Resource<LineSalePaymentBreakdown>>
 
     fun listCounterSales(
         date: String? = null,
@@ -209,6 +215,28 @@ class TransactionsRepositoryImpl @Inject constructor(
             }
         } catch (e: Throwable) {
             emit(ApiErrorParser.parse(e, "Network error recording payment"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun getLineSalePaymentBreakdown(
+        date: String?,
+        startDate: String?,
+        endDate: String?
+    ): Flow<Resource<LineSalePaymentBreakdown>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.getLineSalePaymentBreakdown(
+                date = date,
+                startDate = startDate,
+                endDate = endDate
+            )
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data))
+            } else {
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load line sale payment breakdown"))
+            }
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading line sale payment breakdown"))
         }
     }.flowOn(Dispatchers.IO)
 

@@ -47,6 +47,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Close
@@ -68,6 +69,7 @@ import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.Product
+import com.vyavsa.app.core.model.LineSaleBankBreakdown
 import com.vyavsa.app.core.model.TopSellingProduct
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -106,6 +108,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -1276,8 +1281,27 @@ fun QuantityControl(
     onDecrement: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    focusRequester: FocusRequester? = null
+    focusRequester: FocusRequester? = null,
+    onQuantityFocusChanged: (Boolean) -> Unit = {}
 ) {
+    var textFieldValue by remember {
+        mutableStateOf(TextFieldValue(text = quantity, selection = TextRange(quantity.length)))
+    }
+    var isFocused by remember { mutableStateOf(false) }
+
+    androidx.compose.runtime.LaunchedEffect(quantity) {
+        if (textFieldValue.text != quantity) {
+            val newSelection = if (isFocused) {
+                val start = minOf(textFieldValue.selection.start, quantity.length)
+                val end = minOf(textFieldValue.selection.end, quantity.length)
+                TextRange(start, end)
+            } else {
+                TextRange(quantity.length)
+            }
+            textFieldValue = TextFieldValue(text = quantity, selection = newSelection)
+        }
+    }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
@@ -1314,9 +1338,10 @@ fun QuantityControl(
                 .padding(horizontal = 4.dp)
         ) {
             BasicTextField(
-                value = quantity,
+                value = textFieldValue,
                 onValueChange = { newVal ->
-                    val filtered = newVal.filter { it.isDigit() || it == '.' }
+                    val filtered = newVal.text.filter { it.isDigit() || it == '.' }
+                    textFieldValue = newVal.copy(text = filtered)
                     onQuantityChange(filtered)
                 },
                 enabled = enabled,
@@ -1331,6 +1356,13 @@ fun QuantityControl(
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+                    .onFocusChanged { focusState ->
+                        isFocused = focusState.isFocused
+                        onQuantityFocusChanged(focusState.isFocused)
+                        if (focusState.isFocused) {
+                            textFieldValue = textFieldValue.copy(selection = TextRange(0, textFieldValue.text.length))
+                        }
+                    }
             )
         }
 
@@ -1371,7 +1403,8 @@ fun SaleItemCard(
     onUnitPriceChange: (String) -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
-    quantityFocusRequester: FocusRequester? = null
+    quantityFocusRequester: FocusRequester? = null,
+    onQuantityFocusChanged: (Boolean) -> Unit = {}
 ) {
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -1444,6 +1477,7 @@ fun SaleItemCard(
                         onIncrement = onQuantityIncrement,
                         onDecrement = onQuantityDecrement,
                         focusRequester = quantityFocusRequester,
+                        onQuantityFocusChanged = onQuantityFocusChanged,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -2059,6 +2093,368 @@ fun ProductSalesBarChart(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Lightweight, hardware-accelerated Payment Distribution Donut Chart and Legend.
+ * Renders cash, dynamic individual bank allocations, and outstanding dues using pure Compose Canvas.
+ * Zero external charting dependencies; optimized for low-end devices.
+ */
+@androidx.compose.runtime.Immutable
+data class PaymentDistributionSlice(
+    val label: String,
+    val amount: Double,
+    val color: Color,
+    val formattedAmount: String,
+    val percentage: Double
+)
+
+@Composable
+fun PaymentDistributionChart(
+    cashAmount: Double,
+    bankPayments: List<LineSaleBankBreakdown>,
+    outstandingDue: Double,
+    advanceApplied: Double = 0.0,
+    modifier: Modifier = Modifier
+) {
+    val total = cashAmount + bankPayments.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } + outstandingDue + advanceApplied
+    val bankTotal = bankPayments.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    val surfaceColor = MaterialTheme.colorScheme.surface
+
+    // Pre-allocated palette of distinct harmonious colors for dynamic bank accounts
+    val bankPalette = remember {
+        listOf(
+            Color(0xFF3649D8), // Indigo
+            Color(0xFF0284C7), // Sky / Light Blue
+            Color(0xFF7C3AED), // Violet
+            Color(0xFF0D9488), // Teal
+            Color(0xFF2563EB), // Royal Blue
+            Color(0xFF9333EA), // Purple
+            Color(0xFFDB2777), // Pink
+            Color(0xFFEA580C)  // Orange
+        )
+    }
+
+    val slices = remember(cashAmount, bankPayments, outstandingDue, advanceApplied, total) {
+        if (total <= 0.0) emptyList()
+        else buildList {
+            if (cashAmount > 0.0) {
+                add(
+                    PaymentDistributionSlice(
+                        label = "Cash Received",
+                        amount = cashAmount,
+                        color = Emerald600,
+                        formattedAmount = FormatUtils.formatCurrency(cashAmount.toString()),
+                        percentage = (cashAmount / total) * 100.0
+                    )
+                )
+            }
+            bankPayments.forEachIndexed { index, bank ->
+                val amt = bank.amount.toDoubleOrNull() ?: 0.0
+                if (amt > 0.0) {
+                    val bankColor = bankPalette[index % bankPalette.size]
+                    add(
+                        PaymentDistributionSlice(
+                            label = bank.bankName.ifBlank { "Bank ${index + 1}" },
+                            amount = amt,
+                            color = bankColor,
+                            formattedAmount = FormatUtils.formatCurrency(bank.amount),
+                            percentage = (amt / total) * 100.0
+                        )
+                    )
+                }
+            }
+            if (advanceApplied > 0.0) {
+                add(
+                    PaymentDistributionSlice(
+                        label = "Advance Applied",
+                        amount = advanceApplied,
+                        color = Amber600,
+                        formattedAmount = FormatUtils.formatCurrency(advanceApplied.toString()),
+                        percentage = (advanceApplied / total) * 100.0
+                    )
+                )
+            }
+            if (outstandingDue > 0.0) {
+                add(
+                    PaymentDistributionSlice(
+                        label = "Outstanding Due",
+                        amount = outstandingDue,
+                        color = Crimson600,
+                        formattedAmount = FormatUtils.formatCurrency(outstandingDue.toString()),
+                        percentage = (outstandingDue / total) * 100.0
+                    )
+                )
+            }
+        }
+    }
+
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = surfaceColor),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            // Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Payment Distribution",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                        Text(
+                            text = "Cash, bank allocations & pending dues",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = onSurfaceVariant
+                            )
+                        )
+                    }
+                }
+
+                if (total > 0.0) {
+                    val collected = cashAmount + bankTotal + advanceApplied
+                    val collectedPct = ((collected / total) * 100.0).coerceIn(0.0, 100.0)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Emerald50,
+                        border = BorderStroke(1.dp, Emerald600.copy(alpha = 0.2f))
+                    ) {
+                        Text(
+                            text = String.format(java.util.Locale.US, "%.0f%% Paid", collectedPct),
+                            color = Emerald600,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Chart Canvas & Center Stat
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+            ) {
+                if (slices.isEmpty()) {
+                    Canvas(modifier = Modifier.size(160.dp)) {
+                        val strokeWidth = 22.dp.toPx()
+                        val diameter = size.minDimension - strokeWidth
+                        val topLeft = androidx.compose.ui.geometry.Offset(
+                            (size.width - diameter) / 2f,
+                            (size.height - diameter) / 2f
+                        )
+                        val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
+                        drawArc(
+                            color = onSurfaceVariant.copy(alpha = 0.12f),
+                            startAngle = 0f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
+                        )
+                    }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "0%",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 24.sp
+                            )
+                        )
+                        Text(
+                            text = "No Sales",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = onSurfaceVariant,
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                    }
+                } else {
+                    Canvas(modifier = Modifier.size(170.dp)) {
+                        val strokeWidth = 24.dp.toPx()
+                        val diameter = size.minDimension - strokeWidth
+                        val topLeft = androidx.compose.ui.geometry.Offset(
+                            (size.width - diameter) / 2f,
+                            (size.height - diameter) / 2f
+                        )
+                        val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
+
+                        // Subtle track underlay
+                        drawArc(
+                            color = onSurfaceVariant.copy(alpha = 0.08f),
+                            startAngle = 0f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
+                        )
+
+                        var currentAngle = -90f
+                        slices.forEach { slice ->
+                            val sweep = (slice.percentage.toFloat() / 100f) * 360f
+                            if (sweep > 0.5f) {
+                                val gap = if (slices.size > 1) 2.5f else 0f
+                                drawArc(
+                                    color = slice.color,
+                                    startAngle = currentAngle + (gap / 2f),
+                                    sweepAngle = (sweep - gap).coerceAtLeast(0.5f),
+                                    useCenter = false,
+                                    topLeft = topLeft,
+                                    size = arcSize,
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                        width = strokeWidth,
+                                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                    )
+                                )
+                            }
+                            currentAngle += sweep
+                        }
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        val collected = cashAmount + bankTotal + advanceApplied
+                        val collectedPct = if (total > 0.0) ((collected / total) * 100.0).toInt() else 0
+                        Text(
+                            text = "$collectedPct%",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 24.sp
+                            )
+                        )
+                        Text(
+                            text = "Collected",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = onSurfaceVariant,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Legend Items
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (slices.isEmpty()) {
+                    Text(
+                        text = "No payment splits recorded for today\'s line sales.",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = onSurfaceVariant,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                        ),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                } else {
+                    slices.forEach { slice ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .clip(CircleShape)
+                                        .background(slice.color)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = slice.label,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Text(
+                                    text = slice.formattedAmount,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = slice.color.copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = String.format(java.util.Locale.US, "%.1f%%", slice.percentage),
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = slice.color,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

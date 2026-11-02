@@ -17,6 +17,7 @@ import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.CashTransaction
 import com.vyavsa.app.core.model.CounterSalePayment
 import com.vyavsa.app.core.model.LineSalePayment
+import com.vyavsa.app.core.model.LineSalePaymentBreakdown
 import com.vyavsa.app.core.model.PlanTransaction
 import com.vyavsa.app.core.model.Purchase
 import com.vyavsa.app.core.model.PurchasePayment
@@ -1391,6 +1392,32 @@ class FakeTransactionsRepository : TransactionsRepository {
             emit(Resource.Success(updated))
         } else {
             emit(Resource.Error("Sale not found"))
+        }
+    }
+
+    var breakdownResult: LineSalePaymentBreakdown = LineSalePaymentBreakdown(
+        totalSales = "85000.00",
+        cashReceived = "25000.00",
+        bankReceived = "60000.00",
+        totalReceived = "85000.00",
+        advanceApplied = "0.00",
+        totalDue = "0.00",
+        salesCount = 3L
+    )
+    var shouldFailBreakdown = false
+    var breakdownCallCount = 0
+
+    override fun getLineSalePaymentBreakdown(
+        date: String?,
+        startDate: String?,
+        endDate: String?
+    ): Flow<Resource<LineSalePaymentBreakdown>> = flow {
+        breakdownCallCount++
+        emit(Resource.Loading)
+        if (shouldFailBreakdown) {
+            emit(Resource.Error("Failed to load payment breakdown"))
+        } else {
+            emit(Resource.Success(breakdownResult))
         }
     }
 
