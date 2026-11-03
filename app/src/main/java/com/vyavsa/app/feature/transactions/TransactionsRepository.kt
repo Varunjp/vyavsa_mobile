@@ -138,6 +138,9 @@ class TransactionsRepositoryImpl @Inject constructor(
                     refreshCoordinator.notifyMutation(DataMutation.CASH)
                 }
                 refreshCoordinator.notifyMutation(DataMutation.DUES)
+                if ((response.data.contraAmount?.toDoubleOrNull() ?: 0.0) > 0.0) {
+                    refreshCoordinator.notifyMutation(DataMutation.PURCHASES)
+                }
                 if (request.items.isNotEmpty()) {
                     refreshCoordinator.notifyMutation(DataMutation.PRODUCTS)
                 }
@@ -282,6 +285,9 @@ class TransactionsRepositoryImpl @Inject constructor(
                 }
                 if (!request.customerId.isNullOrBlank()) {
                     refreshCoordinator.notifyMutation(DataMutation.DUES)
+                }
+                if ((response.data.contraAmount?.toDoubleOrNull() ?: 0.0) > 0.0) {
+                    refreshCoordinator.notifyMutation(DataMutation.PURCHASES)
                 }
                 if (request.items.isNotEmpty()) {
                     refreshCoordinator.notifyMutation(DataMutation.PRODUCTS)

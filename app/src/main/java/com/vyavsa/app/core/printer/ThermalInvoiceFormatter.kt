@@ -115,19 +115,30 @@ object ThermalInvoiceFormatter {
         if (data.discount > 0.0) {
             sb.appendLine(formatKeyValue("Discount:", "-${formatCurrency(data.discount)}", width))
         }
+        if (data.previousPayable > 0.0) {
+            sb.appendLine(formatKeyValue("Prev Supplier Payable:", formatCurrency(data.previousPayable), width))
+        }
         if (data.previousBalance > 0.0) {
             sb.appendLine(formatKeyValue("Prev Customer Due:", formatCurrency(data.previousBalance), width))
         }
         sb.appendLine(formatKeyValue("TOTAL AMOUNT:", formatCurrency(data.totalAmount), width))
         val directReceived = if (data.amountReceivedDirect > 0.0) data.amountReceivedDirect else data.amountPaid
-        sb.appendLine(formatKeyValue("Amount Paid:", formatCurrency(directReceived), width))
+        val paymentLabel = if (data.contraAmount > 0.0) "Actual Payment Received:" else "Amount Paid:"
+        sb.appendLine(formatKeyValue(paymentLabel, formatCurrency(directReceived), width))
         val allocToSale = if (data.amountAllocatedToSale > 0.0) data.amountAllocatedToSale else directReceived.coerceAtMost((data.totalAmount - data.advanceApplied).coerceAtLeast(0.0))
         if (allocToSale > 0.0 && (allocToSale != directReceived || data.previousDuesSettled > 0.0 || data.advanceGenerated > 0.0)) {
             sb.appendLine(formatKeyValue("Allocated to Sale:", formatCurrency(allocToSale), width))
         }
         if (data.advanceApplied > 0.0) {
             sb.appendLine(formatKeyValue("Paid via Advance:", formatCurrency(data.advanceApplied), width))
-            val totalSettled = if (data.totalSettledForSale > 0.0) data.totalSettledForSale else (allocToSale + data.advanceApplied)
+        }
+        if (data.contraAmount > 0.0) {
+            sb.appendLine(formatKeyValue("Adjusted Against Supplier Payable:", "-${formatCurrency(data.contraAmount)}", width))
+            val remPayable = if (data.remainingPayable > 0.0) data.remainingPayable else (data.previousPayable - data.contraAmount).coerceAtLeast(0.0)
+            sb.appendLine(formatKeyValue("Remaining Supplier Payable:", formatCurrency(remPayable), width))
+        }
+        val totalSettled = if (data.totalSettledForSale > 0.0) data.totalSettledForSale else (allocToSale + data.advanceApplied + data.contraAmount)
+        if (data.advanceApplied > 0.0 || data.contraAmount > 0.0) {
             sb.appendLine(formatKeyValue("Total Settled:", formatCurrency(totalSettled), width))
         }
         if (data.previousDuesSettled > 0.0) {
@@ -253,6 +264,10 @@ object ThermalInvoiceFormatter {
             out.write(encodeString(formatKeyValue("Discount:", "-${formatCurrency(data.discount)}", width) + "\n"))
         }
 
+        if (data.previousPayable > 0.0) {
+            out.write(encodeString(formatKeyValue("Prev Supplier Payable:", formatCurrency(data.previousPayable), width) + "\n"))
+        }
+
         if (data.previousBalance > 0.0) {
             out.write(encodeString(formatKeyValue("Prev Customer Due:", formatCurrency(data.previousBalance), width) + "\n"))
         }
@@ -262,7 +277,8 @@ object ThermalInvoiceFormatter {
         out.write(EscPosCommands.BOLD_OFF)
 
         val directReceived = if (data.amountReceivedDirect > 0.0) data.amountReceivedDirect else data.amountPaid
-        out.write(encodeString(formatKeyValue("Amount Paid:", formatCurrency(directReceived), width) + "\n"))
+        val paymentLabel = if (data.contraAmount > 0.0) "Actual Payment Received:" else "Amount Paid:"
+        out.write(encodeString(formatKeyValue(paymentLabel, formatCurrency(directReceived), width) + "\n"))
 
         val allocToSale = if (data.amountAllocatedToSale > 0.0) data.amountAllocatedToSale else directReceived.coerceAtMost((data.totalAmount - data.advanceApplied).coerceAtLeast(0.0))
         if (allocToSale > 0.0 && (allocToSale != directReceived || data.previousDuesSettled > 0.0 || data.advanceGenerated > 0.0)) {
@@ -271,7 +287,16 @@ object ThermalInvoiceFormatter {
 
         if (data.advanceApplied > 0.0) {
             out.write(encodeString(formatKeyValue("Paid via Advance:", formatCurrency(data.advanceApplied), width) + "\n"))
-            val totalSettled = if (data.totalSettledForSale > 0.0) data.totalSettledForSale else (allocToSale + data.advanceApplied)
+        }
+
+        if (data.contraAmount > 0.0) {
+            out.write(encodeString(formatKeyValue("Adjusted Against Supplier Payable:", "-${formatCurrency(data.contraAmount)}", width) + "\n"))
+            val remPayable = if (data.remainingPayable > 0.0) data.remainingPayable else (data.previousPayable - data.contraAmount).coerceAtLeast(0.0)
+            out.write(encodeString(formatKeyValue("Remaining Supplier Payable:", formatCurrency(remPayable), width) + "\n"))
+        }
+
+        val totalSettled = if (data.totalSettledForSale > 0.0) data.totalSettledForSale else (allocToSale + data.advanceApplied + data.contraAmount)
+        if (data.advanceApplied > 0.0 || data.contraAmount > 0.0) {
             out.write(encodeString(formatKeyValue("Total Settled:", formatCurrency(totalSettled), width) + "\n"))
         }
 
@@ -382,16 +407,32 @@ object ThermalInvoiceFormatter {
         sb.appendLine("-".repeat(width))
 
         // Financials
+        if (data.previousPayable > 0.0) {
+            sb.appendLine(formatKeyValue("Prev Supplier Payable", formatCurrency(data.previousPayable), width))
+        }
         sb.appendLine(formatKeyValue("Subtotal", formatCurrency(data.subtotal), width))
         if (data.discount > 0.0) {
             sb.appendLine(formatKeyValue("Discount", "-${formatCurrency(data.discount)}", width))
         }
         sb.appendLine(formatKeyValue("TOTAL DUE", formatCurrency(data.totalAmount), width))
-        sb.appendLine(formatKeyValue("Paid", formatCurrency(data.amountPaid), width))
+        val directReceived = if (data.amountReceivedDirect > 0.0) data.amountReceivedDirect else data.amountPaid
+        val paymentLabel = if (data.contraAmount > 0.0) "Actual Payment Received" else "Paid"
+        sb.appendLine(formatKeyValue(paymentLabel, formatCurrency(directReceived), width))
+        if (data.advanceApplied > 0.0) {
+            sb.appendLine(formatKeyValue("Paid via Advance", formatCurrency(data.advanceApplied), width))
+        }
+        if (data.contraAmount > 0.0) {
+            sb.appendLine(formatKeyValue("Adjusted Against Supplier Payable", "-${formatCurrency(data.contraAmount)}", width))
+            val remPayable = if (data.remainingPayable > 0.0) data.remainingPayable else (data.previousPayable - data.contraAmount).coerceAtLeast(0.0)
+            sb.appendLine(formatKeyValue("Remaining Supplier Payable", formatCurrency(remPayable), width))
+        }
         if (data.balanceDue > 0.0) {
             sb.appendLine(formatKeyValue("Balance", formatCurrency(data.balanceDue), width))
         } else {
             sb.appendLine(formatKeyValue("Status", "SETTLED IN FULL", width))
+        }
+        if (data.hasCustomerLedger && (data.updatedCustomerBalance > 0.0 || data.previousBalance > 0.0)) {
+            sb.appendLine(formatKeyValue("Remaining Customer Due", formatCurrency(data.updatedCustomerBalance), width))
         }
 
         if (content.showPaymentInfo && data.paymentSummary.isNotBlank()) {
@@ -471,6 +512,10 @@ object ThermalInvoiceFormatter {
 
         out.write(encodeString("-".repeat(width) + "\n"))
 
+        if (data.previousPayable > 0.0) {
+            out.write(encodeString(formatKeyValue("Prev Supplier Payable", formatCurrency(data.previousPayable), width) + "\n"))
+        }
+
         out.write(encodeString(formatKeyValue("Subtotal", formatCurrency(data.subtotal), width) + "\n"))
         if (data.discount > 0.0) {
             out.write(encodeString(formatKeyValue("Discount", "-${formatCurrency(data.discount)}", width) + "\n"))
@@ -480,13 +525,30 @@ object ThermalInvoiceFormatter {
         out.write(encodeString(formatKeyValue("TOTAL DUE", formatCurrency(data.totalAmount), width) + "\n"))
         out.write(EscPosCommands.BOLD_OFF)
 
-        out.write(encodeString(formatKeyValue("Paid", formatCurrency(data.amountPaid), width) + "\n"))
+        val directReceived = if (data.amountReceivedDirect > 0.0) data.amountReceivedDirect else data.amountPaid
+        val paymentLabel = if (data.contraAmount > 0.0) "Actual Payment Received" else "Paid"
+        out.write(encodeString(formatKeyValue(paymentLabel, formatCurrency(directReceived), width) + "\n"))
+
+        if (data.advanceApplied > 0.0) {
+            out.write(encodeString(formatKeyValue("Paid via Advance", formatCurrency(data.advanceApplied), width) + "\n"))
+        }
+
+        if (data.contraAmount > 0.0) {
+            out.write(encodeString(formatKeyValue("Adjusted Against Supplier Payable", "-${formatCurrency(data.contraAmount)}", width) + "\n"))
+            val remPayable = if (data.remainingPayable > 0.0) data.remainingPayable else (data.previousPayable - data.contraAmount).coerceAtLeast(0.0)
+            out.write(encodeString(formatKeyValue("Remaining Supplier Payable", formatCurrency(remPayable), width) + "\n"))
+        }
+
         if (data.balanceDue > 0.0) {
             out.write(EscPosCommands.BOLD_ON)
             out.write(encodeString(formatKeyValue("Balance", formatCurrency(data.balanceDue), width) + "\n"))
             out.write(EscPosCommands.BOLD_OFF)
         } else {
             out.write(encodeString(formatKeyValue("Status", "SETTLED IN FULL", width) + "\n"))
+        }
+
+        if (data.hasCustomerLedger && (data.updatedCustomerBalance > 0.0 || data.previousBalance > 0.0)) {
+            out.write(encodeString(formatKeyValue("Remaining Customer Due", formatCurrency(data.updatedCustomerBalance), width) + "\n"))
         }
 
         if (content.showPaymentInfo && data.paymentSummary.isNotBlank()) {
@@ -570,18 +632,34 @@ object ThermalInvoiceFormatter {
         sb.appendLine("-".repeat(width))
 
         // Tax & Totals Breakdown
+        if (data.previousPayable > 0.0) {
+            sb.appendLine(formatKeyValue("Prev Supplier Payable:", formatCurrency(data.previousPayable), width))
+        }
         sb.appendLine(formatKeyValue("Taxable Value:", formatCurrency(data.subtotal), width))
         if (data.discount > 0.0) {
             sb.appendLine(formatKeyValue("Trade Discount:", "-${formatCurrency(data.discount)}", width))
         }
         sb.appendLine(formatKeyValue("Taxes (CGST+SGST):", "Included", width))
         sb.appendLine(formatKeyValue("NET INVOICE TOTAL:", formatCurrency(data.totalAmount), width))
-        sb.appendLine(formatKeyValue("Amount Received:", formatCurrency(data.amountPaid), width))
+        val directReceived = if (data.amountReceivedDirect > 0.0) data.amountReceivedDirect else data.amountPaid
+        val paymentLabel = if (data.contraAmount > 0.0) "Actual Payment Received:" else "Amount Received:"
+        sb.appendLine(formatKeyValue(paymentLabel, formatCurrency(directReceived), width))
+        if (data.advanceApplied > 0.0) {
+            sb.appendLine(formatKeyValue("Paid via Advance:", formatCurrency(data.advanceApplied), width))
+        }
+        if (data.contraAmount > 0.0) {
+            sb.appendLine(formatKeyValue("Adjusted Against Supplier Payable:", "-${formatCurrency(data.contraAmount)}", width))
+            val remPayable = if (data.remainingPayable > 0.0) data.remainingPayable else (data.previousPayable - data.contraAmount).coerceAtLeast(0.0)
+            sb.appendLine(formatKeyValue("Remaining Supplier Payable:", formatCurrency(remPayable), width))
+        }
 
         if (data.balanceDue > 0.0) {
             sb.appendLine(formatKeyValue("OUTSTANDING BALANCE:", formatCurrency(data.balanceDue), width))
         } else {
             sb.appendLine(centerText("*** INVOICE FULLY SETTLED ***", width))
+        }
+        if (data.hasCustomerLedger && (data.updatedCustomerBalance > 0.0 || data.previousBalance > 0.0)) {
+            sb.appendLine(formatKeyValue("Remaining Customer Due:", formatCurrency(data.updatedCustomerBalance), width))
         }
 
         if (content.showPaymentInfo && data.paymentSummary.isNotBlank()) {
@@ -676,6 +754,10 @@ object ThermalInvoiceFormatter {
 
         out.write(encodeString("-".repeat(width) + "\n"))
 
+        if (data.previousPayable > 0.0) {
+            out.write(encodeString(formatKeyValue("Prev Supplier Payable:", formatCurrency(data.previousPayable), width) + "\n"))
+        }
+
         out.write(encodeString(formatKeyValue("Taxable Value:", formatCurrency(data.subtotal), width) + "\n"))
         if (data.discount > 0.0) {
             out.write(encodeString(formatKeyValue("Trade Discount:", "-${formatCurrency(data.discount)}", width) + "\n"))
@@ -686,7 +768,19 @@ object ThermalInvoiceFormatter {
         out.write(encodeString(formatKeyValue("NET INVOICE TOTAL:", formatCurrency(data.totalAmount), width) + "\n"))
         out.write(EscPosCommands.BOLD_OFF)
 
-        out.write(encodeString(formatKeyValue("Amount Received:", formatCurrency(data.amountPaid), width) + "\n"))
+        val directReceived = if (data.amountReceivedDirect > 0.0) data.amountReceivedDirect else data.amountPaid
+        val paymentLabel = if (data.contraAmount > 0.0) "Actual Payment Received:" else "Amount Received:"
+        out.write(encodeString(formatKeyValue(paymentLabel, formatCurrency(directReceived), width) + "\n"))
+
+        if (data.advanceApplied > 0.0) {
+            out.write(encodeString(formatKeyValue("Paid via Advance:", formatCurrency(data.advanceApplied), width) + "\n"))
+        }
+
+        if (data.contraAmount > 0.0) {
+            out.write(encodeString(formatKeyValue("Adjusted Against Supplier Payable:", "-${formatCurrency(data.contraAmount)}", width) + "\n"))
+            val remPayable = if (data.remainingPayable > 0.0) data.remainingPayable else (data.previousPayable - data.contraAmount).coerceAtLeast(0.0)
+            out.write(encodeString(formatKeyValue("Remaining Supplier Payable:", formatCurrency(remPayable), width) + "\n"))
+        }
 
         if (data.balanceDue > 0.0) {
             out.write(EscPosCommands.BOLD_ON)
@@ -698,6 +792,10 @@ object ThermalInvoiceFormatter {
             out.write(encodeString("*** INVOICE FULLY SETTLED ***\n"))
             out.write(EscPosCommands.BOLD_OFF)
             out.write(EscPosCommands.ALIGN_LEFT)
+        }
+
+        if (data.hasCustomerLedger && (data.updatedCustomerBalance > 0.0 || data.previousBalance > 0.0)) {
+            out.write(encodeString(formatKeyValue("Remaining Customer Due:", formatCurrency(data.updatedCustomerBalance), width) + "\n"))
         }
 
         if (content.showPaymentInfo && data.paymentSummary.isNotBlank()) {

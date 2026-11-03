@@ -83,6 +83,7 @@ import com.vyavsa.app.core.designsystem.Emerald50
 import com.vyavsa.app.core.designsystem.Emerald600
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
+import com.vyavsa.app.core.designsystem.Purple600
 import com.vyavsa.app.core.designsystem.VyavsaButton
 import com.vyavsa.app.core.designsystem.VyavsaOutlinedButton
 import com.vyavsa.app.core.designsystem.VyavsaTextField
@@ -530,7 +531,13 @@ private fun LineSaleDetailsContent(
                 val prevSettled = sale.previousDuesSettled?.toDoubleOrNull() ?: 0.0
                 val advGen = sale.advanceGenerated?.toDoubleOrNull() ?: 0.0
                 val updBal = sale.updatedBalance?.toDoubleOrNull()
+                val contra = sale.contraAmount.toDoubleOrNull() ?: 0.0
+                val prevPayable = sale.previousPayable.toDoubleOrNull() ?: 0.0
+                val remPayable = if (prevPayable > contra) prevPayable - contra else 0.0
 
+                if (prevPayable > 0.0) {
+                    FinancialRow(label = "Previous Supplier Payable", value = FormatUtils.formatCurrency(prevPayable.toString()))
+                }
                 if (prevBal != null) {
                     FinancialRow(label = "Previous Customer Due", value = FormatUtils.formatCurrency(prevBal.toString()))
                 }
@@ -544,9 +551,22 @@ private fun LineSaleDetailsContent(
                     )
                 }
                 FinancialRow(label = "Current Sale Total", value = FormatUtils.formatCurrency(sale.totalAmount), isBold = true)
-                FinancialRow(label = "Direct Received (Cash + Bank)", value = FormatUtils.formatCurrency(sale.collectedAmount))
+                val paymentReceivedLabel = if (contra > 0.0) "Actual Payment Received (Cash + Bank)" else "Direct Received (Cash + Bank)"
+                FinancialRow(label = paymentReceivedLabel, value = FormatUtils.formatCurrency(sale.collectedAmount))
                 if (advApplied > 0.0) {
                     FinancialRow(label = "Paid using Advance", value = FormatUtils.formatCurrency(advApplied.toString()), color = Emerald600, isBold = true)
+                }
+                if (contra > 0.0) {
+                    FinancialRow(
+                        label = "Adjusted Against Supplier Payable",
+                        value = "-${FormatUtils.formatCurrency(contra.toString())}",
+                        color = Color(0xFF7C3AED),
+                        isBold = true
+                    )
+                    FinancialRow(
+                        label = "Remaining Supplier Payable",
+                        value = FormatUtils.formatCurrency(remPayable.toString())
+                    )
                 }
                 val totSettled = ((sale.totalAmount.toDoubleOrNull() ?: 0.0) - balanceDue).coerceAtLeast(0.0)
                 FinancialRow(label = "Total Settled for Sale", value = FormatUtils.formatCurrency(totSettled.toString()), color = Emerald600, isBold = true)
@@ -699,7 +719,13 @@ private fun CounterSaleDetailsContent(
                 val counterPrevSettled = sale.previousDuesSettled?.toDoubleOrNull() ?: 0.0
                 val counterAdvGen = sale.advanceGenerated?.toDoubleOrNull() ?: 0.0
                 val counterUpdBal = sale.updatedBalance?.toDoubleOrNull()
+                val counterContra = sale.contraAmount.toDoubleOrNull() ?: 0.0
+                val counterPrevPayable = sale.previousPayable.toDoubleOrNull() ?: 0.0
+                val counterRemPayable = if (counterPrevPayable > counterContra) counterPrevPayable - counterContra else 0.0
 
+                if (counterPrevPayable > 0.0) {
+                    FinancialRow(label = "Previous Supplier Payable", value = FormatUtils.formatCurrency(counterPrevPayable.toString()))
+                }
                 if (counterPrevBal != null) {
                     FinancialRow(label = "Previous Customer Due", value = FormatUtils.formatCurrency(counterPrevBal.toString()))
                 }
@@ -717,6 +743,18 @@ private fun CounterSaleDetailsContent(
                 FinancialRow(label = "Bank / Online Portion", value = FormatUtils.formatCurrency(sale.bankAmount.ifBlank { sale.account }))
                 if (counterAdvApplied > 0.0) {
                     FinancialRow(label = "Paid using Advance", value = FormatUtils.formatCurrency(counterAdvApplied.toString()), color = Emerald600, isBold = true)
+                }
+                if (counterContra > 0.0) {
+                    FinancialRow(
+                        label = "Adjusted Against Supplier Payable",
+                        value = "-${FormatUtils.formatCurrency(counterContra.toString())}",
+                        color = Color(0xFF7C3AED),
+                        isBold = true
+                    )
+                    FinancialRow(
+                        label = "Remaining Supplier Payable",
+                        value = FormatUtils.formatCurrency(counterRemPayable.toString())
+                    )
                 }
                 if (counterPrevSettled > 0.0) {
                     FinancialRow(label = "↳ Settled Previous Dues", value = FormatUtils.formatCurrency(counterPrevSettled.toString()), color = Emerald600)
@@ -1211,6 +1249,9 @@ private data class ReceiptDisplayData(
     val previousDuesSettled: Double? = null,
     val advanceGenerated: Double? = null,
     val updatedCustomerDue: Double? = null,
+    val contraAmount: Double = 0.0,
+    val previousSupplierPayable: Double = 0.0,
+    val remainingSupplierPayable: Double = 0.0,
     val hasCustomerLedger: Boolean = false,
     val paymentMethodSummary: String
 )
@@ -1242,6 +1283,9 @@ private fun InvoiceReceiptDialog(
             val prevSettled = sale.previousDuesSettled?.toDoubleOrNull()
             val advGen = sale.advanceGenerated?.toDoubleOrNull()
             val updBal = sale.updatedBalance?.toDoubleOrNull()
+            val contra = sale.contraAmount.toDoubleOrNull() ?: 0.0
+            val prevPayable = sale.previousPayable.toDoubleOrNull() ?: 0.0
+            val remPayable = if (prevPayable > contra) prevPayable - contra else 0.0
             val parsedAlloc = sale.amountAllocatedToSale.toDoubleOrNull()
             val allocToSale = if (parsedAlloc != null && parsedAlloc > 0.0) parsedAlloc else directPaid.coerceAtMost((tot - adv).coerceAtLeast(0.0))
             val customer = buildString {
@@ -1261,14 +1305,17 @@ private fun InvoiceReceiptDialog(
                 paidDirect = directPaid,
                 amountAllocatedToSale = allocToSale,
                 advanceApplied = adv,
-                totalSettledForSale = settledForSale,
+                totalSettledForSale = (settledForSale + contra).coerceAtMost(tot),
                 due = bal,
                 previousCustomerDue = prevBal,
                 previousDuesSettled = prevSettled,
                 advanceGenerated = advGen,
                 updatedCustomerDue = updBal,
+                contraAmount = contra,
+                previousSupplierPayable = prevPayable,
+                remainingSupplierPayable = remPayable,
                 hasCustomerLedger = true,
-                paymentMethodSummary = "Cash: ${FormatUtils.formatCurrency(sale.cash)} | Bank: ${FormatUtils.formatCurrency(sale.bankAmount)}"
+                paymentMethodSummary = "Cash: ${FormatUtils.formatCurrency(sale.totalCashIn)} | Bank: ${FormatUtils.formatCurrency(sale.bankAmount)}"
             )
         }
         is SaleDetailData.Counter -> {
@@ -1279,7 +1326,10 @@ private fun InvoiceReceiptDialog(
             val tot = sale.totalAmount.toDoubleOrNull() ?: 0.0
             val directPaid = (sale.cash.toDoubleOrNull() ?: 0.0) + (sale.bankAmount.ifBlank { sale.account }.toDoubleOrNull() ?: 0.0)
             val adv = sale.advanceApplied.toDoubleOrNull() ?: 0.0
-            val bal = (tot - adv - directPaid).coerceAtLeast(0.0)
+            val contra = sale.contraAmount.toDoubleOrNull() ?: 0.0
+            val prevPayable = sale.previousPayable.toDoubleOrNull() ?: 0.0
+            val remPayable = if (prevPayable > contra) prevPayable - contra else 0.0
+            val bal = sale.account.toDoubleOrNull() ?: ((tot - adv - directPaid - contra).coerceAtLeast(0.0))
             val settledForSale = (tot - bal).coerceAtLeast(0.0)
             val prevBal = sale.previousBalance?.toDoubleOrNull()
             val prevSettled = sale.previousDuesSettled?.toDoubleOrNull()
@@ -1302,12 +1352,15 @@ private fun InvoiceReceiptDialog(
                 paidDirect = directPaid,
                 amountAllocatedToSale = allocToSale,
                 advanceApplied = adv,
-                totalSettledForSale = settledForSale,
+                totalSettledForSale = (settledForSale + contra).coerceAtMost(tot),
                 due = bal,
                 previousCustomerDue = prevBal,
                 previousDuesSettled = prevSettled,
                 advanceGenerated = advGen,
                 updatedCustomerDue = updBal,
+                contraAmount = contra,
+                previousSupplierPayable = prevPayable,
+                remainingSupplierPayable = remPayable,
                 hasCustomerLedger = hasLedger,
                 paymentMethodSummary = "Method: ${sale.paymentMethod.uppercase()} | Cash: ${FormatUtils.formatCurrency(sale.cash)} | Bank: ${FormatUtils.formatCurrency(sale.bankAmount.ifBlank { sale.account })}"
             )
@@ -1355,8 +1408,14 @@ private fun InvoiceReceiptDialog(
         if (receiptData.hasCustomerLedger && receiptData.previousCustomerDue != null) {
             appendLine("Prev Customer Due: ${FormatUtils.formatCurrency(receiptData.previousCustomerDue.toString())}")
         }
+        if (receiptData.previousSupplierPayable != null && receiptData.previousSupplierPayable > 0.0) {
+            appendLine("Prev Supplier Payable: ${FormatUtils.formatCurrency(receiptData.previousSupplierPayable.toString())}")
+        }
         appendLine("Current Sale Total: ${FormatUtils.formatCurrency(receiptData.total.toString())}")
         appendLine("Direct Received Now: ${FormatUtils.formatCurrency(receiptData.paidDirect.toString())}")
+        if (receiptData.contraAmount > 0.0) {
+            appendLine("Adjusted Against Supplier Payable: -${FormatUtils.formatCurrency(receiptData.contraAmount.toString())}")
+        }
         if (receiptData.amountAllocatedToSale > 0.0 && (receiptData.amountAllocatedToSale != receiptData.paidDirect || (receiptData.previousDuesSettled ?: 0.0) > 0.0 || (receiptData.advanceGenerated ?: 0.0) > 0.0)) {
             appendLine("Allocated to Sale: ${FormatUtils.formatCurrency(receiptData.amountAllocatedToSale.toString())}")
         }
@@ -1368,6 +1427,9 @@ private fun InvoiceReceiptDialog(
             appendLine("Remaining Sale Due: ${FormatUtils.formatCurrency(receiptData.due.toString())}")
         } else {
             appendLine("Sale Due: ${FormatUtils.formatCurrency("0.00")} (PAID IN FULL)")
+        }
+        if (receiptData.remainingSupplierPayable != null && (receiptData.previousSupplierPayable ?: 0.0) > 0.0) {
+            appendLine("Remaining Supplier Payable: ${FormatUtils.formatCurrency(receiptData.remainingSupplierPayable.toString())}")
         }
         if ((receiptData.previousDuesSettled ?: 0.0) > 0.0) {
             appendLine("Settled Prev Dues: ${FormatUtils.formatCurrency(receiptData.previousDuesSettled.toString())}")
@@ -1592,6 +1654,13 @@ private fun InvoiceReceiptDialog(
                     )
                 }
 
+                if (receiptData.previousSupplierPayable != null && receiptData.previousSupplierPayable > 0.0) {
+                    FinancialRow(
+                        label = "Previous Supplier Payable",
+                        value = FormatUtils.formatCurrency(receiptData.previousSupplierPayable.toString())
+                    )
+                }
+
                 FinancialRow(
                     label = "Current Sale Total",
                     value = FormatUtils.formatCurrency(receiptData.total.toString()),
@@ -1602,6 +1671,15 @@ private fun InvoiceReceiptDialog(
                     label = "Amount Received Directly",
                     value = FormatUtils.formatCurrency(receiptData.paidDirect.toString())
                 )
+
+                if (receiptData.contraAmount > 0.0) {
+                    FinancialRow(
+                        label = "Adjusted Against Supplier Payable",
+                        value = "-${FormatUtils.formatCurrency(receiptData.contraAmount.toString())}",
+                        color = Purple600,
+                        isBold = true
+                    )
+                }
 
                 if (receiptData.amountAllocatedToSale > 0.0 && (receiptData.amountAllocatedToSale != receiptData.paidDirect || (receiptData.previousDuesSettled ?: 0.0) > 0.0 || (receiptData.advanceGenerated ?: 0.0) > 0.0)) {
                     FinancialRow(
@@ -1632,6 +1710,15 @@ private fun InvoiceReceiptDialog(
                     color = if (receiptData.due > 0.0) Crimson600 else MaterialTheme.colorScheme.onSurface,
                     isBold = true
                 )
+
+                if (receiptData.remainingSupplierPayable != null && (receiptData.previousSupplierPayable ?: 0.0) > 0.0) {
+                    FinancialRow(
+                        label = "Remaining Supplier Payable",
+                        value = FormatUtils.formatCurrency(receiptData.remainingSupplierPayable.toString()),
+                        color = if (receiptData.remainingSupplierPayable > 0.0) Crimson600 else MaterialTheme.colorScheme.onSurface,
+                        isBold = true
+                    )
+                }
 
                 if ((receiptData.previousDuesSettled ?: 0.0) > 0.0) {
                     FinancialRow(

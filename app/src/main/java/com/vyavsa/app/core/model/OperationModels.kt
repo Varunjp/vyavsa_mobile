@@ -74,6 +74,8 @@ data class LineSale(
     @SerialName("advance_applied") val advanceApplied: String = "0.00",
     @SerialName("previous_dues_settled") val previousDuesSettled: String = "0.00",
     @SerialName("advance_generated") val advanceGenerated: String = "0.00",
+    @SerialName("contra_amount") val contraAmount: String = "0.00",
+    @SerialName("previous_payable") val previousPayable: String = "0.00",
     @SerialName("updated_balance") val updatedBalance: String = "0.00",
     @SerialName("sale_date") val saleDate: String? = null,
     @SerialName("payment_status") val paymentStatus: String? = null,
@@ -172,6 +174,8 @@ data class CounterSale(
     @SerialName("advance_applied") val advanceApplied: String = "0.00",
     @SerialName("previous_dues_settled") val previousDuesSettled: String = "0.00",
     @SerialName("advance_generated") val advanceGenerated: String = "0.00",
+    @SerialName("contra_amount") val contraAmount: String = "0.00",
+    @SerialName("previous_payable") val previousPayable: String = "0.00",
     @SerialName("updated_balance") val updatedBalance: String = "0.00",
     @SerialName("sale_date") val saleDate: String? = null,
     @SerialName("payment_status") val paymentStatus: String? = null,
@@ -270,6 +274,8 @@ data class Purchase(
     @SerialName("total_pending") val totalPending: String = "0.00",
     @SerialName("outstanding_amount") val outstandingAmount: String = "0.00",
     @SerialName("payment_status") val paymentStatus: String = "UNPAID",
+    @SerialName("contra_amount") val contraAmount: String = "0.00",
+    @SerialName("previous_receivable") val previousReceivable: String = "0.00",
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
     val payments: List<PurchasePayment> = emptyList()
@@ -354,6 +360,13 @@ data class Customer(
     @SerialName("total_purchases") val totalPurchases: String = "0.00",
     @SerialName("total_paid") val totalPaid: String = "0.00",
     @SerialName("outstanding_payable") val outstandingPayable: String = "0.00",
+    @SerialName("total_receivable") val totalReceivable: String = "0.00",
+    @SerialName("total_payable") val totalPayable: String = "0.00",
+    @SerialName("net_balance") val netBalance: String = "0.00",
+    @SerialName("net_status") val netStatus: String = "settled",
+    val role: String = "customer",
+    @SerialName("is_customer") val isCustomer: Boolean = true,
+    @SerialName("is_supplier") val isSupplier: Boolean = false,
     @SerialName("entity_type") val entityType: String = "customer",
     val status: String = "active",
     @SerialName("created_at") val createdAt: String = "",
@@ -409,6 +422,13 @@ data class CustomerBalance(
     @SerialName("total_purchases") val totalPurchases: String = "0.00",
     @SerialName("total_paid") val totalPaid: String = "0.00",
     @SerialName("outstanding_payable") val outstandingPayable: String = "0.00",
+    @SerialName("total_receivable") val totalReceivable: String = "0.00",
+    @SerialName("total_payable") val totalPayable: String = "0.00",
+    @SerialName("net_balance") val netBalance: String = "0.00",
+    @SerialName("net_status") val netStatus: String = "settled",
+    val role: String = "customer",
+    @SerialName("is_customer") val isCustomer: Boolean = true,
+    @SerialName("is_supplier") val isSupplier: Boolean = false,
     val status: String = "active"
 )
 
@@ -593,6 +613,13 @@ data class Supplier(
     @SerialName("total_purchases") val totalPurchases: String = "0.00",
     @SerialName("total_paid") val totalPaid: String = "0.00",
     @SerialName("outstanding_payable") val outstandingPayable: String = "0.00",
+    @SerialName("total_receivable") val totalReceivable: String = "0.00",
+    @SerialName("total_payable") val totalPayable: String = "0.00",
+    @SerialName("net_balance") val netBalance: String = "0.00",
+    @SerialName("net_status") val netStatus: String = "settled",
+    val role: String = "supplier",
+    @SerialName("is_customer") val isCustomer: Boolean = false,
+    @SerialName("is_supplier") val isSupplier: Boolean = true,
     val status: String = "active",
     @SerialName("entity_type") val entityType: String = "supplier",
     @SerialName("created_at") val createdAt: String = "",
@@ -624,6 +651,13 @@ data class SupplierBalance(
     @SerialName("total_purchases") val totalPurchases: String = "0.00",
     @SerialName("total_paid") val totalPaid: String = "0.00",
     @SerialName("outstanding_payable") val outstandingPayable: String = "0.00",
+    @SerialName("total_receivable") val totalReceivable: String = "0.00",
+    @SerialName("total_payable") val totalPayable: String = "0.00",
+    @SerialName("net_balance") val netBalance: String = "0.00",
+    @SerialName("net_status") val netStatus: String = "settled",
+    val role: String = "supplier",
+    @SerialName("is_customer") val isCustomer: Boolean = false,
+    @SerialName("is_supplier") val isSupplier: Boolean = true,
     val status: String = "active"
 )
 
@@ -1031,5 +1065,109 @@ data class LineSalePaymentBreakdown(
     @SerialName("end_date") val endDate: String = "",
     @SerialName("bank_breakdown") val bankBreakdown: List<LineSaleBankBreakdown> = emptyList()
 )
+
+// ==========================================
+// 12. Unified Party & Contra Adjustment Models
+// ==========================================
+
+@Immutable
+@Serializable
+data class Party(
+    val id: String = "",
+    val name: String = "",
+    val phone: String? = null,
+    val email: String? = null,
+    val address: String? = null,
+    val role: String = "customer", // customer, supplier, both
+    @SerialName("is_customer") val isCustomer: Boolean = true,
+    @SerialName("is_supplier") val isSupplier: Boolean = false,
+    @SerialName("opening_balance") val openingBalance: String = "0.00",
+    @SerialName("opening_payable_balance") val openingPayableBalance: String = "0.00",
+    @SerialName("advance_balance") val advanceBalance: String = "0.00",
+    @SerialName("total_receivable") val totalReceivable: String = "0.00",
+    @SerialName("total_payable") val totalPayable: String = "0.00",
+    @SerialName("net_balance") val netBalance: String = "0.00",
+    @SerialName("net_status") val netStatus: String = "settled", // owes_us, we_owe, settled
+    val status: String = "active",
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("updated_at") val updatedAt: String = ""
+)
+
+@Immutable
+@Serializable
+data class PartyFinancialSummary(
+    @SerialName("party_id") val partyId: String = "",
+    @SerialName("party_name") val partyName: String = "",
+    val phone: String? = null,
+    val email: String? = null,
+    val address: String? = null,
+    val role: String = "customer",
+    @SerialName("is_customer") val isCustomer: Boolean = true,
+    @SerialName("is_supplier") val isSupplier: Boolean = false,
+    val status: String = "active",
+    @SerialName("total_receivable") val totalReceivable: String = "0.00",
+    @SerialName("total_payable") val totalPayable: String = "0.00",
+    @SerialName("advance_balance") val advanceBalance: String = "0.00",
+    @SerialName("net_balance") val netBalance: String = "0.00",
+    @SerialName("net_status") val netStatus: String = "settled",
+    @SerialName("total_sales") val totalSales: String = "0.00",
+    @SerialName("total_sales_paid") val totalSalesPaid: String = "0.00",
+    @SerialName("total_purchases") val totalPurchases: String = "0.00",
+    @SerialName("total_purchases_paid") val totalPurchasesPaid: String = "0.00",
+    @SerialName("max_contra_settlement") val maxContraSettlement: String = "0.00"
+)
+
+@Immutable
+@Serializable
+data class ContraSettlement(
+    val id: String = "",
+    @SerialName("tenant_id") val tenantId: String = "",
+    @SerialName("party_id") val partyId: String = "",
+    @SerialName("party_name") val partyName: String = "",
+    @SerialName("settlement_number") val settlementNumber: String = "",
+    val amount: String = "0.00",
+    @SerialName("settlement_date") val settlementDate: String = "",
+    @SerialName("receivable_before") val receivableBefore: String = "0.00",
+    @SerialName("receivable_after") val receivableAfter: String = "0.00",
+    @SerialName("payable_before") val payableBefore: String = "0.00",
+    @SerialName("payable_after") val payableAfter: String = "0.00",
+    @SerialName("net_balance_before") val netBalanceBefore: String = "0.00",
+    @SerialName("net_balance_after") val netBalanceAfter: String = "0.00",
+    val note: String = "",
+    val status: String = "completed",
+    @SerialName("created_at") val createdAt: String = ""
+)
+
+@Immutable
+@Serializable
+data class ContraPreview(
+    @SerialName("party_id") val partyId: String = "",
+    @SerialName("party_name") val partyName: String = "",
+    @SerialName("current_receivable") val currentReceivable: String = "0.00",
+    @SerialName("current_payable") val currentPayable: String = "0.00",
+    @SerialName("max_settlement_amount") val maxSettlementAmount: String = "0.00",
+    @SerialName("current_net_balance") val currentNetBalance: String = "0.00",
+    @SerialName("current_net_status") val currentNetStatus: String = "settled"
+)
+
+/**
+ * Backend-confirmed sale summary returned after successful line or counter sale creation,
+ * accurately reflecting automatic contra adjustment against supplier payable.
+ */
+@Immutable
+data class SaleConfirmation(
+    val saleId: String,
+    val invoiceNumber: String?,
+    val partyName: String,
+    val saleAmount: Double,
+    val contraAdjustment: Double,
+    val previousSupplierPayable: Double,
+    val remainingSupplierPayable: Double,
+    val remainingCustomerReceivable: Double,
+    val actualAmountReceived: Double,
+    val advanceApplied: Double,
+    val isLineSale: Boolean
+)
+
 
 

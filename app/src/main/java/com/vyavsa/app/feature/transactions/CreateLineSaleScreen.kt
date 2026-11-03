@@ -55,6 +55,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import com.vyavsa.app.core.common.SaleCalculationUtils
 import com.vyavsa.app.core.common.SaleCalculationUtils.PosAllocationPreview
+import com.vyavsa.app.core.model.SaleConfirmation
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -76,6 +77,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -122,6 +124,8 @@ import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
 import com.vyavsa.app.core.designsystem.Emerald600
+import com.vyavsa.app.core.designsystem.Purple50
+import com.vyavsa.app.core.designsystem.Purple600
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.ProductSelectorBottomSheet
 import com.vyavsa.app.core.designsystem.SaleItemCard
@@ -206,6 +210,7 @@ fun CreateSaleScreen(
     val canSwitchSaleType = !lockSaleType && !isSalesRole && !isOfficeRole
 
     val createActionState by viewModel.createActionState.collectAsState()
+    val saleConfirmation by viewModel.saleConfirmation.collectAsState()
     val customersState by viewModel.customersState.collectAsState()
     val banksState by viewModel.banksState.collectAsState()
     val productsState by viewModel.productsState.collectAsState()
@@ -284,16 +289,22 @@ fun CreateSaleScreen(
         is UiState.Loading -> "0.00"
         else -> selectedCustomer?.advanceBalance ?: "0.00"
     }
+    val effectiveLinePayable = when (val state = lineCustomerBalanceState) {
+        is UiState.Success -> state.data.outstandingPayable
+        is UiState.Loading -> "0.00"
+        else -> selectedCustomer?.outstandingPayable ?: "0.00"
+    }
 
     // Dynamic POS allocation calculation
     val lineBankTotal = if (lineIncludeBank) lineBankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } else 0.0
-    val linePosPreview = remember(lineTotalAmount, effectiveLineDue, effectiveLineAdv, lineCashIn, lineBankTotal) {
+    val linePosPreview = remember(lineTotalAmount, effectiveLineDue, effectiveLineAdv, lineCashIn, lineBankTotal, effectiveLinePayable) {
         SaleCalculationUtils.calculatePosAllocation(
             saleTotalStr = lineTotalAmount,
             customerCurrentBalanceStr = effectiveLineDue,
             customerAdvanceBalanceStr = effectiveLineAdv,
             directCashStr = lineCashIn,
-            directBankStr = lineBankTotal.toString()
+            directBankStr = lineBankTotal.toString(),
+            supplierPayableStr = effectiveLinePayable
         )
     }
 
@@ -307,15 +318,21 @@ fun CreateSaleScreen(
         is UiState.Loading -> "0.00"
         else -> counterSelectedCustomer?.advanceBalance ?: "0.00"
     }
+    val effectiveCounterPayable = when (val state = counterCustomerBalanceState) {
+        is UiState.Success -> state.data.outstandingPayable
+        is UiState.Loading -> "0.00"
+        else -> counterSelectedCustomer?.outstandingPayable ?: "0.00"
+    }
 
     val counterBankTotal = if (counterIncludeBank) counterBankEntries.sumOf { it.amount.toDoubleOrNull() ?: 0.0 } else 0.0
-    val counterPosPreview = remember(counterTotalAmount, effectiveCounterDue, effectiveCounterAdv, counterCash, counterBankTotal) {
+    val counterPosPreview = remember(counterTotalAmount, effectiveCounterDue, effectiveCounterAdv, counterCash, counterBankTotal, effectiveCounterPayable) {
         SaleCalculationUtils.calculatePosAllocation(
             saleTotalStr = counterTotalAmount,
             customerCurrentBalanceStr = effectiveCounterDue,
             customerAdvanceBalanceStr = effectiveCounterAdv,
             directCashStr = counterCash,
-            directBankStr = counterBankTotal.toString()
+            directBankStr = counterBankTotal.toString(),
+            supplierPayableStr = effectiveCounterPayable
         )
     }
 
@@ -376,8 +393,10 @@ fun CreateSaleScreen(
     LaunchedEffect(createActionState) {
         if (createActionState is UiState.Success) {
             if (lastClickedLineAction != "record_and_print") {
-                onSaleCreated()
-                viewModel.resetCreateState()
+                if (saleConfirmation == null) {
+                    onSaleCreated()
+                    viewModel.resetCreateState()
+                }
             }
         } else if (createActionState is UiState.Error) {
             lastClickedLineAction = null
@@ -409,6 +428,17 @@ fun CreateSaleScreen(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    saleConfirmation?.let { conf ->
+        SaleContraConfirmationDialog(
+            confirmation = conf,
+            onDismiss = {
+                viewModel.dismissSaleConfirmation()
+                onSaleCreated()
+                viewModel.resetCreateState()
+            }
+        )
     }
 
     Scaffold(
@@ -2411,6 +2441,9 @@ private fun CustomerBalancePreviewBox(
     val remInvoiceDue = posPreview.remainingSaleDue.toDouble()
     val updatedDue = posPreview.updatedCustomerDue.toDouble()
     val updatedAdv = posPreview.updatedAdvanceBalance.toDouble()
+    val suppPayable = (authoritativeCustomer?.outstandingPayable ?: posPreview.supplierPayable.toString()).toDoubleOrNull() ?: posPreview.supplierPayable.toDouble()
+    val contraAdj = posPreview.contraAdjustment.toDouble()
+    val remSuppPayable = posPreview.remainingSupplierPayable.toDouble()
 
     Card(
         shape = RoundedCornerShape(18.dp),
@@ -2508,6 +2541,66 @@ private fun CustomerBalancePreviewBox(
                     backgroundColor = if (availAdv > 0.0) Blue50 else MaterialTheme.colorScheme.surfaceContainerHigh,
                     textColor = if (availAdv > 0.0) Blue600 else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            if (suppPayable > 0.0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Current Supplier Payable (We Owe):",
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
+                    StatBadge(
+                        text = FormatUtils.formatCurrency(suppPayable.toString()),
+                        backgroundColor = Purple50,
+                        textColor = Purple600
+                    )
+                }
+
+                if (contraAdj > 0.0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "⚡ Auto Contra Adjustment (Preview):",
+                            style = MaterialTheme.typography.bodySmall.copy(color = Purple600, fontWeight = FontWeight.SemiBold)
+                        )
+                        Text(
+                            text = "-${FormatUtils.formatCurrency(contraAdj.toString())}",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = Purple600
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Estimated Remaining Payable:",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        )
+                        Text(
+                            text = FormatUtils.formatCurrency(remSuppPayable.toString()),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
+                }
             }
 
             if (advApplied > 0.0) {
@@ -2923,6 +3016,27 @@ private fun SaleCalculationBox(
                     }
                 }
 
+                if (posAllocationPreview.contraAdjustment.toDouble() > 0.0) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "⚡ Adjusted Against Supplier Payable:",
+                            style = MaterialTheme.typography.bodySmall.copy(color = Purple600, fontWeight = FontWeight.Bold)
+                        )
+                        Text(
+                            text = "-${FormatUtils.formatCurrency(posAllocationPreview.contraAdjustmentString)}",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = Purple600
+                            )
+                        )
+                    }
+                }
+
                 Row(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()
@@ -2939,6 +3053,26 @@ private fun SaleCalculationBox(
                             color = if (posAllocationPreview.remainingSaleDue.toDouble() > 0.0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                         )
                     )
+                }
+
+                if (posAllocationPreview.supplierPayable.toDouble() > 0.0) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Remaining Supplier Payable:",
+                            style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        )
+                        Text(
+                            text = FormatUtils.formatCurrency(posAllocationPreview.remainingSupplierPayableString),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
                 }
 
                 if (posAllocationPreview.previousDuesSettled.toDouble() > 0.0) {
@@ -3052,4 +3186,179 @@ private fun SaleCalculationBox(
             }
         }
     }
+}
+
+@Composable
+private fun SaleContraConfirmationDialog(
+    confirmation: SaleConfirmation,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = Purple50,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "⚡",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                }
+                Column {
+                    Text(
+                        text = "Sale Confirmed",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = "Auto Contra Adjustment Applied",
+                        style = MaterialTheme.typography.labelSmall.copy(color = Purple600, fontWeight = FontWeight.SemiBold)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Party: ${confirmation.partyName}",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                // 1. Sale Total
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Sale Total:", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        FormatUtils.formatCurrency(confirmation.saleAmount.toString()),
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                    )
+                }
+
+                // 2. Previous Supplier Payable
+                if (confirmation.previousSupplierPayable > 0.0) {
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Previous Supplier Payable:", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            FormatUtils.formatCurrency(confirmation.previousSupplierPayable.toString()),
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+                        )
+                    }
+                }
+
+                // 3. Automatic Contra Adjustment
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Adjusted Against Supplier Payable:",
+                        style = MaterialTheme.typography.bodySmall.copy(color = Purple600, fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        "-${FormatUtils.formatCurrency(confirmation.contraAdjustment.toString())}",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = Purple600
+                        )
+                    )
+                }
+
+                // 4. Actual Payment Received (Distinguished from contra)
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Actual Cash/Bank Received:", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        FormatUtils.formatCurrency(confirmation.actualAmountReceived.toString()),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = if (confirmation.actualAmountReceived > 0.0) Emerald600 else MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                }
+
+                // 5. Advance Applied (if any)
+                if (confirmation.advanceApplied > 0.0) {
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Paid using Advance:", style = MaterialTheme.typography.bodySmall.copy(color = Emerald600))
+                        Text(
+                            FormatUtils.formatCurrency(confirmation.advanceApplied.toString()),
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, color = Emerald600)
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                // 6. Remaining Customer Receivable
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Remaining Customer Due:", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                    Text(
+                        FormatUtils.formatCurrency(confirmation.remainingCustomerReceivable.toString()),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (confirmation.remainingCustomerReceivable > 0.0) Crimson600 else Emerald600
+                        )
+                    )
+                }
+
+                // 7. Remaining Supplier Payable
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Remaining Supplier Payable:", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                    Text(
+                        FormatUtils.formatCurrency(confirmation.remainingSupplierPayable.toString()),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = if (confirmation.remainingSupplierPayable > 0.0) Crimson600 else Emerald600
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Backend confirmed: The contra adjustment has been settled against supplier purchase ledger without double counting.",
+                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                )
+            }
+        },
+        confirmButton = {
+            VyavsaButton(
+                text = "Continue",
+                onClick = onDismiss
+            )
+        }
+    )
 }

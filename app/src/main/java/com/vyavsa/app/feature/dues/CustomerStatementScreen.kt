@@ -42,6 +42,8 @@ import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
 import com.vyavsa.app.core.designsystem.Emerald600
+import com.vyavsa.app.core.designsystem.Purple50
+import com.vyavsa.app.core.designsystem.Purple600
 import com.vyavsa.app.core.designsystem.EmptyStateView
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
@@ -192,7 +194,8 @@ private fun StatementEntryCard(
     entry: CustomerStatementEntry,
     modifier: Modifier = Modifier
 ) {
-    val isPayment = entry.entryType.contains("payment", ignoreCase = true) || entry.paidAmount.toDoubleOrNull() ?: 0.0 > 0.0
+    val isContra = entry.entryType.contains("contra", ignoreCase = true)
+    val isPayment = !isContra && (entry.entryType.contains("payment", ignoreCase = true) || entry.paidAmount.toDoubleOrNull() ?: 0.0 > 0.0)
 
     Card(
         shape = RoundedCornerShape(22.dp),
@@ -209,29 +212,56 @@ private fun StatementEntryCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = entry.description.ifBlank { if (isPayment) "Settlement Payment" else "Purchase / Delivery" },
+                    text = entry.description.ifBlank {
+                        when {
+                            isContra -> "Auto Contra Adjustment (Supplier Offset)"
+                            isPayment -> "Settlement Payment"
+                            else -> "Purchase / Delivery"
+                        }
+                    },
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "${entry.formattedDate.ifBlank { entry.date }} • ${entry.paymentMethod ?: "Cash"}",
+                    text = "${entry.formattedDate.ifBlank { entry.date }} • ${if (isContra) "Contra Adjustment" else (entry.paymentMethod ?: "Cash")}",
                     style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                 )
             }
 
             Column(horizontalAlignment = Alignment.End) {
+                val amtStr = if (isContra) {
+                    val cAmt = if (entry.paidAmount.isNotBlank() && entry.paidAmount != "0.00") entry.paidAmount else entry.billedAmount
+                    "-${FormatUtils.formatCurrency(cAmt)}"
+                } else if (isPayment) {
+                    "-${FormatUtils.formatCurrency(entry.paidAmount)}"
+                } else {
+                    "+${FormatUtils.formatCurrency(entry.purchaseAmount)}"
+                }
+
                 Text(
-                    text = if (isPayment) "-${FormatUtils.formatCurrency(entry.paidAmount)}" else "+${FormatUtils.formatCurrency(entry.purchaseAmount)}",
+                    text = amtStr,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (isPayment) Emerald600 else Crimson600
+                        color = when {
+                            isContra -> Purple600
+                            isPayment -> Emerald600
+                            else -> Crimson600
+                        }
                     )
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 StatBadge(
-                    text = "Bal: ${FormatUtils.formatCurrency(entry.balance)}",
-                    backgroundColor = if (isPayment) Emerald50 else Crimson50,
-                    textColor = if (isPayment) Emerald600 else Crimson600
+                    text = if (isContra) "CONTRA ADJUST" else "Bal: ${FormatUtils.formatCurrency(entry.balance)}",
+                    backgroundColor = when {
+                        isContra -> Purple50
+                        isPayment -> Emerald50
+                        else -> Crimson50
+                    },
+                    textColor = when {
+                        isContra -> Purple600
+                        isPayment -> Emerald600
+                        else -> Crimson600
+                    }
                 )
             }
         }

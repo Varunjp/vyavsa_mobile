@@ -304,4 +304,108 @@ class ThermalInvoiceFormatterTest {
         assertTrue(escPosText.contains("Paid via Advance:"))
         assertTrue(escPosText.contains("Updated Customer Due:"))
     }
+
+    @Test
+    fun testFormatThermalReceiptWithFullContraAdjustment58mmAnd80mm() {
+        val invoiceData = sampleData.copy(
+            totalAmount = 20000.00,
+            amountPaid = 0.00,
+            amountReceivedDirect = 0.00,
+            contraAmount = 20000.00,
+            previousPayable = 50000.00,
+            remainingPayable = 30000.00,
+            balanceDue = 0.00,
+            totalSettledForSale = 20000.00
+        )
+
+        // 58mm verification
+        val receipt58 = ThermalInvoiceFormatter.formatPlainTextReceipt(invoiceData, PaperWidth.WIDTH_58MM)
+        assertTrue(receipt58.contains("Prev Supplier Payable:"))
+        assertTrue(receipt58.contains("Rs. 50,000.00"))
+        assertTrue(receipt58.contains("Adjusted Against Supplier"))
+        assertTrue(receipt58.contains("-Rs. 20,000.00"))
+        assertTrue(receipt58.contains("Remaining Supplier"))
+        assertTrue(receipt58.contains("Rs. 30,000.00"))
+        assertFalse(receipt58.contains("Payment Received: Rs. 20,000.00")) // Must not confuse contra with cash/bank payment
+
+        // 80mm verification
+        val receipt80 = ThermalInvoiceFormatter.formatPlainTextReceipt(invoiceData, PaperWidth.WIDTH_80MM)
+        assertTrue(receipt80.contains("Prev Supplier Payable:"))
+        assertTrue(receipt80.contains("Adjusted Against Supplier Payable:"))
+        assertTrue(receipt80.contains("Remaining Supplier Payable:"))
+
+        // EscPos output verification
+        val escPos58 = ThermalInvoiceFormatter.formatEscPosReceipt(invoiceData, PaperWidth.WIDTH_58MM)
+        val escPosText58 = String(escPos58, Charsets.US_ASCII)
+        assertTrue(escPosText58.contains("Adjusted Against Supplier"))
+        assertTrue(escPosText58.contains("-Rs. 20,000.00"))
+    }
+
+    @Test
+    fun testFormatThermalReceiptWithPartialContraAdjustmentAndDirectPayment() {
+        // Sale ₹25,000 | Cash Paid ₹5,000 | Contra ₹15,000 | Remaining Sale Due ₹5,000
+        val invoiceData = sampleData.copy(
+            totalAmount = 25000.00,
+            amountPaid = 5000.00,
+            amountReceivedDirect = 5000.00,
+            contraAmount = 15000.00,
+            previousPayable = 15000.00,
+            remainingPayable = 0.00,
+            balanceDue = 5000.00,
+            totalSettledForSale = 20000.00
+        )
+
+        val receipt = ThermalInvoiceFormatter.formatPlainTextReceipt(invoiceData, PaperWidth.WIDTH_58MM)
+        assertTrue(receipt.contains("Actual Payment Received:"))
+        assertTrue(receipt.contains("Rs. 5,000.00"))
+        assertTrue(receipt.contains("Adjusted Against Supplier"))
+        assertTrue(receipt.contains("-Rs. 15,000.00"))
+        assertTrue(receipt.contains("BALANCE DUE:"))
+        assertTrue(receipt.contains("Rs. 5,000.00"))
+        assertTrue(receipt.contains("Remaining Supplier"))
+        assertTrue(receipt.contains("Rs. 0.00"))
+    }
+
+    @Test
+    fun testFormatThermalReceiptHistoricalWithoutContraAdjustment() {
+        val invoiceData = sampleData.copy(
+            totalAmount = 1000.00,
+            amountPaid = 1000.00,
+            contraAmount = 0.0,
+            previousPayable = 0.0,
+            remainingPayable = 0.0
+        )
+
+        val receipt = ThermalInvoiceFormatter.formatPlainTextReceipt(invoiceData, PaperWidth.WIDTH_58MM)
+        assertFalse(receipt.contains("Adjusted Against Supplier"))
+        assertFalse(receipt.contains("Prev Supplier Payable:"))
+        assertFalse(receipt.contains("Remaining Supplier"))
+    }
+
+    @Test
+    fun testFormatThermalReceiptWithLongPartyAndLargeMonetaryValues() {
+        val invoiceData = sampleData.copy(
+            customerName = "Sri Venkateshwara Agro Industrial Feed & Fertilizer Corporation Limited",
+            totalAmount = 1500000.00,
+            contraAmount = 750000.00,
+            previousPayable = 1200000.00,
+            remainingPayable = 450000.00,
+            amountReceivedDirect = 250000.00,
+            balanceDue = 500000.00,
+            totalSettledForSale = 1000000.00
+        )
+
+        val receipt58 = ThermalInvoiceFormatter.formatPlainTextReceipt(invoiceData, PaperWidth.WIDTH_58MM)
+        assertTrue(receipt58.contains("Sri Venkateshwara"))
+        assertTrue(receipt58.contains("Adjusted Against Supplier"))
+        assertTrue(receipt58.contains("-Rs. 750,000.00"))
+        assertTrue(receipt58.contains("Remaining Supplier"))
+        assertTrue(receipt58.contains("Rs. 450,000.00"))
+
+        // Ensure each line in 58mm doesn't overflow 32 columns
+        receipt58.lines().forEach { line ->
+            // EscPos commands or formatting might add non-printing chars, plain text should fit neatly
+            assertTrue("Line exceeds 32 chars: '$line'", line.length <= 32)
+        }
+    }
 }

@@ -100,6 +100,9 @@ val Amber50 = Color(0xFFFFFBEB)
 val Blue600 = Color(0xFF2563EB)    // Bank / Info
 val Blue500 = Color(0xFF3B82F6)
 val Blue50 = Color(0xFFEFF6FF)
+val Purple600 = Color(0xFF7C3AED)  // Contra Adjustment / Dual Party
+val Purple500 = Color(0xFF8B5CF6)
+val Purple50 = Color(0xFFF5F3FF)
 
 /**
  * Reusable Premium Financial Gradients for Hero Banners, Buttons, Pills, and Badges

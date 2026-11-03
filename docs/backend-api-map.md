@@ -350,6 +350,20 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
 
 ### Financial Calculation & Discount Rules
 - **Calculation Formula**: `Final Total Amount = Subtotal - Discount Amount`
+- **Automatic Contra Adjustment (FIFO)**:
+  - When a sale is created for a customer who also has pending supplier payables (`totalPendingPayable > 0`), the backend automatically creates a contra settlement offsetting pending purchases FIFO.
+  - Adjustment Formula: `contra_amount = min(dueOnThisSale, totalPendingPayable)`.
+  - Sale Response includes:
+    - `contra_amount`: Confirmed adjusted amount against supplier payable.
+    - `previous_payable`: Party payable before sale creation.
+    - `updated_balance`: Customer dues after advance & contra offsets.
+  - Unified Party Model:
+    - `role`: `"customer"`, `"supplier"`, or `"both"`.
+    - `is_customer`: boolean, `is_supplier`: boolean.
+    - `total_receivable`: Customer dues owed to business.
+    - `total_payable`: Supplier purchase liabilities owed by business.
+    - `net_balance`: `|total_receivable - total_payable|`.
+    - `net_status`: `"owes_us"`, `"we_owe"`, or `"settled"`.
 - **Validation Rules**:
   - `subtotal`: Required, must be >= 0.00.
   - `discount` / `discount_amount`: Non-negative (>= 0.00), must not exceed `subtotal`. Defaults to 0.00 if omitted.

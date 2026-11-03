@@ -300,4 +300,102 @@ class SaleCalculationUtilsTest {
         assertEquals("500.00", preview.updatedCustomerDueString)
         assertEquals("0.00", preview.updatedAdvanceBalanceString)
     }
+
+    @Test
+    fun testPosAllocationContraAdjustmentPartyWithoutSupplierPayable() {
+        // Sale: ₹20,000 | Supplier Payable: ₹0
+        val preview = SaleCalculationUtils.calculatePosAllocation(
+            saleTotalStr = "20000.00",
+            customerCurrentBalanceStr = "0.00",
+            customerAdvanceBalanceStr = "0.00",
+            directCashStr = "0.00",
+            directBankStr = "0.00",
+            supplierPayableStr = "0.00"
+        )
+        assertEquals("20000.00", preview.saleTotalString)
+        assertEquals("0.00", preview.contraAdjustmentString)
+        assertEquals("0.00", preview.remainingSupplierPayableString)
+        assertEquals("20000.00", preview.remainingSaleDueString)
+        assertEquals("20000.00", preview.updatedCustomerDueString)
+    }
+
+    @Test
+    fun testPosAllocationContraAdjustmentSaleSmallerThanPayable() {
+        // Example from spec:
+        // Before sale: Supplier payable: ₹50,000 | New sale: ₹20,000
+        // Expected: Automatic adjustment: ₹20,000 | Remaining payable: ₹30,000 | Remaining receivable: ₹0
+        val preview = SaleCalculationUtils.calculatePosAllocation(
+            saleTotalStr = "20000.00",
+            customerCurrentBalanceStr = "0.00",
+            customerAdvanceBalanceStr = "0.00",
+            directCashStr = "0.00",
+            directBankStr = "0.00",
+            supplierPayableStr = "50000.00"
+        )
+        assertEquals("20000.00", preview.saleTotalString)
+        assertEquals("20000.00", preview.contraAdjustmentString)
+        assertEquals("30000.00", preview.remainingSupplierPayableString)
+        assertEquals("0.00", preview.remainingSaleDueString)
+        assertEquals("0.00", preview.updatedCustomerDueString)
+    }
+
+    @Test
+    fun testPosAllocationContraAdjustmentSaleEqualToPayable() {
+        // Sale: ₹20,000 | Supplier Payable: ₹20,000
+        val preview = SaleCalculationUtils.calculatePosAllocation(
+            saleTotalStr = "20000.00",
+            customerCurrentBalanceStr = "0.00",
+            customerAdvanceBalanceStr = "0.00",
+            directCashStr = "0.00",
+            directBankStr = "0.00",
+            supplierPayableStr = "20000.00"
+        )
+        assertEquals("20000.00", preview.contraAdjustmentString)
+        assertEquals("0.00", preview.remainingSupplierPayableString)
+        assertEquals("0.00", preview.remainingSaleDueString)
+        assertEquals("0.00", preview.updatedCustomerDueString)
+    }
+
+    @Test
+    fun testPosAllocationContraAdjustmentSaleGreaterThanPayable() {
+        // Example from spec:
+        // Before sale: Supplier payable: ₹15,000 | New sale: ₹25,000
+        // Expected: Automatic adjustment: ₹15,000 | Remaining payable: ₹0 | Remaining receivable: ₹10,000
+        val preview = SaleCalculationUtils.calculatePosAllocation(
+            saleTotalStr = "25000.00",
+            customerCurrentBalanceStr = "0.00",
+            customerAdvanceBalanceStr = "0.00",
+            directCashStr = "0.00",
+            directBankStr = "0.00",
+            supplierPayableStr = "15000.00"
+        )
+        assertEquals("25000.00", preview.saleTotalString)
+        assertEquals("15000.00", preview.contraAdjustmentString)
+        assertEquals("0.00", preview.remainingSupplierPayableString)
+        assertEquals("10000.00", preview.remainingSaleDueString)
+        assertEquals("10000.00", preview.updatedCustomerDueString)
+    }
+
+    @Test
+    fun testPosAllocationContraAdjustmentWithCashPaymentAndAdvance() {
+        // Sale: ₹25,000 | Advance: ₹2,000 | Cash: ₹5,000 | Supplier Payable: ₹12,000
+        // Net sale after advance: ₹23,000
+        // Cash allocated: ₹5,000 -> Due before contra: ₹18,000
+        // Contra: min(18000, 12000) = ₹12,000
+        // Remaining sale due: ₹6,000 | Remaining supplier payable: ₹0
+        val preview = SaleCalculationUtils.calculatePosAllocation(
+            saleTotalStr = "25000.00",
+            customerCurrentBalanceStr = "0.00",
+            customerAdvanceBalanceStr = "2000.00",
+            directCashStr = "5000.00",
+            directBankStr = "0.00",
+            supplierPayableStr = "12000.00"
+        )
+        assertEquals("2000.00", preview.advanceAppliedString)
+        assertEquals("5000.00", preview.amountAllocatedToSaleString)
+        assertEquals("12000.00", preview.contraAdjustmentString)
+        assertEquals("0.00", preview.remainingSupplierPayableString)
+        assertEquals("6000.00", preview.remainingSaleDueString)
+        assertEquals("6000.00", preview.updatedCustomerDueString)
+    }
 }
