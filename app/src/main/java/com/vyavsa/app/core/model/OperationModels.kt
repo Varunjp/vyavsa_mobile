@@ -75,6 +75,7 @@ data class LineSale(
     @SerialName("previous_dues_settled") val previousDuesSettled: String = "0.00",
     @SerialName("advance_generated") val advanceGenerated: String = "0.00",
     @SerialName("contra_amount") val contraAmount: String = "0.00",
+    @SerialName("payable_applied") val payableApplied: String? = null,
     @SerialName("previous_payable") val previousPayable: String = "0.00",
     @SerialName("updated_balance") val updatedBalance: String = "0.00",
     @SerialName("sale_date") val saleDate: String? = null,
@@ -86,6 +87,14 @@ data class LineSale(
 ) {
     val cash: String
         get() = totalCashIn
+
+    val effectivePayableAdjustment: String
+        get() {
+            val c = contraAmount.toDoubleOrNull() ?: 0.0
+            if (c > 0.0) return contraAmount
+            val p = payableApplied?.toDoubleOrNull() ?: 0.0
+            return if (p > 0.0) payableApplied ?: "0.00" else contraAmount
+        }
 }
 
 @Immutable
@@ -1059,12 +1068,23 @@ data class LineSalePaymentBreakdown(
     @SerialName("bank_received") val bankReceived: String = "0.00",
     @SerialName("total_received") val totalReceived: String = "0.00",
     @SerialName("advance_applied") val advanceApplied: String = "0.00",
+    @SerialName("payable_applied") val payableApplied: String = "0.00",
+    @SerialName("contra_amount") val contraAmount: String? = null,
     @SerialName("total_due") val totalDue: String = "0.00",
     @SerialName("sales_count") val salesCount: Long = 0L,
     @SerialName("start_date") val startDate: String = "",
     @SerialName("end_date") val endDate: String = "",
+    @SerialName("is_reconciled") val isReconciled: Boolean = true,
     @SerialName("bank_breakdown") val bankBreakdown: List<LineSaleBankBreakdown> = emptyList()
-)
+) {
+    val effectivePayableApplied: String
+        get() {
+            val p = payableApplied.toDoubleOrNull() ?: 0.0
+            if (p > 0.0) return payableApplied
+            val c = contraAmount?.toDoubleOrNull() ?: 0.0
+            return if (c > 0.0) contraAmount ?: "0.00" else payableApplied
+        }
+}
 
 // ==========================================
 // 12. Unified Party & Contra Adjustment Models

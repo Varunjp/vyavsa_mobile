@@ -428,10 +428,13 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
         "bank_received": "60000.00",
         "total_received": "85000.00",
         "advance_applied": "0.00",
+        "payable_applied": "0.00",
+        "contra_amount": "0.00",
         "total_due": "0.00",
         "sales_count": 3,
         "start_date": "2026-11-02",
         "end_date": "2026-11-02",
+        "is_reconciled": true,
         "bank_breakdown": [
           {
             "bank_id": "uuid-bank-1",

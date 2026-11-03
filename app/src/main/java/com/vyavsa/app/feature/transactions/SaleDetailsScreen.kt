@@ -74,6 +74,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
+import com.vyavsa.app.core.designsystem.Amber600
 import com.vyavsa.app.core.designsystem.Blue50
 import com.vyavsa.app.core.designsystem.Blue600
 import com.vyavsa.app.core.designsystem.CompanyLogoImage
@@ -531,7 +532,7 @@ private fun LineSaleDetailsContent(
                 val prevSettled = sale.previousDuesSettled?.toDoubleOrNull() ?: 0.0
                 val advGen = sale.advanceGenerated?.toDoubleOrNull() ?: 0.0
                 val updBal = sale.updatedBalance?.toDoubleOrNull()
-                val contra = sale.contraAmount.toDoubleOrNull() ?: 0.0
+                val contra = sale.effectivePayableAdjustment.toDoubleOrNull() ?: 0.0
                 val prevPayable = sale.previousPayable.toDoubleOrNull() ?: 0.0
                 val remPayable = if (prevPayable > contra) prevPayable - contra else 0.0
 
@@ -550,15 +551,15 @@ private fun LineSaleDetailsContent(
                         isBold = true
                     )
                 }
-                FinancialRow(label = "Current Sale Total", value = FormatUtils.formatCurrency(sale.totalAmount), isBold = true)
+                FinancialRow(label = "Total Sale Amount", value = FormatUtils.formatCurrency(sale.totalAmount), isBold = true)
                 val paymentReceivedLabel = if (contra > 0.0) "Actual Payment Received (Cash + Bank)" else "Direct Received (Cash + Bank)"
                 FinancialRow(label = paymentReceivedLabel, value = FormatUtils.formatCurrency(sale.collectedAmount))
                 if (advApplied > 0.0) {
-                    FinancialRow(label = "Paid using Advance", value = FormatUtils.formatCurrency(advApplied.toString()), color = Emerald600, isBold = true)
+                    FinancialRow(label = "Adjusted Against Advance", value = "-${FormatUtils.formatCurrency(advApplied.toString())}", color = Amber600, isBold = true)
                 }
                 if (contra > 0.0) {
                     FinancialRow(
-                        label = "Adjusted Against Supplier Payable",
+                        label = "Adjusted Against Payable",
                         value = "-${FormatUtils.formatCurrency(contra.toString())}",
                         color = Color(0xFF7C3AED),
                         isBold = true
@@ -571,7 +572,7 @@ private fun LineSaleDetailsContent(
                 val totSettled = ((sale.totalAmount.toDoubleOrNull() ?: 0.0) - balanceDue).coerceAtLeast(0.0)
                 FinancialRow(label = "Total Settled for Sale", value = FormatUtils.formatCurrency(totSettled.toString()), color = Emerald600, isBold = true)
                 FinancialRow(
-                    label = "Remaining Sale Due",
+                    label = "Remaining Amount",
                     value = FormatUtils.formatCurrency(sale.balance),
                     color = if (balanceDue > 0) Crimson600 else MaterialTheme.colorScheme.onSurface,
                     isBold = true
@@ -742,11 +743,11 @@ private fun CounterSaleDetailsContent(
                 FinancialRow(label = "Cash Portion", value = FormatUtils.formatCurrency(sale.cash))
                 FinancialRow(label = "Bank / Online Portion", value = FormatUtils.formatCurrency(sale.bankAmount.ifBlank { sale.account }))
                 if (counterAdvApplied > 0.0) {
-                    FinancialRow(label = "Paid using Advance", value = FormatUtils.formatCurrency(counterAdvApplied.toString()), color = Emerald600, isBold = true)
+                    FinancialRow(label = "Adjusted Against Advance", value = "-${FormatUtils.formatCurrency(counterAdvApplied.toString())}", color = Amber600, isBold = true)
                 }
                 if (counterContra > 0.0) {
                     FinancialRow(
-                        label = "Adjusted Against Supplier Payable",
+                        label = "Adjusted Against Payable",
                         value = "-${FormatUtils.formatCurrency(counterContra.toString())}",
                         color = Color(0xFF7C3AED),
                         isBold = true

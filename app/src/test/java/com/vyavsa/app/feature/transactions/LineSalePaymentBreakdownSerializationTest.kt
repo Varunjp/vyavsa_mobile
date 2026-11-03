@@ -246,4 +246,216 @@ class LineSalePaymentBreakdownSerializationTest {
         val deserialized = json.decodeFromString<LineSalePaymentBreakdown>(serialized)
         assertEquals(breakdown, deserialized)
     }
+
+    @Test
+    fun testEntireSaleAdjustedAgainstAdvance() {
+        val payload = """
+            {
+                "success": true,
+                "data": {
+                    "total_sales": "15000.00",
+                    "cash_received": "0.00",
+                    "bank_received": "0.00",
+                    "total_received": "0.00",
+                    "advance_applied": "15000.00",
+                    "payable_applied": "0.00",
+                    "total_due": "0.00",
+                    "sales_count": 1,
+                    "is_reconciled": true,
+                    "bank_breakdown": []
+                }
+            }
+        """.trimIndent()
+
+        val parsed = json.decodeFromString<ApiResponse<LineSalePaymentBreakdown>>(payload)
+        val data = parsed.data!!
+        assertEquals("15000.00", data.totalSales)
+        assertEquals("15000.00", data.advanceApplied)
+        assertEquals("0.00", data.payableApplied)
+        assertEquals("0.00", data.effectivePayableApplied)
+        assertEquals("0.00", data.totalDue)
+        assertTrue(data.isReconciled)
+    }
+
+    @Test
+    fun testEntireSaleAdjustedAgainstPayable() {
+        val payload = """
+            {
+                "success": true,
+                "data": {
+                    "total_sales": "20000.00",
+                    "cash_received": "0.00",
+                    "bank_received": "0.00",
+                    "total_received": "0.00",
+                    "advance_applied": "0.00",
+                    "payable_applied": "20000.00",
+                    "contra_amount": "20000.00",
+                    "total_due": "0.00",
+                    "sales_count": 1,
+                    "is_reconciled": true,
+                    "bank_breakdown": []
+                }
+            }
+        """.trimIndent()
+
+        val parsed = json.decodeFromString<ApiResponse<LineSalePaymentBreakdown>>(payload)
+        val data = parsed.data!!
+        assertEquals("20000.00", data.totalSales)
+        assertEquals("0.00", data.advanceApplied)
+        assertEquals("20000.00", data.payableApplied)
+        assertEquals("20000.00", data.effectivePayableApplied)
+        assertEquals("0.00", data.totalDue)
+        assertTrue(data.isReconciled)
+    }
+
+    @Test
+    fun testPartialAdvanceAndPartialPayableAdjustment() {
+        val payload = """
+            {
+                "success": true,
+                "data": {
+                    "total_sales": "50000.00",
+                    "cash_received": "10000.00",
+                    "bank_received": "10000.00",
+                    "total_received": "20000.00",
+                    "advance_applied": "15000.00",
+                    "payable_applied": "10000.00",
+                    "total_due": "5000.00",
+                    "sales_count": 2,
+                    "is_reconciled": true,
+                    "bank_breakdown": [
+                        {
+                            "bank_id": "b1",
+                            "bank_name": "HDFC",
+                            "amount": "10000.00",
+                            "percentage": 20.0
+                        }
+                    ]
+                }
+            }
+        """.trimIndent()
+
+        val parsed = json.decodeFromString<ApiResponse<LineSalePaymentBreakdown>>(payload)
+        val data = parsed.data!!
+        assertEquals("50000.00", data.totalSales)
+        assertEquals("15000.00", data.advanceApplied)
+        assertEquals("10000.00", data.payableApplied)
+        assertEquals("10000.00", data.effectivePayableApplied)
+        assertEquals("5000.00", data.totalDue)
+        assertEquals("10000.00", data.cashReceived)
+        assertEquals("10000.00", data.bankReceived)
+        assertTrue(data.isReconciled)
+    }
+
+    @Test
+    fun testSaleWithoutAdvanceOrPayableAdjustment() {
+        val payload = """
+            {
+                "success": true,
+                "data": {
+                    "total_sales": "30000.00",
+                    "cash_received": "15000.00",
+                    "bank_received": "0.00",
+                    "total_received": "15000.00",
+                    "advance_applied": "0.00",
+                    "payable_applied": "0.00",
+                    "total_due": "15000.00",
+                    "sales_count": 1,
+                    "is_reconciled": true,
+                    "bank_breakdown": []
+                }
+            }
+        """.trimIndent()
+
+        val parsed = json.decodeFromString<ApiResponse<LineSalePaymentBreakdown>>(payload)
+        val data = parsed.data!!
+        assertEquals("30000.00", data.totalSales)
+        assertEquals("0.00", data.advanceApplied)
+        assertEquals("0.00", data.payableApplied)
+        assertEquals("0.00", data.effectivePayableApplied)
+        assertEquals("15000.00", data.totalDue)
+        assertEquals("15000.00", data.cashReceived)
+    }
+
+    @Test
+    fun testZeroValueAndMissingAllocationFields() {
+        // Missing payable_applied and contra_amount entirely, nulls
+        val payload = """
+            {
+                "success": true,
+                "data": {
+                    "total_sales": "10000.00",
+                    "cash_received": "10000.00",
+                    "bank_received": "0.00",
+                    "total_received": "10000.00"
+                }
+            }
+        """.trimIndent()
+
+        val parsed = json.decodeFromString<ApiResponse<LineSalePaymentBreakdown>>(payload)
+        val data = parsed.data!!
+        assertEquals("10000.00", data.totalSales)
+        assertEquals("0.00", data.advanceApplied)
+        assertEquals("0.00", data.payableApplied)
+        assertEquals("0.00", data.effectivePayableApplied)
+        assertEquals("0.00", data.totalDue)
+    }
+
+    @Test
+    fun testContraAmountFallbackWhenPayableAppliedMissing() {
+        val payload = """
+            {
+                "success": true,
+                "data": {
+                    "total_sales": "25000.00",
+                    "cash_received": "0.00",
+                    "bank_received": "0.00",
+                    "total_received": "0.00",
+                    "contra_amount": "25000.00",
+                    "total_due": "0.00"
+                }
+            }
+        """.trimIndent()
+
+        val parsed = json.decodeFromString<ApiResponse<LineSalePaymentBreakdown>>(payload)
+        val data = parsed.data!!
+        assertEquals("25000.00", data.totalSales)
+        assertEquals("25000.00", data.contraAmount)
+        assertEquals("25000.00", data.effectivePayableApplied)
+    }
+
+    @Test
+    fun testFullBreakdownWithPayableRoundtrip() {
+        val breakdown = LineSalePaymentBreakdown(
+            totalSales = "75000.00",
+            cashReceived = "25000.00",
+            bankReceived = "25000.00",
+            totalReceived = "50000.00",
+            advanceApplied = "10000.00",
+            payableApplied = "15000.00",
+            contraAmount = "15000.00",
+            totalDue = "0.00",
+            salesCount = 3L,
+            startDate = "2026-11-03",
+            endDate = "2026-11-03",
+            isReconciled = true,
+            bankBreakdown = listOf(
+                LineSaleBankBreakdown(
+                    bankId = "bank-1",
+                    bankName = "Axis Bank",
+                    amount = "25000.00",
+                    percentage = 33.33
+                )
+            )
+        )
+
+        val serialized = json.encodeToString(breakdown)
+        assertTrue(serialized.contains("\"payable_applied\":\"15000.00\""))
+        assertTrue(serialized.contains("\"contra_amount\":\"15000.00\""))
+        assertTrue(serialized.contains("\"is_reconciled\":true"))
+
+        val deserialized = json.decodeFromString<LineSalePaymentBreakdown>(serialized)
+        assertEquals(breakdown, deserialized)
+        assertEquals("15000.00", deserialized.effectivePayableApplied)
+    }
 }
