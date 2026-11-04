@@ -69,13 +69,17 @@ import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.Product
+import com.vyavsa.app.core.model.BankBreakdownEntry
 import com.vyavsa.app.core.model.LineSaleBankBreakdown
 import com.vyavsa.app.core.model.TopSellingProduct
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.material3.rememberModalBottomSheetState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URL
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 
@@ -2116,7 +2120,7 @@ data class PaymentDistributionSlice(
 @Composable
 fun PaymentDistributionChart(
     cashAmount: Double,
-    bankPayments: List<LineSaleBankBreakdown>,
+    bankPayments: List<BankBreakdownEntry>,
     outstandingDue: Double,
     advanceApplied: Double = 0.0,
     payableAdjustment: Double = 0.0,
@@ -2469,6 +2473,123 @@ fun PaymentDistributionChart(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Reusable bank account breakdown card displaying bank name, account number suffix,
+ * authoritative financial amount, percentage share, and a visual contribution progress indicator.
+ */
+@Composable
+fun BankBreakdownCard(
+    bank: BankBreakdownEntry,
+    totalBankReceived: Double,
+    modifier: Modifier = Modifier
+) {
+    val bankAmt = bank.amount.toDoubleOrNull() ?: 0.0
+    val bankShare = if (totalBankReceived > 0.0) {
+        (bankAmt / totalBankReceived).toFloat().coerceIn(0f, 1f)
+    } else 0f
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFFEFF6FF))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccountBalance,
+                            contentDescription = null,
+                            tint = Blue600,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = bank.bankName.ifBlank { "Bank Account" },
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        val accNum = bank.accountNumber
+                        if (!accNum.isNullOrBlank()) {
+                            Text(
+                                text = "A/C: •••• ${accNum.takeLast(4)}",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
+                        }
+                    }
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = FormatUtils.formatCurrency(bank.amount),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFEFF6FF)
+                    ) {
+                        Text(
+                            text = String.format(java.util.Locale.US, "%.1f%% of sales", bank.percentage),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = Blue600,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            ),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Bank share progress bar
+            LinearProgressIndicator(
+                progress = { bankShare },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = Blue600,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                strokeCap = StrokeCap.Round
+            )
         }
     }
 }

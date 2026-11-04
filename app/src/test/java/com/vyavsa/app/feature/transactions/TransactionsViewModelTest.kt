@@ -17,6 +17,7 @@ import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.CashTransaction
 import com.vyavsa.app.core.model.CounterSalePayment
 import com.vyavsa.app.core.model.LineSalePayment
+import com.vyavsa.app.core.model.CounterSalePaymentBreakdown
 import com.vyavsa.app.core.model.LineSalePaymentBreakdown
 import com.vyavsa.app.core.model.PlanTransaction
 import com.vyavsa.app.core.model.Purchase
@@ -1407,6 +1408,18 @@ class FakeTransactionsRepository : TransactionsRepository {
     var shouldFailBreakdown = false
     var breakdownCallCount = 0
 
+    var counterBreakdownResult: CounterSalePaymentBreakdown = CounterSalePaymentBreakdown(
+        totalSales = "85000.00",
+        cashReceived = "25000.00",
+        bankReceived = "60000.00",
+        totalReceived = "85000.00",
+        advanceApplied = "0.00",
+        totalDue = "0.00",
+        salesCount = 3L
+    )
+    var shouldFailCounterBreakdown = false
+    var counterBreakdownCallCount = 0
+
     override fun getLineSalePaymentBreakdown(
         date: String?,
         startDate: String?,
@@ -1418,6 +1431,20 @@ class FakeTransactionsRepository : TransactionsRepository {
             emit(Resource.Error("Failed to load payment breakdown"))
         } else {
             emit(Resource.Success(breakdownResult))
+        }
+    }
+
+    override fun getCounterSalePaymentBreakdown(
+        date: String?,
+        startDate: String?,
+        endDate: String?
+    ): Flow<Resource<CounterSalePaymentBreakdown>> = flow {
+        counterBreakdownCallCount++
+        emit(Resource.Loading)
+        if (shouldFailCounterBreakdown) {
+            emit(Resource.Error("Failed to load counter sale payment breakdown"))
+        } else {
+            emit(Resource.Success(counterBreakdownResult))
         }
     }
 

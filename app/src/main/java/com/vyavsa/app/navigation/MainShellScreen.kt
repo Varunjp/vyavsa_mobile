@@ -110,6 +110,7 @@ fun MainShellScreen(
     onNavigateToProducts: () -> Unit = {},
     onNavigateToProductAnalytics: () -> Unit = {},
     onNavigateToLineSaleOverview: () -> Unit = {},
+    onNavigateToCounterSaleOverview: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onLogoutSuccess: () -> Unit,
     settingsPreferences: SettingsPreferences? = null,
@@ -299,11 +300,7 @@ fun MainShellScreen(
                                         onNavigateToCreatePurchase = onNavigateToCreatePurchase,
                                         onNavigateToCreateExpense = onNavigateToCreateExpense,
                                         onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF },
-                                        onNavigateToCounterSales = {
-                                            transactionsViewModel.selectTab(TransactionTab.SALES)
-                                            transactionsViewModel.setSalesCategoryFilter(SalesCategoryFilter.COUNTER)
-                                            selectedDestination = BottomBarDestination.COUNTER_SALES
-                                        }
+                                        onNavigateToCounterSales = onNavigateToCounterSaleOverview
                                     )
                                 }
                                 UserRole.ADMIN, UserRole.USER -> {
@@ -317,11 +314,7 @@ fun MainShellScreen(
                                         onNavigateToProducts = onNavigateToProducts,
                                         onNavigateToProductAnalytics = onNavigateToProductAnalytics,
                                         onNavigateToLineSales = onNavigateToLineSaleOverview,
-                                        onNavigateToCounterSales = {
-                                            transactionsViewModel.selectTab(TransactionTab.SALES)
-                                            transactionsViewModel.setSalesCategoryFilter(SalesCategoryFilter.COUNTER)
-                                            selectedDestination = BottomBarDestination.SALES
-                                        }
+                                        onNavigateToCounterSales = onNavigateToCounterSaleOverview
                                     )
                                 }
                             }

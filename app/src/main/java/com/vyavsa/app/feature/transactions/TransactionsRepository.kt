@@ -4,6 +4,7 @@ import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.model.CashTransaction
 import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.CounterSalePayment
+import com.vyavsa.app.core.model.CounterSalePaymentBreakdown
 import com.vyavsa.app.core.model.CreateCounterSaleRequest
 import com.vyavsa.app.core.model.CreateCustomerRequest
 import com.vyavsa.app.core.model.CreateExpenseRequest
@@ -69,6 +70,11 @@ interface TransactionsRepository {
     fun getCounterSaleById(id: String): Flow<Resource<CounterSale>>
     fun listCounterSalePayments(id: String): Flow<Resource<List<CounterSalePayment>>>
     fun recordCounterSalePayment(id: String, request: RecordSalePaymentRequest): Flow<Resource<CounterSalePayment>>
+    fun getCounterSalePaymentBreakdown(
+        date: String? = null,
+        startDate: String? = null,
+        endDate: String? = null
+    ): Flow<Resource<CounterSalePaymentBreakdown>>
 
     fun listPurchases(date: String?, search: String?, customerId: String? = null): Flow<Resource<List<Purchase>>>
     fun createPurchase(request: CreatePurchaseRequest): Flow<Resource<Purchase>>
@@ -364,6 +370,28 @@ class TransactionsRepositoryImpl @Inject constructor(
             }
         } catch (e: Throwable) {
             emit(ApiErrorParser.parse(e, "Network error recording payment"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun getCounterSalePaymentBreakdown(
+        date: String?,
+        startDate: String?,
+        endDate: String?
+    ): Flow<Resource<CounterSalePaymentBreakdown>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.getCounterSalePaymentBreakdown(
+                date = date,
+                startDate = startDate,
+                endDate = endDate
+            )
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data))
+            } else {
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load counter sale payment breakdown"))
+            }
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Failed to load counter sale payment breakdown"))
         }
     }.flowOn(Dispatchers.IO)
 

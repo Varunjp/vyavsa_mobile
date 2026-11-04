@@ -1050,15 +1050,26 @@ data class ProductAnalyticsResponse(
     @SerialName("end_date") val endDate: String = ""
 )
 
+/**
+ * Common abstraction for bank payment breakdown items in sales overviews.
+ */
+interface BankBreakdownEntry {
+    val bankId: String?
+    val bankName: String
+    val accountNumber: String?
+    val amount: String
+    val percentage: Double
+}
+
 @Immutable
 @Serializable
 data class LineSaleBankBreakdown(
-    @SerialName("bank_id") val bankId: String? = null,
-    @SerialName("bank_name") val bankName: String = "",
-    @SerialName("account_number") val accountNumber: String? = null,
-    val amount: String = "0.00",
-    val percentage: Double = 0.0
-)
+    @SerialName("bank_id") override val bankId: String? = null,
+    @SerialName("bank_name") override val bankName: String = "",
+    @SerialName("account_number") override val accountNumber: String? = null,
+    override val amount: String = "0.00",
+    override val percentage: Double = 0.0
+) : BankBreakdownEntry
 
 @Immutable
 @Serializable
@@ -1076,6 +1087,42 @@ data class LineSalePaymentBreakdown(
     @SerialName("end_date") val endDate: String = "",
     @SerialName("is_reconciled") val isReconciled: Boolean = true,
     @SerialName("bank_breakdown") val bankBreakdown: List<LineSaleBankBreakdown> = emptyList()
+) {
+    val effectivePayableApplied: String
+        get() {
+            val p = payableApplied.toDoubleOrNull() ?: 0.0
+            if (p > 0.0) return payableApplied
+            val c = contraAmount?.toDoubleOrNull() ?: 0.0
+            return if (c > 0.0) contraAmount ?: "0.00" else payableApplied
+        }
+}
+
+@Immutable
+@Serializable
+data class CounterSaleBankBreakdown(
+    @SerialName("bank_id") override val bankId: String? = null,
+    @SerialName("bank_name") override val bankName: String = "",
+    @SerialName("account_number") override val accountNumber: String? = null,
+    override val amount: String = "0.00",
+    override val percentage: Double = 0.0
+) : BankBreakdownEntry
+
+@Immutable
+@Serializable
+data class CounterSalePaymentBreakdown(
+    @SerialName("total_sales") val totalSales: String = "0.00",
+    @SerialName("cash_received") val cashReceived: String = "0.00",
+    @SerialName("bank_received") val bankReceived: String = "0.00",
+    @SerialName("total_received") val totalReceived: String = "0.00",
+    @SerialName("advance_applied") val advanceApplied: String = "0.00",
+    @SerialName("payable_applied") val payableApplied: String = "0.00",
+    @SerialName("contra_amount") val contraAmount: String? = null,
+    @SerialName("total_due") val totalDue: String = "0.00",
+    @SerialName("sales_count") val salesCount: Long = 0L,
+    @SerialName("start_date") val startDate: String = "",
+    @SerialName("end_date") val endDate: String = "",
+    @SerialName("is_reconciled") val isReconciled: Boolean = true,
+    @SerialName("bank_breakdown") val bankBreakdown: List<CounterSaleBankBreakdown> = emptyList()
 ) {
     val effectivePayableApplied: String
         get() {
