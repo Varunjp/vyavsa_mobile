@@ -14,6 +14,7 @@ import com.vyavsa.app.core.model.CollectCustomerAdvanceRequest
 import com.vyavsa.app.core.model.CollectCustomerPaymentRequest
 import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.CounterSalePayment
+import com.vyavsa.app.core.model.CounterSalePaymentBreakdown
 import com.vyavsa.app.core.model.CreateBankRequest
 import com.vyavsa.app.core.model.CreateCounterSaleRequest
 import com.vyavsa.app.core.model.CreateCustomerRequest
@@ -266,6 +267,13 @@ interface VyavsaApiService {
     @Streaming
     @GET("api/v1/tenant/counter-sales/{id}/pdf")
     suspend fun downloadCounterSalePdf(@Path("id") id: String): ResponseBody
+
+    @GET("api/v1/tenant/counter-sales/breakdown")
+    suspend fun getCounterSalePaymentBreakdown(
+        @Query("date") date: String? = null,
+        @Query("start_date") startDate: String? = null,
+        @Query("end_date") endDate: String? = null
+    ): ApiResponse<CounterSalePaymentBreakdown>
 
     // ==========================================
     // 4. Purchases & Customers / Dues

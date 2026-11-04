@@ -45,6 +45,8 @@ sealed class Screen(val route: String) {
     object ProductAnalytics : Screen("product_analytics")
     object LineSaleOverview : Screen("line_sale_overview")
     object TodayLineSales : Screen("today_line_sales")
+    object CounterSaleOverview : Screen("counter_sale_overview")
+    object TodayCounterSales : Screen("today_counter_sales")
     object Settings : Screen("settings")
 }
 

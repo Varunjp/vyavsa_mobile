@@ -20,6 +20,7 @@ import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.PlanTransaction
 import com.vyavsa.app.core.model.Product
 import com.vyavsa.app.core.model.Purchase
+import com.vyavsa.app.core.model.SaleConfirmation
 import com.vyavsa.app.core.model.SaleItemRequest
 import com.vyavsa.app.core.model.Supplier
 import com.vyavsa.app.core.model.TenantBank
@@ -241,6 +242,13 @@ class TransactionsViewModel @Inject constructor(
 
     private val _createActionState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val createActionState: StateFlow<UiState<Unit>> = _createActionState.asStateFlow()
+
+    private val _saleConfirmation = MutableStateFlow<SaleConfirmation?>(null)
+    val saleConfirmation: StateFlow<SaleConfirmation?> = _saleConfirmation.asStateFlow()
+
+    fun dismissSaleConfirmation() {
+        _saleConfirmation.value = null
+    }
 
     private val _companyProfile = MutableStateFlow<TenantProfile?>(null)
     val companyProfile: StateFlow<TenantProfile?> = _companyProfile.asStateFlow()
@@ -1002,6 +1010,30 @@ class TransactionsViewModel @Inject constructor(
                         loadData()
                         loadCustomers()
                         refreshCustomerBalance(customerId, SaleType.LINE_SALE)
+                        val sale = res.data
+                        val contra = sale.contraAmount.toDoubleOrNull() ?: 0.0
+                        val prevPayable = sale.previousPayable.toDoubleOrNull() ?: 0.0
+                        val remPayable = (prevPayable - contra).coerceAtLeast(0.0)
+                        val remReceivable = sale.balance.toDoubleOrNull() ?: 0.0
+                        val saleAmt = sale.totalAmount.toDoubleOrNull() ?: 0.0
+                        val paid = (sale.totalCashIn.toDoubleOrNull() ?: 0.0) + (sale.bankAmount.toDoubleOrNull() ?: 0.0)
+                        val adv = sale.advanceApplied.toDoubleOrNull() ?: 0.0
+
+                        if (contra > 0.0) {
+                            _saleConfirmation.value = SaleConfirmation(
+                                saleId = sale.id,
+                                invoiceNumber = sale.invoiceNumber,
+                                partyName = sale.customerName.ifBlank { "Customer" },
+                                saleAmount = saleAmt,
+                                contraAdjustment = contra,
+                                previousSupplierPayable = prevPayable,
+                                remainingSupplierPayable = remPayable,
+                                remainingCustomerReceivable = remReceivable,
+                                actualAmountReceived = paid,
+                                advanceApplied = adv,
+                                isLineSale = true
+                            )
+                        }
                         onSuccess?.invoke(res.data)
                         UiState.Success(Unit)
                     }
@@ -1076,6 +1108,29 @@ class TransactionsViewModel @Inject constructor(
                             customerName = resolvedCustomerName,
                             customerPhone = resolvedCustomerPhone
                         )
+                        val contra = savedSale.contraAmount.toDoubleOrNull() ?: 0.0
+                        val prevPayable = savedSale.previousPayable.toDoubleOrNull() ?: 0.0
+                        val remPayable = (prevPayable - contra).coerceAtLeast(0.0)
+                        val remReceivable = savedSale.balance.toDoubleOrNull() ?: 0.0
+                        val saleAmt = savedSale.totalAmount.toDoubleOrNull() ?: 0.0
+                        val paid = (savedSale.totalCashIn.toDoubleOrNull() ?: 0.0) + (savedSale.bankAmount.toDoubleOrNull() ?: 0.0)
+                        val adv = savedSale.advanceApplied.toDoubleOrNull() ?: 0.0
+
+                        if (contra > 0.0) {
+                            _saleConfirmation.value = SaleConfirmation(
+                                saleId = savedSale.id,
+                                invoiceNumber = savedSale.invoiceNumber,
+                                partyName = resolvedCustomerName.ifBlank { "Customer" },
+                                saleAmount = saleAmt,
+                                contraAdjustment = contra,
+                                previousSupplierPayable = prevPayable,
+                                remainingSupplierPayable = remPayable,
+                                remainingCustomerReceivable = remReceivable,
+                                actualAmountReceived = paid,
+                                advanceApplied = adv,
+                                isLineSale = true
+                            )
+                        }
                         printLineSaleWithResult(
                             sale = savedSale,
                             context = context,
@@ -1228,6 +1283,30 @@ class TransactionsViewModel @Inject constructor(
                         loadCustomers()
                         if (!customerId.isNullOrBlank()) {
                             refreshCustomerBalance(customerId, SaleType.COUNTER_SALE)
+                        }
+                        val sale = res.data
+                        val contra = sale.contraAmount.toDoubleOrNull() ?: 0.0
+                        val prevPayable = sale.previousPayable.toDoubleOrNull() ?: 0.0
+                        val remPayable = (prevPayable - contra).coerceAtLeast(0.0)
+                        val saleAmt = sale.totalAmount.toDoubleOrNull() ?: 0.0
+                        val paid = (sale.cash.toDoubleOrNull() ?: 0.0) + (sale.bankAmount.toDoubleOrNull() ?: 0.0)
+                        val adv = sale.advanceApplied.toDoubleOrNull() ?: 0.0
+                        val remReceivable = (saleAmt - (sale.amountAllocatedToSale.toDoubleOrNull() ?: paid) - adv - contra).coerceAtLeast(0.0)
+
+                        if (contra > 0.0) {
+                            _saleConfirmation.value = SaleConfirmation(
+                                saleId = sale.id,
+                                invoiceNumber = sale.invoiceNumber,
+                                partyName = sale.customerName ?: customerName ?: "Customer",
+                                saleAmount = saleAmt,
+                                contraAdjustment = contra,
+                                previousSupplierPayable = prevPayable,
+                                remainingSupplierPayable = remPayable,
+                                remainingCustomerReceivable = remReceivable,
+                                actualAmountReceived = paid,
+                                advanceApplied = adv,
+                                isLineSale = false
+                            )
                         }
                         onSuccess?.invoke(res.data)
                         UiState.Success(Unit)

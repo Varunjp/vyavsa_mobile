@@ -496,6 +496,13 @@ object InvoicePdfGenerator {
         canvas.drawText(FormatUtils.formatCurrency(data.totalAmount), totalsValX, tY + 14.5f, totalGrandValPaint)
         tY += 26f
 
+        // Previous Supplier Payable (if any)
+        if (data.previousPayable > 0.0) {
+            canvas.drawText("Previous Supplier Payable:", totalsLabelX, tY + 10f, textPaint)
+            canvas.drawText(FormatUtils.formatCurrency(data.previousPayable), totalsValX, tY + 10f, textRightPaint)
+            tY += 14f
+        }
+
         // Amount Received Directly
         val directReceived = if (data.amountReceivedDirect > 0.0) data.amountReceivedDirect else data.amountPaid
         val directReceivedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -504,7 +511,8 @@ object InvoicePdfGenerator {
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         val directReceivedRight = Paint(directReceivedPaint).apply { textAlign = Paint.Align.RIGHT }
-        canvas.drawText("Amount Received Now:", totalsLabelX, tY + 10f, textPaint)
+        val paymentLabel = if (data.contraAmount > 0.0) "Actual Payment Received:" else "Amount Received Now:"
+        canvas.drawText(paymentLabel, totalsLabelX, tY + 10f, textPaint)
         canvas.drawText(FormatUtils.formatCurrency(directReceived), totalsValX, tY + 10f, directReceivedRight)
         tY += 14f
 
@@ -530,6 +538,24 @@ object InvoicePdfGenerator {
             val blueRight = Paint(bluePaint).apply { textAlign = Paint.Align.RIGHT }
             canvas.drawText("Paid using Advance Balance:", totalsLabelX, tY + 10f, bluePaint)
             canvas.drawText(FormatUtils.formatCurrency(data.advanceApplied), totalsValX, tY + 10f, blueRight)
+            tY += 14f
+        }
+
+        // Contra Adjustment against Supplier Payable (if any)
+        if (data.contraAmount > 0.0) {
+            val contraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(124, 58, 237) // Purple 600
+                textSize = 9f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+            val contraRight = Paint(contraPaint).apply { textAlign = Paint.Align.RIGHT }
+            canvas.drawText("Adjusted Against Supplier Payable:", totalsLabelX, tY + 10f, contraPaint)
+            canvas.drawText("-${FormatUtils.formatCurrency(data.contraAmount)}", totalsValX, tY + 10f, contraRight)
+            tY += 14f
+
+            val remPayable = if (data.remainingPayable > 0.0) data.remainingPayable else (data.previousPayable - data.contraAmount).coerceAtLeast(0.0)
+            canvas.drawText("Remaining Supplier Payable:", totalsLabelX, tY + 10f, textPaint)
+            canvas.drawText(FormatUtils.formatCurrency(remPayable), totalsValX, tY + 10f, textRightPaint)
             tY += 14f
         }
 

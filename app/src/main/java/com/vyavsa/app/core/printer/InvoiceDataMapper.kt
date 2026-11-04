@@ -15,7 +15,7 @@ object InvoiceDataMapper {
 
     fun fromLineSale(
         sale: LineSale,
-        profile: TenantProfile?,
+        profile: TenantProfile? = null,
         logoBitmap: Bitmap? = null
     ): InvoicePrintData {
         val busName = profile?.name?.ifBlank { "Vyavsa Business" } ?: "Vyavsa Business"
@@ -37,13 +37,16 @@ object InvoiceDataMapper {
         val directReceived = sale.collectedAmount.toDoubleOrNull() ?: (cash + bank)
         val prevDuesSettled = sale.previousDuesSettled.toDoubleOrNull() ?: 0.0
         val advGenerated = sale.advanceGenerated.toDoubleOrNull() ?: 0.0
+        val contra = sale.contraAmount.toDoubleOrNull() ?: 0.0
+        val prevPayable = sale.previousPayable.toDoubleOrNull() ?: 0.0
+        val remPayable = if (prevPayable > contra) prevPayable - contra else 0.0
         val parsedAlloc = sale.amountAllocatedToSale.toDoubleOrNull()
         val allocatedToSale = if (parsedAlloc != null && parsedAlloc > 0.0) {
             parsedAlloc
         } else {
             directReceived.coerceAtMost((tot - advApplied).coerceAtLeast(0.0))
         }
-        val totalSettled = (allocatedToSale + advApplied).coerceAtMost(tot)
+        val totalSettled = (allocatedToSale + advApplied + contra).coerceAtMost(tot)
 
         val paymentsList = sale.payments.filter { p ->
             val n = (p.note ?: "").lowercase()
@@ -92,6 +95,9 @@ object InvoiceDataMapper {
             totalSettledForSale = totalSettled,
             previousDuesSettled = prevDuesSettled,
             advanceGenerated = advGenerated,
+            contraAmount = contra,
+            previousPayable = prevPayable,
+            remainingPayable = remPayable,
             updatedCustomerBalance = updatedBal,
             hasCustomerLedger = true,
             cashAmount = cash,
@@ -107,7 +113,7 @@ object InvoiceDataMapper {
 
     fun fromCounterSale(
         sale: CounterSale,
-        profile: TenantProfile?,
+        profile: TenantProfile? = null,
         logoBitmap: Bitmap? = null
     ): InvoicePrintData {
         val busName = profile?.name?.ifBlank { "Vyavsa Business" } ?: "Vyavsa Business"
@@ -128,16 +134,19 @@ object InvoiceDataMapper {
         val due = sale.account.toDoubleOrNull() ?: 0.0
         val prevDuesSettled = sale.previousDuesSettled.toDoubleOrNull() ?: 0.0
         val advGenerated = sale.advanceGenerated.toDoubleOrNull() ?: 0.0
+        val contra = sale.contraAmount.toDoubleOrNull() ?: 0.0
+        val prevPayable = sale.previousPayable.toDoubleOrNull() ?: 0.0
+        val remPayable = if (prevPayable > contra) prevPayable - contra else 0.0
         val parsedAlloc = sale.amountAllocatedToSale.toDoubleOrNull()
         val allocatedToSale = if (parsedAlloc != null && parsedAlloc > 0.0) {
             parsedAlloc
         } else {
             directReceived.coerceAtMost((tot - advApplied).coerceAtLeast(0.0))
         }
-        val totalSettled = if (advApplied > 0.0 || directReceived > 0.0) {
-            (allocatedToSale + advApplied).coerceAtMost(tot)
+        val totalSettled = if (advApplied > 0.0 || directReceived > 0.0 || contra > 0.0) {
+            (allocatedToSale + advApplied + contra).coerceAtMost(tot)
         } else tot
-        val hasCustomer = !sale.customerId.isNullOrBlank() || !sale.customerName.isNullOrBlank() || prevBal > 0.0 || advApplied > 0.0
+        val hasCustomer = !sale.customerId.isNullOrBlank() || !sale.customerName.isNullOrBlank() || prevBal > 0.0 || advApplied > 0.0 || contra > 0.0 || prevPayable > 0.0
 
         val paymentsList = sale.payments.filter { p ->
             val n = (p.note ?: "").lowercase()
@@ -185,6 +194,9 @@ object InvoiceDataMapper {
             totalSettledForSale = totalSettled,
             previousDuesSettled = prevDuesSettled,
             advanceGenerated = advGenerated,
+            contraAmount = contra,
+            previousPayable = prevPayable,
+            remainingPayable = remPayable,
             updatedCustomerBalance = updatedBal,
             hasCustomerLedger = hasCustomer,
             cashAmount = cash,

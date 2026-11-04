@@ -350,6 +350,20 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
 
 ### Financial Calculation & Discount Rules
 - **Calculation Formula**: `Final Total Amount = Subtotal - Discount Amount`
+- **Automatic Contra Adjustment (FIFO)**:
+  - When a sale is created for a customer who also has pending supplier payables (`totalPendingPayable > 0`), the backend automatically creates a contra settlement offsetting pending purchases FIFO.
+  - Adjustment Formula: `contra_amount = min(dueOnThisSale, totalPendingPayable)`.
+  - Sale Response includes:
+    - `contra_amount`: Confirmed adjusted amount against supplier payable.
+    - `previous_payable`: Party payable before sale creation.
+    - `updated_balance`: Customer dues after advance & contra offsets.
+  - Unified Party Model:
+    - `role`: `"customer"`, `"supplier"`, or `"both"`.
+    - `is_customer`: boolean, `is_supplier`: boolean.
+    - `total_receivable`: Customer dues owed to business.
+    - `total_payable`: Supplier purchase liabilities owed by business.
+    - `net_balance`: `|total_receivable - total_payable|`.
+    - `net_status`: `"owes_us"`, `"we_owe"`, or `"settled"`.
 - **Validation Rules**:
   - `subtotal`: Required, must be >= 0.00.
   - `discount` / `discount_amount`: Non-negative (>= 0.00), must not exceed `subtotal`. Defaults to 0.00 if omitted.
@@ -414,10 +428,13 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
         "bank_received": "60000.00",
         "total_received": "85000.00",
         "advance_applied": "0.00",
+        "payable_applied": "0.00",
+        "contra_amount": "0.00",
         "total_due": "0.00",
         "sales_count": 3,
         "start_date": "2026-11-02",
         "end_date": "2026-11-02",
+        "is_reconciled": true,
         "bank_breakdown": [
           {
             "bank_id": "uuid-bank-1",
@@ -463,6 +480,37 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
   - Response includes `item`, `price`, `subtotal`, `discount`, `total_amount`, `payment_method`, `cash`, `bank_amount`, `account`, `items`, `payments`.
 - **Payments**: `GET /api/v1/tenant/counter-sales/:id/payments`
 - **Add Payment**: `POST /api/v1/tenant/counter-sales/:id/payments`
+- **Payment Breakdown**: `GET /api/v1/tenant/counter-sales/breakdown?date=YYYY-MM-DD&start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
+  - Response:
+    ```json
+    {
+      "success": true,
+      "message": "counter sale payment breakdown retrieved",
+      "data": {
+        "total_sales": "85000.00",
+        "cash_received": "25000.00",
+        "bank_received": "60000.00",
+        "total_received": "85000.00",
+        "advance_applied": "0.00",
+        "payable_applied": "0.00",
+        "contra_amount": "0.00",
+        "total_due": "0.00",
+        "sales_count": 3,
+        "start_date": "2026-11-04",
+        "end_date": "2026-11-04",
+        "is_reconciled": true,
+        "bank_breakdown": [
+          {
+            "bank_id": "uuid-bank-1",
+            "bank_name": "State Bank of India",
+            "account_number": "1234567890",
+            "amount": "30000.00",
+            "percentage": 50.0
+          }
+        ]
+      }
+    }
+    ```
 
 ---
 

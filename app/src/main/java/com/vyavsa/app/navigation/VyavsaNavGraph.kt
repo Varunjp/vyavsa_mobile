@@ -51,6 +51,8 @@ import com.vyavsa.app.core.security.TokenManager
 import com.vyavsa.app.core.settings.SettingsPreferences
 import com.vyavsa.app.feature.settings.SettingsScreen
 import com.vyavsa.app.feature.settings.SettingsViewModel
+import com.vyavsa.app.feature.transactions.CounterSaleOverviewScreen
+import com.vyavsa.app.feature.transactions.CounterSaleOverviewViewModel
 import com.vyavsa.app.feature.transactions.CreateCounterSaleScreen
 import com.vyavsa.app.feature.transactions.DateFilterType
 import com.vyavsa.app.feature.transactions.LineSaleOverviewScreen
@@ -242,6 +244,9 @@ fun VyavsaNavGraph(
                 },
                 onNavigateToLineSaleOverview = {
                     navController.navigate(Screen.LineSaleOverview.route)
+                },
+                onNavigateToCounterSaleOverview = {
+                    navController.navigate(Screen.CounterSaleOverview.route)
                 },
                 onNavigateToSettings = {
                     navController.navigate(Screen.Settings.route)
@@ -495,6 +500,42 @@ fun VyavsaNavGraph(
                 viewModel = transactionsViewModel,
                 onNavigateToCreateSale = {
                     navController.navigate(Screen.CreateLineSale.route)
+                },
+                onNavigateToSaleDetails = { saleType, saleId ->
+                    navController.navigate(Screen.SaleDetails.createRoute(saleType, saleId))
+                },
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.CounterSaleOverview.route) {
+            val overviewViewModel: CounterSaleOverviewViewModel = hiltViewModel()
+            CounterSaleOverviewScreen(
+                viewModel = overviewViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onViewTodaySales = {
+                    navController.navigate(Screen.TodayCounterSales.route)
+                }
+            )
+        }
+
+        composable(Screen.TodayCounterSales.route) {
+            if (tokenManager != null && !tokenManager.canAccessCounterSales()) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                return@composable
+            }
+            val transactionsViewModel: TransactionsViewModel = hiltViewModel()
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                transactionsViewModel.selectTab(TransactionTab.SALES)
+                transactionsViewModel.setSalesCategoryFilter(SalesCategoryFilter.COUNTER)
+                transactionsViewModel.setDateRangeFilter(DateFilterType.TODAY)
+            }
+            SalesScreen(
+                viewModel = transactionsViewModel,
+                onNavigateToCreateSale = {
+                    navController.navigate(Screen.CreateCounterSale.route)
                 },
                 onNavigateToSaleDetails = { saleType, saleId ->
                     navController.navigate(Screen.SaleDetails.createRoute(saleType, saleId))

@@ -80,6 +80,8 @@ import com.vyavsa.app.core.designsystem.Crimson50
 import com.vyavsa.app.core.designsystem.Crimson600
 import com.vyavsa.app.core.designsystem.Emerald50
 import com.vyavsa.app.core.designsystem.Emerald600
+import com.vyavsa.app.core.designsystem.Purple50
+import com.vyavsa.app.core.designsystem.Purple600
 import com.vyavsa.app.core.designsystem.EmptyStateView
 import com.vyavsa.app.core.designsystem.ErrorBanner
 import com.vyavsa.app.core.designsystem.StatBadge
@@ -260,11 +262,31 @@ fun CustomerDetailsScreen(
                                                 }
                                             }
 
-                                            StatBadge(
-                                                text = customer.status.uppercase(),
-                                                backgroundColor = if (customer.status.equals("active", ignoreCase = true)) Emerald50 else Crimson50,
-                                                textColor = if (customer.status.equals("active", ignoreCase = true)) Emerald600 else Crimson600
-                                            )
+                                            Column(
+                                                horizontalAlignment = Alignment.End,
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                StatBadge(
+                                                    text = customer.status.uppercase(),
+                                                    backgroundColor = if (customer.status.equals("active", ignoreCase = true)) Emerald50 else Crimson50,
+                                                    textColor = if (customer.status.equals("active", ignoreCase = true)) Emerald600 else Crimson600
+                                                )
+                                                val isBoth = (customer.isCustomer && customer.isSupplier) || customer.role.equals("both", ignoreCase = true)
+                                                val isSupp = customer.isSupplier || customer.role.equals("supplier", ignoreCase = true)
+                                                if (isBoth) {
+                                                    StatBadge(
+                                                        text = "DUAL ROLE",
+                                                        backgroundColor = Purple50,
+                                                        textColor = Purple600
+                                                    )
+                                                } else if (isSupp) {
+                                                    StatBadge(
+                                                        text = "SUPPLIER",
+                                                        backgroundColor = Blue50,
+                                                        textColor = Blue600
+                                                    )
+                                                }
+                                            }
                                         }
 
                                         Spacer(modifier = Modifier.height(18.dp))
@@ -319,24 +341,120 @@ fun CustomerDetailsScreen(
 
                                         // Procurement / Payable Info if applicable
                                         val totalPurch = customer.totalPurchases.toDoubleOrNull() ?: 0.0
-                                        if (totalPurch > 0) {
-                                            Spacer(modifier = Modifier.height(10.dp))
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween
+                                        val outstandingPayable = customer.outstandingPayable.toDoubleOrNull() ?: 0.0
+                                        val totalRec = customer.currentBalance.toDoubleOrNull() ?: dueNum
+                                        val hasDualRole = (customer.isCustomer && customer.isSupplier) || customer.role.equals("both", ignoreCase = true) || outstandingPayable > 0.0 || totalPurch > 0.0
+
+                                        if (hasDualRole) {
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(18.dp),
+                                                color = Purple50.copy(alpha = 0.5f),
+                                                border = BorderStroke(1.dp, Purple600.copy(alpha = 0.35f)),
+                                                modifier = Modifier.fillMaxWidth()
                                             ) {
-                                                Text(
-                                                    text = "Procurement Purchases: ${FormatUtils.formatCurrency(totalPurch)}",
-                                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                )
-                                                val outstandingPayable = customer.outstandingPayable.toDoubleOrNull() ?: 0.0
-                                                Text(
-                                                    text = "Payable Due: ${FormatUtils.formatCurrency(outstandingPayable)}",
-                                                    style = MaterialTheme.typography.bodySmall.copy(
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = if (outstandingPayable > 0) Blue600 else MaterialTheme.colorScheme.onSurface
+                                                Column(modifier = Modifier.padding(14.dp)) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                        ) {
+                                                            Text(
+                                                                text = "⚡",
+                                                                style = MaterialTheme.typography.titleSmall
+                                                            )
+                                                            Text(
+                                                                text = "Unified Party Settlement",
+                                                                style = MaterialTheme.typography.titleSmall.copy(
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = Purple600
+                                                                )
+                                                            )
+                                                        }
+                                                        val netStatusText = when {
+                                                            customer.netStatus.equals("settled", ignoreCase = true) || (totalRec == outstandingPayable) -> "SETTLED"
+                                                            customer.netStatus.equals("we_owe", ignoreCase = true) || (outstandingPayable > totalRec) -> "WE OWE PARTY"
+                                                            else -> "PARTY OWES US"
+                                                        }
+                                                        val netStatusBg = when (netStatusText) {
+                                                            "SETTLED" -> Emerald50
+                                                            "WE OWE PARTY" -> Blue50
+                                                            else -> Crimson50
+                                                        }
+                                                        val netStatusFg = when (netStatusText) {
+                                                            "SETTLED" -> Emerald600
+                                                            "WE OWE PARTY" -> Blue600
+                                                            else -> Crimson600
+                                                        }
+                                                        StatBadge(
+                                                            text = netStatusText,
+                                                            backgroundColor = netStatusBg,
+                                                            textColor = netStatusFg
+                                                        )
+                                                    }
+
+                                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                                    Row(
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Column {
+                                                            Text(
+                                                                text = "Customer Receivable",
+                                                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                            )
+                                                            Text(
+                                                                text = FormatUtils.formatCurrency(totalRec.toString()),
+                                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = if (totalRec > 0.0) Crimson600 else Emerald600
+                                                                )
+                                                            )
+                                                        }
+
+                                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                            Text(
+                                                                text = "Supplier Payable",
+                                                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                            )
+                                                            Text(
+                                                                text = FormatUtils.formatCurrency(outstandingPayable.toString()),
+                                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = if (outstandingPayable > 0.0) Purple600 else MaterialTheme.colorScheme.onSurface
+                                                                )
+                                                            )
+                                                        }
+
+                                                        Column(horizontalAlignment = Alignment.End) {
+                                                            Text(
+                                                                text = "Net Balance",
+                                                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                            )
+                                                            val computedNet = (customer.netBalance?.toDoubleOrNull()) ?: (totalRec - outstandingPayable)
+                                                            Text(
+                                                                text = FormatUtils.formatCurrency(kotlin.math.abs(computedNet).toString()),
+                                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                                    fontWeight = FontWeight.ExtraBold,
+                                                                    color = if (computedNet > 0.0) Crimson600 else if (computedNet < 0.0) Blue600 else Emerald600
+                                                                )
+                                                            )
+                                                        }
+                                                    }
+
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    Text(
+                                                        text = "Auto contra adjustment dynamically settles sales against pending supplier purchases FIFO on creation.",
+                                                        style = MaterialTheme.typography.labelSmall.copy(
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
                                                     )
-                                                )
+                                                }
                                             }
                                         }
 
@@ -1065,6 +1183,11 @@ private fun CustomerTransactionItemCard(
             badgeText = "ADV SETTLED"
             badgeBg = Amber50
             badgeFg = Amber600
+        }
+        "contra_settlement", "contra_adjustment", "contra" -> {
+            badgeText = "CONTRA ADJUST"
+            badgeBg = Purple50
+            badgeFg = Purple600
         }
         "adjustment" -> {
             badgeText = "ADJUSTMENT"

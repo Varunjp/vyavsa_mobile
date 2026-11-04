@@ -236,4 +236,64 @@ class LineSaleOverviewViewModelTest {
         assertEquals(1, fakeRepo.breakdownCallCount)
         assertTrue(viewModel.state.value is UiState.Success)
     }
+
+    @Test
+    fun testLoadBreakdownWithPayableAllocation() = runTest {
+        val expected = LineSalePaymentBreakdown(
+            totalSales = "40000.00",
+            cashReceived = "0.00",
+            bankReceived = "0.00",
+            totalReceived = "0.00",
+            advanceApplied = "0.00",
+            payableApplied = "40000.00",
+            contraAmount = "40000.00",
+            totalDue = "0.00",
+            salesCount = 1L,
+            isReconciled = true,
+            bankBreakdown = emptyList()
+        )
+        fakeRepo.breakdownResult = expected
+
+        val viewModel = LineSaleOverviewViewModel(fakeRepo, refreshCoordinator)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue(state is UiState.Success)
+        val data = (state as UiState.Success).data
+        assertEquals("40000.00", data.totalSales)
+        assertEquals("40000.00", data.payableApplied)
+        assertEquals("40000.00", data.effectivePayableApplied)
+        assertEquals("0.00", data.totalDue)
+        assertTrue(data.isReconciled)
+    }
+
+    @Test
+    fun testLoadBreakdownWithMixedAdvanceAndPayableAllocation() = runTest {
+        val expected = LineSalePaymentBreakdown(
+            totalSales = "60000.00",
+            cashReceived = "10000.00",
+            bankReceived = "10000.00",
+            totalReceived = "20000.00",
+            advanceApplied = "20000.00",
+            payableApplied = "20000.00",
+            totalDue = "0.00",
+            salesCount = 2L,
+            isReconciled = true,
+            bankBreakdown = emptyList()
+        )
+        fakeRepo.breakdownResult = expected
+
+        val viewModel = LineSaleOverviewViewModel(fakeRepo, refreshCoordinator)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue(state is UiState.Success)
+        val data = (state as UiState.Success).data
+        assertEquals("60000.00", data.totalSales)
+        assertEquals("20000.00", data.advanceApplied)
+        assertEquals("20000.00", data.effectivePayableApplied)
+        assertEquals("20000.00", data.totalReceived)
+        assertEquals("0.00", data.totalDue)
+        assertTrue(data.isReconciled)
+    }
 }
