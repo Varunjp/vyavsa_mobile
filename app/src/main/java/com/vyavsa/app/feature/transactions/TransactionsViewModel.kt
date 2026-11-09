@@ -10,6 +10,7 @@ import com.vyavsa.app.core.model.CashTransaction
 import com.vyavsa.app.core.model.CounterSale
 import com.vyavsa.app.core.model.CreateCounterSaleRequest
 import com.vyavsa.app.core.model.CreateExpenseRequest
+import com.vyavsa.app.core.model.UpdateExpenseRequest
 import com.vyavsa.app.core.model.CreateLineSaleRequest
 import com.vyavsa.app.core.model.CreatePurchaseRequest
 import com.vyavsa.app.core.model.Customer
@@ -234,6 +235,15 @@ class TransactionsViewModel @Inject constructor(
     private val _selectedCustomer = MutableStateFlow<Customer?>(null)
     val selectedCustomer: StateFlow<Customer?> = _selectedCustomer.asStateFlow()
 
+    private val _selectedPurchaseSupplierId = MutableStateFlow<String?>(null)
+    val selectedPurchaseSupplierId: StateFlow<String?> = _selectedPurchaseSupplierId.asStateFlow()
+
+    private val _selectedExpenseCategory = MutableStateFlow<String?>("all")
+    val selectedExpenseCategory: StateFlow<String?> = _selectedExpenseCategory.asStateFlow()
+
+    private val _selectedExpenseForDetails = MutableStateFlow<Expense?>(null)
+    val selectedExpenseForDetails: StateFlow<Expense?> = _selectedExpenseForDetails.asStateFlow()
+
     private val _dateFilter = MutableStateFlow<String?>(FormatUtils.todayDateString())
     val dateFilter: StateFlow<String?> = _dateFilter.asStateFlow()
 
@@ -242,6 +252,13 @@ class TransactionsViewModel @Inject constructor(
 
     private val _createActionState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val createActionState: StateFlow<UiState<Unit>> = _createActionState.asStateFlow()
+
+    private val _updateExpenseActionState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val updateExpenseActionState: StateFlow<UiState<Unit>> = _updateExpenseActionState.asStateFlow()
+
+    fun resetUpdateExpenseState() {
+        _updateExpenseActionState.value = UiState.Idle
+    }
 
     private val _saleConfirmation = MutableStateFlow<SaleConfirmation?>(null)
     val saleConfirmation: StateFlow<SaleConfirmation?> = _saleConfirmation.asStateFlow()
@@ -423,6 +440,10 @@ class TransactionsViewModel @Inject constructor(
         _dateFilter.value = if (newRange.startDate == newRange.endDate) newRange.startDate else null
         searchJob?.cancel()
         loadFilterableData(activeTabOnly = true)
+    }
+
+    fun selectDateFilterType(type: DateFilterType) {
+        setDateRangeFilter(type)
     }
 
     fun setSelectedCustomer(customer: Customer?) {
@@ -621,13 +642,29 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 
-    fun loadPurchasesData(date: String? = null, query: String? = null) {
+    fun loadPurchasesData(
+        date: String? = null,
+        fromDate: String? = null,
+        toDate: String? = null,
+        query: String? = null,
+        supplierId: String? = null
+    ) {
         val q = query ?: _searchQuery.value.ifBlank { null }
-        val d = date ?: _dateFilter.value?.ifBlank { null }
+        val range = _dateRangeSelection.value
+        val fDate = fromDate ?: if (date == null) range.startDate else null
+        val tDate = toDate ?: if (date == null) range.endDate else null
+        val d = if (date != null) date else if (fDate == tDate && fDate != null) fDate else null
+        val sId = supplierId ?: _selectedPurchaseSupplierId.value
         purchasesJob?.cancel()
         _purchasesState.value = UiState.Loading
         purchasesJob = viewModelScope.launch {
-            repository.listPurchases(date = d, search = q).collect { res ->
+            repository.listPurchases(
+                date = d,
+                fromDate = if (d != null) null else fDate,
+                toDate = if (d != null) null else tDate,
+                search = q,
+                supplierId = sId
+            ).collect { res ->
                 _purchasesState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
@@ -640,23 +677,61 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 
-    fun loadExpensesData(date: String? = null, query: String? = null) {
+    fun loadExpensesData(
+        date: String? = null,
+        fromDate: String? = null,
+        toDate: String? = null,
+        query: String? = null,
+        category: String? = null
+    ) {
         val q = query ?: _searchQuery.value.ifBlank { null }
-        val d = date ?: _dateFilter.value?.ifBlank { null }
+        val range = _dateRangeSelection.value
+        val fDate = fromDate ?: if (date == null) range.startDate else null
+        val tDate = toDate ?: if (date == null) range.endDate else null
+        val d = if (date != null) date else if (fDate == tDate && fDate != null) fDate else null
+        val cat = category ?: _selectedExpenseCategory.value
         expensesJob?.cancel()
         _expensesState.value = UiState.Loading
         expensesJob = viewModelScope.launch {
-            repository.listExpenses(date = d, search = q).collect { res ->
+            repository.listExpenses(
+                date = d,
+                fromDate = if (d != null) null else fDate,
+                toDate = if (d != null) null else tDate,
+                search = q
+            ).collect { res ->
                 _expensesState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
-                        val distinct = res.data.distinctBy { it.id }
-                        if (distinct.isEmpty()) UiState.Empty else UiState.Success(distinct)
+                        var filtered = res.data.distinctBy { it.id }
+                        if (!cat.isNullOrBlank() && cat != "all") {
+                            filtered = filtered.filter { exp ->
+                                if (cat == "employee_advance") {
+                                    exp.category.equals("employee_advance", ignoreCase = true) || !exp.employeeId.isNullOrBlank()
+                                } else {
+                                    exp.category.equals(cat, ignoreCase = true)
+                                }
+                            }
+                        }
+                        if (filtered.isEmpty()) UiState.Empty else UiState.Success(filtered)
                     }
                     is Resource.Error -> UiState.Error(res.message, res.code)
                 }
             }
         }
+    }
+
+    fun setPurchaseSupplierFilter(supplierId: String?) {
+        _selectedPurchaseSupplierId.value = supplierId
+        loadPurchasesData()
+    }
+
+    fun setExpenseCategoryFilter(category: String?) {
+        _selectedExpenseCategory.value = category
+        loadExpensesData()
+    }
+
+    fun selectExpenseForDetails(expense: Expense?) {
+        _selectedExpenseForDetails.value = expense
     }
 
     fun loadCashTransactionsData() {
@@ -717,8 +792,8 @@ class TransactionsViewModel @Inject constructor(
                     loadCounterSalesData(date = date, fromDate = fromDate, toDate = toDate, query = query, customerId = customerId)
                 }
             }
-            loadPurchasesData(date, query)
-            loadExpensesData(date, query)
+            loadPurchasesData(date = date, fromDate = fromDate, toDate = toDate, query = query, supplierId = _selectedPurchaseSupplierId.value)
+            loadExpensesData(date = date, fromDate = fromDate, toDate = toDate, query = query, category = _selectedExpenseCategory.value)
             return
         }
 
@@ -742,10 +817,10 @@ class TransactionsViewModel @Inject constructor(
                 }
             }
             TransactionTab.PURCHASES -> {
-                loadPurchasesData(date, query)
+                loadPurchasesData(date = date, fromDate = fromDate, toDate = toDate, query = query, supplierId = _selectedPurchaseSupplierId.value)
             }
             TransactionTab.EXPENSES -> {
-                loadExpensesData(date, query)
+                loadExpensesData(date = date, fromDate = fromDate, toDate = toDate, query = query, category = _selectedExpenseCategory.value)
             }
             TransactionTab.CASH_BOOK -> {
                 loadCashTransactionsData()
@@ -1417,6 +1492,7 @@ class TransactionsViewModel @Inject constructor(
         amount: String,
         paymentMethod: String,
         employeeId: String? = null,
+        expenseDate: String? = null,
         paymentDate: String? = null,
         bankId: String? = null,
         referenceId: String? = null,
@@ -1447,6 +1523,16 @@ class TransactionsViewModel @Inject constructor(
             return
         }
 
+        val effectiveDateStr = (expenseDate?.ifBlank { null }
+            ?: paymentDate?.ifBlank { null }
+            ?: FormatUtils.todayDateString()).trim()
+
+        if (!FormatUtils.isValidIsoDate(effectiveDateStr)) {
+            _createActionState.value = UiState.Error("Expense date must be in YYYY-MM-DD format")
+            return
+        }
+
+        _createActionState.value = UiState.Loading
         viewModelScope.launch {
             val req = CreateExpenseRequest(
                 item = trimmedItem,
@@ -1457,7 +1543,9 @@ class TransactionsViewModel @Inject constructor(
                 paymentMethod = paymentMethod,
                 cashAmount = if (paymentMethod == "cash") amount.trim() else null,
                 bankId = bankId?.trim()?.ifBlank { null },
-                paymentDate = paymentDate?.trim()?.ifBlank { null },
+                expenseDate = effectiveDateStr,
+                paymentDate = effectiveDateStr,
+                date = effectiveDateStr,
                 referenceId = referenceId?.trim()?.ifBlank { null },
                 bankPayments = bankPayments
             )
@@ -1465,7 +1553,84 @@ class TransactionsViewModel @Inject constructor(
                 _createActionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
                     is Resource.Success -> {
-                        loadData()
+                        loadExpensesData()
+                        UiState.Success(Unit)
+                    }
+                    is Resource.Error -> UiState.Error(res.message, res.code)
+                }
+            }
+        }
+    }
+
+    fun updateExpense(
+        id: String,
+        item: String,
+        category: String?,
+        amount: String,
+        paymentMethod: String,
+        employeeId: String? = null,
+        expenseDate: String? = null,
+        paymentDate: String? = null,
+        bankId: String? = null,
+        bankPayments: List<BankPaymentSplit> = emptyList()
+    ) {
+        if (_updateExpenseActionState.value is UiState.Loading) return
+
+        if (id.isBlank()) {
+            _updateExpenseActionState.value = UiState.Error("Invalid expense ID")
+            return
+        }
+
+        val trimmedItem = item.trim()
+        if (trimmedItem.isBlank() || amount.isBlank()) {
+            _updateExpenseActionState.value = UiState.Error("Expense item name and amount are required")
+            return
+        }
+
+        val amt = amount.trim().toDoubleOrNull()
+        if (amt == null || amt <= 0.0) {
+            _updateExpenseActionState.value = UiState.Error("Expense amount must be greater than zero")
+            return
+        }
+
+        val isAdvance = category == "employee_advance"
+        if (isAdvance && employeeId.isNullOrBlank()) {
+            _updateExpenseActionState.value = UiState.Error("Please select a staff member for the advance payment")
+            return
+        }
+
+        if (paymentMethod == "bank" && bankId.isNullOrBlank() && bankPayments.isEmpty()) {
+            _updateExpenseActionState.value = UiState.Error("Please select a bank account for bank payment")
+            return
+        }
+
+        val cleanDate = (expenseDate?.ifBlank { null } ?: paymentDate?.ifBlank { null })?.trim()
+        if (cleanDate != null && !FormatUtils.isValidIsoDate(cleanDate)) {
+            _updateExpenseActionState.value = UiState.Error("Expense date must be in YYYY-MM-DD format")
+            return
+        }
+
+        _updateExpenseActionState.value = UiState.Loading
+        viewModelScope.launch {
+            val req = UpdateExpenseRequest(
+                item = trimmedItem,
+                category = category?.ifBlank { null },
+                employeeId = employeeId?.trim()?.ifBlank { null },
+                totalAmount = amount.trim(),
+                amount = amount.trim(),
+                paymentMethod = paymentMethod,
+                cashAmount = if (paymentMethod == "cash") amount.trim() else null,
+                bankId = bankId?.trim()?.ifBlank { null },
+                expenseDate = cleanDate,
+                paymentDate = cleanDate,
+                date = cleanDate,
+                bankPayments = bankPayments
+            )
+            repository.updateExpense(id, req).collect { res ->
+                _updateExpenseActionState.value = when (res) {
+                    is Resource.Loading -> UiState.Loading
+                    is Resource.Success -> {
+                        loadExpensesData()
                         UiState.Success(Unit)
                     }
                     is Resource.Error -> UiState.Error(res.message, res.code)

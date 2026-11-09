@@ -45,6 +45,11 @@ import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.LineSalePayment
 import com.vyavsa.app.core.model.LineSalePaymentBreakdown
 import com.vyavsa.app.core.model.OfficeDashboardResponse
+import com.vyavsa.app.core.model.Party
+import com.vyavsa.app.core.model.CreatePartyRequest
+import com.vyavsa.app.core.model.UpdatePartyRequest
+import com.vyavsa.app.core.model.PartyDetail
+import com.vyavsa.app.core.model.PartyFinancialSummary
 import com.vyavsa.app.core.model.PaySalaryRequest
 import com.vyavsa.app.core.model.PlanTransaction
 import com.vyavsa.app.core.model.Product
@@ -78,6 +83,7 @@ import com.vyavsa.app.core.model.UpdateBankRequest
 import com.vyavsa.app.core.model.UpdateCounterSaleRequest
 import com.vyavsa.app.core.model.UpdateCustomerRequest
 import com.vyavsa.app.core.model.UpdateEmployeeRequest
+import com.vyavsa.app.core.model.UpdateExpenseRequest
 import com.vyavsa.app.core.model.UpdateLineSaleRequest
 import com.vyavsa.app.core.model.UpdateProductRequest
 import com.vyavsa.app.core.model.UpdatePurchaseRequest
@@ -284,8 +290,11 @@ interface VyavsaApiService {
         @Query("page") page: Int = 1,
         @Query("page_size") pageSize: Int = 20,
         @Query("date") date: String? = null,
+        @Query("from_date") fromDate: String? = null,
+        @Query("to_date") toDate: String? = null,
         @Query("search") search: String? = null,
-        @Query("customer_id") customerId: String? = null
+        @Query("customer_id") customerId: String? = null,
+        @Query("supplier_id") supplierId: String? = null
     ): ApiResponse<List<Purchase>>
 
     @POST("api/v1/tenant/purchases")
@@ -445,6 +454,40 @@ interface VyavsaApiService {
     ): ApiResponse<SupplierPaymentResponse>
 
     // ==========================================
+    // 4c. Unified Business Parties
+    // ==========================================
+
+    @GET("api/v1/tenant/parties")
+    suspend fun listParties(
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 20,
+        @Query("role") role: String? = "all",
+        @Query("search") search: String? = null,
+        @Query("status") status: String? = null
+    ): ApiResponse<List<Party>>
+
+    @POST("api/v1/tenant/parties")
+    suspend fun createParty(@Body req: CreatePartyRequest): ApiResponse<Party>
+
+    @GET("api/v1/tenant/parties/{id}")
+    suspend fun getPartyById(@Path("id") id: String): ApiResponse<Party>
+
+    @PUT("api/v1/tenant/parties/{id}")
+    suspend fun updateParty(
+        @Path("id") id: String,
+        @Body req: UpdatePartyRequest
+    ): ApiResponse<Party>
+
+    @DELETE("api/v1/tenant/parties/{id}")
+    suspend fun deleteParty(@Path("id") id: String): ApiResponse<Map<String, Boolean>>
+
+    @GET("api/v1/tenant/parties/{id}/details")
+    suspend fun getPartyDetailedView(@Path("id") id: String): ApiResponse<PartyDetail>
+
+    @GET("api/v1/tenant/parties/{id}/financial-summary")
+    suspend fun getPartyFinancialSummary(@Path("id") id: String): ApiResponse<PartyFinancialSummary>
+
+    // ==========================================
     // 5. Expenses
     // ==========================================
 
@@ -453,11 +496,25 @@ interface VyavsaApiService {
         @Query("page") page: Int = 1,
         @Query("page_size") pageSize: Int = 20,
         @Query("date") date: String? = null,
+        @Query("from_date") fromDate: String? = null,
+        @Query("to_date") toDate: String? = null,
         @Query("search") search: String? = null
     ): ApiResponse<List<Expense>>
 
     @POST("api/v1/tenant/expenses")
     suspend fun createExpense(@Body req: CreateExpenseRequest): ApiResponse<Expense>
+
+    @GET("api/v1/tenant/expenses/{id}")
+    suspend fun getExpenseById(@Path("id") id: String): ApiResponse<Expense>
+
+    @PUT("api/v1/tenant/expenses/{id}")
+    suspend fun updateExpense(
+        @Path("id") id: String,
+        @Body req: UpdateExpenseRequest
+    ): ApiResponse<Expense>
+
+    @DELETE("api/v1/tenant/expenses/{id}")
+    suspend fun deleteExpense(@Path("id") id: String): ApiResponse<Unit>
 
     // ==========================================
     // 6. Employees, Attendance & Salary

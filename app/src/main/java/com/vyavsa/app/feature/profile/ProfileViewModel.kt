@@ -65,6 +65,10 @@ class ProfileViewModel @Inject constructor(
 
     fun isTenantAdmin(): Boolean = tokenManager?.isTenantAdmin() ?: true
 
+    fun canAccessPurchases(): Boolean = tokenManager?.canAccessPurchases() ?: false
+
+    fun canAccessExpenses(): Boolean = tokenManager?.canAccessExpenses() ?: false
+
     init {
         loadProfileData()
     }

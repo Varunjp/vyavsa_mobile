@@ -25,6 +25,7 @@ import com.vyavsa.app.core.model.RecordSupplierPaymentRequest
 import com.vyavsa.app.core.model.Supplier
 import com.vyavsa.app.core.model.SupplierPaymentResponse
 import com.vyavsa.app.core.model.UpdateCounterSaleRequest
+import com.vyavsa.app.core.model.UpdateExpenseRequest
 import com.vyavsa.app.core.model.UpdateLineSaleRequest
 import com.vyavsa.app.core.model.UpdatePurchaseRequest
 import com.vyavsa.app.core.network.ApiErrorParser
@@ -76,7 +77,16 @@ interface TransactionsRepository {
         endDate: String? = null
     ): Flow<Resource<CounterSalePaymentBreakdown>>
 
-    fun listPurchases(date: String?, search: String?, customerId: String? = null): Flow<Resource<List<Purchase>>>
+    fun listPurchases(
+        date: String? = null,
+        search: String? = null,
+        customerId: String? = null,
+        fromDate: String? = null,
+        toDate: String? = null,
+        supplierId: String? = null,
+        page: Int = 1,
+        pageSize: Int = 20
+    ): Flow<Resource<List<Purchase>>>
     fun createPurchase(request: CreatePurchaseRequest): Flow<Resource<Purchase>>
     fun getPurchaseById(id: String): Flow<Resource<Purchase>>
     fun updatePurchase(id: String, request: UpdatePurchaseRequest): Flow<Resource<Purchase>>
@@ -84,8 +94,18 @@ interface TransactionsRepository {
     fun listPurchasePayments(id: String): Flow<Resource<List<PurchasePayment>>>
     fun recordPurchasePayment(id: String, request: RecordSupplierPaymentRequest): Flow<Resource<SupplierPaymentResponse>>
 
-    fun listExpenses(date: String?, search: String?): Flow<Resource<List<Expense>>>
+    fun listExpenses(
+        date: String? = null,
+        search: String? = null,
+        fromDate: String? = null,
+        toDate: String? = null,
+        page: Int = 1,
+        pageSize: Int = 20
+    ): Flow<Resource<List<Expense>>>
     fun createExpense(request: CreateExpenseRequest): Flow<Resource<Expense>>
+    fun getExpenseById(id: String): Flow<Resource<Expense>>
+    fun updateExpense(id: String, request: UpdateExpenseRequest): Flow<Resource<Expense>>
+    fun deleteExpense(id: String): Flow<Resource<Unit>>
     fun listCashTransactions(): Flow<Resource<List<CashTransaction>>>
     fun listSubscriptionTransactions(): Flow<Resource<List<PlanTransaction>>>
     fun listCustomers(search: String? = null, page: Int = 1, pageSize: Int = 50): Flow<Resource<List<Customer>>>
@@ -395,10 +415,28 @@ class TransactionsRepositoryImpl @Inject constructor(
         }
     }.flowOn(Dispatchers.IO)
 
-    override fun listPurchases(date: String?, search: String?, customerId: String?): Flow<Resource<List<Purchase>>> = flow {
+    override fun listPurchases(
+        date: String?,
+        search: String?,
+        customerId: String?,
+        fromDate: String?,
+        toDate: String?,
+        supplierId: String?,
+        page: Int,
+        pageSize: Int
+    ): Flow<Resource<List<Purchase>>> = flow {
         emit(Resource.Loading)
         try {
-            val response = apiService.listPurchases(date = date, search = search, customerId = customerId)
+            val response = apiService.listPurchases(
+                page = page,
+                pageSize = pageSize,
+                date = date,
+                fromDate = fromDate,
+                toDate = toDate,
+                search = search,
+                customerId = customerId,
+                supplierId = supplierId
+            )
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
@@ -517,10 +555,24 @@ class TransactionsRepositoryImpl @Inject constructor(
         }
     }.flowOn(Dispatchers.IO)
 
-    override fun listExpenses(date: String?, search: String?): Flow<Resource<List<Expense>>> = flow {
+    override fun listExpenses(
+        date: String?,
+        search: String?,
+        fromDate: String?,
+        toDate: String?,
+        page: Int,
+        pageSize: Int
+    ): Flow<Resource<List<Expense>>> = flow {
         emit(Resource.Loading)
         try {
-            val response = apiService.listExpenses(date = date, search = search)
+            val response = apiService.listExpenses(
+                page = page,
+                pageSize = pageSize,
+                date = date,
+                fromDate = fromDate,
+                toDate = toDate,
+                search = search
+            )
             if (response.success && response.data != null) {
                 emit(Resource.Success(response.data))
             } else {
@@ -551,6 +603,60 @@ class TransactionsRepositoryImpl @Inject constructor(
             }
         } catch (e: Throwable) {
             emit(ApiErrorParser.parse(e, "Network error recording expense"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun getExpenseById(id: String): Flow<Resource<Expense>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.getExpenseById(id)
+            if (response.success && response.data != null) {
+                emit(Resource.Success(response.data))
+            } else {
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to load expense details"))
+            }
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error loading expense details"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun updateExpense(id: String, request: UpdateExpenseRequest): Flow<Resource<Expense>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.updateExpense(id, request)
+            if (response.success && response.data != null) {
+                refreshCoordinator.notifyMutation(DataMutation.EXPENSES)
+                if (request.category == "employee_advance" || !request.employeeId.isNullOrBlank()) {
+                    refreshCoordinator.notifyMutation(DataMutation.STAFF)
+                }
+                if (request.paymentMethod == "bank" || !request.bankId.isNullOrBlank() || request.bankPayments.isNotEmpty()) {
+                    refreshCoordinator.notifyMutation(DataMutation.BANK)
+                } else if (request.paymentMethod == "cash") {
+                    refreshCoordinator.notifyMutation(DataMutation.CASH)
+                }
+                emit(Resource.Success(response.data, response.message))
+            } else {
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to update expense"))
+            }
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error updating expense"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun deleteExpense(id: String): Flow<Resource<Unit>> = flow {
+        emit(Resource.Loading)
+        try {
+            val response = apiService.deleteExpense(id)
+            if (response.success) {
+                refreshCoordinator.notifyMutation(DataMutation.EXPENSES)
+                refreshCoordinator.notifyMutation(DataMutation.CASH)
+                refreshCoordinator.notifyMutation(DataMutation.BANK)
+                emit(Resource.Success(Unit, response.message))
+            } else {
+                emit(ApiErrorParser.fromApiResponse(response, "Failed to delete expense"))
+            }
+        } catch (e: Throwable) {
+            emit(ApiErrorParser.parse(e, "Network error deleting expense"))
         }
     }.flowOn(Dispatchers.IO)
 

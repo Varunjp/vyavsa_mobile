@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -48,12 +50,15 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,6 +79,7 @@ import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
 import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.model.Employee
+import com.vyavsa.app.core.model.Expense
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,9 +87,12 @@ fun CreateExpenseScreen(
     viewModel: TransactionsViewModel,
     onExpenseCreated: () -> Unit,
     onNavigateBack: () -> Unit,
+    initialExpense: Expense? = null,
     modifier: Modifier = Modifier
 ) {
+    val isEditMode = initialExpense != null
     val createActionState by viewModel.createActionState.collectAsState()
+    val updateActionState by viewModel.updateExpenseActionState.collectAsState()
     val employeesState by viewModel.employeesState.collectAsState()
     val banksState by viewModel.banksState.collectAsState()
     val focusManager = LocalFocusManager.current
@@ -91,16 +100,44 @@ fun CreateExpenseScreen(
     val employees = (employeesState as? UiState.Success)?.data ?: emptyList()
     val banks = (banksState as? UiState.Success)?.data ?: emptyList()
 
-    var item by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("operations") }
-    var amount by remember { mutableStateOf("") }
-    var paymentMethod by remember { mutableStateOf("cash") }
-    var selectedBankId by remember { mutableStateOf<String?>(null) }
-    var selectedEmployee by remember { mutableStateOf<Employee?>(null) }
+    var item by rememberSaveable { mutableStateOf(initialExpense?.item ?: "") }
+    var category by rememberSaveable { mutableStateOf(initialExpense?.category ?: "operations") }
+    var amount by rememberSaveable {
+        mutableStateOf(
+            if (initialExpense != null) {
+                if (initialExpense.totalAmount != "0.00") initialExpense.totalAmount else initialExpense.amount
+            } else ""
+        )
+    }
+    var paymentMethod by rememberSaveable { mutableStateOf(initialExpense?.paymentMethod ?: "cash") }
+    var selectedBankId by rememberSaveable {
+        mutableStateOf(
+            initialExpense?.paymentBreakdown?.banks?.firstOrNull()?.bankAccountId
+        )
+    }
+    var selectedEmployee by remember {
+        mutableStateOf<Employee?>(
+            if (initialExpense?.employeeId != null) {
+                employees.firstOrNull { it.id == initialExpense.employeeId }
+            } else null
+        )
+    }
+
+    LaunchedEffect(employees, initialExpense) {
+        if (selectedEmployee == null && initialExpense?.employeeId != null && employees.isNotEmpty()) {
+            selectedEmployee = employees.firstOrNull { it.id == initialExpense.employeeId }
+        }
+    }
+
     var employeeDropdownExpanded by remember { mutableStateOf(false) }
-    var paymentDate by remember { mutableStateOf("") }
-    var referenceId by remember { mutableStateOf("") }
-    var localError by remember { mutableStateOf<String?>(null) }
+    var expenseDate by rememberSaveable {
+        mutableStateOf(
+            initialExpense?.effectiveDate?.ifBlank { null } ?: FormatUtils.todayDateString()
+        )
+    }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var referenceId by rememberSaveable { mutableStateOf("") }
+    var localError by rememberSaveable { mutableStateOf<String?>(null) }
 
     val categories = remember {
         listOf(
@@ -114,10 +151,11 @@ fun CreateExpenseScreen(
         )
     }
 
-    LaunchedEffect(createActionState) {
-        if (createActionState is UiState.Success) {
+    LaunchedEffect(createActionState, updateActionState) {
+        if (createActionState is UiState.Success || updateActionState is UiState.Success) {
             onExpenseCreated()
             viewModel.resetCreateState()
+            viewModel.resetUpdateExpenseState()
         }
     }
 
@@ -129,12 +167,52 @@ fun CreateExpenseScreen(
         }
     }
 
+    if (showDatePicker) {
+        val initialMillis = remember(expenseDate) {
+            FormatUtils.localDateStringToUtcMillis(expenseDate) ?: System.currentTimeMillis()
+        }
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = initialMillis
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            expenseDate = FormatUtils.utcMillisToLocalDateString(millis)
+                            localError = null
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("Select", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             VyavsaTopAppBar(
-                title = if (category == "employee_advance") "Disburse Staff Advance" else "Record Expense",
-                subtitle = if (category == "employee_advance") "Advance payout adjusting employee salary balance" else "Log store operating expenses & payouts",
+                title = when {
+                    isEditMode -> "Edit Expense"
+                    category == "employee_advance" -> "Disburse Staff Advance"
+                    else -> "Record Expense"
+                },
+                subtitle = when {
+                    isEditMode -> "Update expense details & transaction date"
+                    category == "employee_advance" -> "Advance payout adjusting employee salary balance"
+                    else -> "Log store operating expenses & payouts"
+                },
                 navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 onNavigationClick = onNavigateBack
             )
@@ -164,7 +242,11 @@ fun CreateExpenseScreen(
                 ) {
                     Column(modifier = Modifier.padding(22.dp)) {
                         Text(
-                            text = if (category == "employee_advance") "Employee Advance Disbursement" else "New Expense Entry",
+                            text = when {
+                                isEditMode -> "Edit Expense Entry"
+                                category == "employee_advance" -> "Employee Advance Disbursement"
+                                else -> "New Expense Entry"
+                            },
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.ExtraBold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -172,10 +254,11 @@ fun CreateExpenseScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = if (category == "employee_advance")
-                                "Disburses funds to staff and deducts from their pending salary ledger"
-                            else
-                                "Deducts directly from your selected Cash Till or Bank balance",
+                            text = when {
+                                isEditMode -> "Modify transaction date, category, amount, or payment method"
+                                category == "employee_advance" -> "Disburses funds to staff and deducts from their pending salary ledger"
+                                else -> "Deducts directly from your selected Cash Till or Bank balance"
+                            },
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -183,9 +266,13 @@ fun CreateExpenseScreen(
 
                         Spacer(modifier = Modifier.height(18.dp))
 
-                        if (createActionState is UiState.Error || localError != null) {
+                        if (createActionState is UiState.Error || updateActionState is UiState.Error || localError != null) {
+                            val errorMsg = localError
+                                ?: (createActionState as? UiState.Error)?.message
+                                ?: (updateActionState as? UiState.Error)?.message
+                                ?: ""
                             ErrorBanner(
-                                message = localError ?: (createActionState as? UiState.Error)?.message ?: "",
+                                message = errorMsg,
                                 modifier = Modifier.padding(bottom = 16.dp)
                             )
                         }
@@ -396,15 +483,36 @@ fun CreateExpenseScreen(
                                 modifier = Modifier.weight(1f)
                             )
 
-                            VyavsaTextField(
-                                value = paymentDate,
-                                onValueChange = { paymentDate = it },
-                                label = "Date (Optional)",
-                                placeholder = "YYYY-MM-DD",
-                                leadingIcon = Icons.Default.CalendarToday,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            ExpenseDateField(
+                                selectedDate = expenseDate,
+                                onClick = { showDatePicker = true },
                                 modifier = Modifier.weight(1f)
                             )
+                        }
+
+                        if (expenseDate != FormatUtils.todayDateString()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "Historical date: ${FormatUtils.formatDateForDisplay(expenseDate)}",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                )
+                                TextButton(
+                                    onClick = {
+                                        expenseDate = FormatUtils.todayDateString()
+                                        localError = null
+                                    }
+                                ) {
+                                    Text("Reset to Today", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                                }
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(18.dp))
@@ -484,7 +592,11 @@ fun CreateExpenseScreen(
                         Spacer(modifier = Modifier.height(26.dp))
 
                         VyavsaButton(
-                            text = if (category == "employee_advance") "Disburse Staff Advance" else "Record Expense",
+                            text = when {
+                                isEditMode -> "Update Expense"
+                                category == "employee_advance" -> "Disburse Staff Advance"
+                                else -> "Record Expense"
+                            },
                             onClick = {
                                 focusManager.clearFocus()
                                 val amt = amount.trim().toDoubleOrNull()
@@ -504,22 +616,121 @@ fun CreateExpenseScreen(
                                     localError = "Please select a bank account"
                                     return@VyavsaButton
                                 }
+                                if (!FormatUtils.isValidIsoDate(expenseDate)) {
+                                    localError = "Expense date must be in YYYY-MM-DD format"
+                                    return@VyavsaButton
+                                }
 
                                 localError = null
-                                viewModel.createExpense(
-                                    item = item,
-                                    category = category,
-                                    amount = amount,
-                                    paymentMethod = paymentMethod,
-                                    employeeId = selectedEmployee?.id,
-                                    paymentDate = paymentDate.ifBlank { null },
-                                    bankId = if (paymentMethod == "bank") selectedBankId else null,
-                                    referenceId = referenceId.ifBlank { null }
-                                )
+                                if (isEditMode) {
+                                    viewModel.updateExpense(
+                                        id = initialExpense!!.id,
+                                        item = item,
+                                        category = category,
+                                        amount = amount,
+                                        paymentMethod = paymentMethod,
+                                        employeeId = selectedEmployee?.id,
+                                        expenseDate = expenseDate,
+                                        bankId = if (paymentMethod == "bank") selectedBankId else null
+                                    )
+                                } else {
+                                    viewModel.createExpense(
+                                        item = item,
+                                        category = category,
+                                        amount = amount,
+                                        paymentMethod = paymentMethod,
+                                        employeeId = selectedEmployee?.id,
+                                        expenseDate = expenseDate,
+                                        bankId = if (paymentMethod == "bank") selectedBankId else null,
+                                        referenceId = referenceId.ifBlank { null }
+                                    )
+                                }
                             },
-                            isLoading = createActionState is UiState.Loading
+                            isLoading = createActionState is UiState.Loading || updateActionState is UiState.Loading
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpenseDateField(
+    selectedDate: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isToday = selectedDate == FormatUtils.todayDateString()
+    val displayDate = remember(selectedDate) {
+        FormatUtils.formatDateForDisplay(selectedDate)
+    }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        ),
+        onClick = onClick,
+        modifier = modifier
+            .height(56.dp)
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+                RoundedCornerShape(16.dp)
+            )
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CalendarToday,
+                    contentDescription = "Select Date",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(verticalArrangement = Arrangement.Center) {
+                    Text(
+                        text = "Date *",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                    Text(
+                        text = displayDate.ifBlank { selectedDate },
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            if (isToday) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(start = 4.dp)
+                ) {
+                    Text(
+                        text = "Today",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        ),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
                 }
             }
         }

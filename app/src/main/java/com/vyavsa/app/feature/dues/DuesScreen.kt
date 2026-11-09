@@ -33,6 +33,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.AlertDialog
@@ -51,6 +52,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -90,8 +92,13 @@ import androidx.compose.material3.HorizontalDivider
 import com.vyavsa.app.core.model.CustomerAdvanceResponse
 import com.vyavsa.app.core.model.CustomerPaymentResponse
 import com.vyavsa.app.core.model.Customer
+import com.vyavsa.app.core.model.Party
 import com.vyavsa.app.core.model.Supplier
 import com.vyavsa.app.core.model.TenantBank
+import com.vyavsa.app.feature.party.CreatePartyDialog
+import com.vyavsa.app.feature.party.EditPartyDialog
+import com.vyavsa.app.feature.party.PartiesListContent
+import com.vyavsa.app.feature.party.PartyCard
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -99,20 +106,38 @@ fun DuesScreen(
     viewModel: DuesViewModel,
     onNavigateToStatement: (customerId: String, customerName: String) -> Unit,
     onNavigateToCustomerDetails: (customerId: String) -> Unit = {},
+    onNavigateToPartyDetails: (partyId: String) -> Unit = {},
+    initialTab: DuesTab? = null,
     modifier: Modifier = Modifier
 ) {
     val selectedTab by viewModel.selectedTab.collectAsState()
+    val partiesState by viewModel.partiesState.collectAsState()
+    val partiesPagination by viewModel.partiesPagination.collectAsState()
+    val partyRoleFilter by viewModel.partyRoleFilter.collectAsState()
+    val partyBalanceFilter by viewModel.partyBalanceFilter.collectAsState()
     val customersState by viewModel.customersState.collectAsState()
     val suppliersState by viewModel.suppliersState.collectAsState()
     val banksState by viewModel.banksState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val actionState by viewModel.actionState.collectAsState()
+    val canCreateParty = viewModel.canCreateParty
+    val canUpdateParty = viewModel.canUpdateParty
+    val canDeleteParty = viewModel.canDeleteParty
 
     val snackbarHostState = remember { SnackbarHostState() }
     ObserveAsEvents(viewModel.uiEvents) { msg ->
         snackbarHostState.showSnackbar(msg.text)
     }
 
+    LaunchedEffect(initialTab) {
+        if (initialTab != null) {
+            viewModel.selectTab(initialTab)
+        }
+    }
+
+    var showAddPartyDialog by remember { mutableStateOf(false) }
+    var editingParty by remember { mutableStateOf<Party?>(null) }
+    var deletingParty by remember { mutableStateOf<Party?>(null) }
     var showAddCustomerDialog by remember { mutableStateOf(false) }
     var showAddSupplierDialog by remember { mutableStateOf(false) }
     var collectingCustomer by remember { mutableStateOf<Customer?>(null) }
@@ -131,29 +156,39 @@ fun DuesScreen(
         topBar = {
             VyavsaTopAppBar(
                 title = "Khata & Ledger Accounts",
-                subtitle = "Manage customer receivables & supplier payables"
+                subtitle = "Manage unified parties, customer receivables & supplier payables"
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = {
-                    if (selectedTab == DuesTab.CUSTOMERS) {
-                        showAddCustomerDialog = true
-                    } else {
-                        showAddSupplierDialog = true
+            val canShowFab = when (selectedTab) {
+                DuesTab.PARTIES -> canCreateParty
+                else -> true
+            }
+            if (canShowFab) {
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        when (selectedTab) {
+                            DuesTab.PARTIES -> showAddPartyDialog = true
+                            DuesTab.CUSTOMERS -> showAddCustomerDialog = true
+                            DuesTab.SUPPLIERS -> showAddSupplierDialog = true
+                        }
+                    },
+                    shape = RoundedCornerShape(20.dp),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                    icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) },
+                    text = {
+                        Text(
+                            when (selectedTab) {
+                                DuesTab.PARTIES -> "Add Party"
+                                DuesTab.CUSTOMERS -> "Add Customer"
+                                DuesTab.SUPPLIERS -> "Add Supplier"
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                },
-                shape = RoundedCornerShape(20.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-                icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) },
-                text = {
-                    Text(
-                        if (selectedTab == DuesTab.CUSTOMERS) "Add Customer" else "Add Supplier",
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            )
+                )
+            }
         },
         modifier = modifier
     ) { paddingValues ->
@@ -163,12 +198,22 @@ fun DuesScreen(
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            // Segmented Switcher for Customers vs Suppliers
+            // Segmented Switcher for Parties vs Customers vs Suppliers
             VyavsaSegmentedTabs(
-                tabs = listOf("Customers (Receivables)", "Suppliers (Payables)"),
-                selectedIndex = if (selectedTab == DuesTab.CUSTOMERS) 0 else 1,
+                tabs = listOf("Parties (Unified)", "Customers (Receivables)", "Suppliers (Payables)"),
+                selectedIndex = when (selectedTab) {
+                    DuesTab.PARTIES -> 0
+                    DuesTab.CUSTOMERS -> 1
+                    DuesTab.SUPPLIERS -> 2
+                },
                 onTabSelected = { idx ->
-                    viewModel.selectTab(if (idx == 0) DuesTab.CUSTOMERS else DuesTab.SUPPLIERS)
+                    viewModel.selectTab(
+                        when (idx) {
+                            0 -> DuesTab.PARTIES
+                            1 -> DuesTab.CUSTOMERS
+                            else -> DuesTab.SUPPLIERS
+                        }
+                    )
                 },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
@@ -177,7 +222,11 @@ fun DuesScreen(
             VyavsaSearchBar(
                 query = searchQuery,
                 onQueryChange = { viewModel.onSearchChange(it) },
-                placeholder = if (selectedTab == DuesTab.CUSTOMERS) "Search customer name or phone..." else "Search supplier name or phone...",
+                placeholder = when (selectedTab) {
+                    DuesTab.PARTIES -> "Search party name, phone, email..."
+                    DuesTab.CUSTOMERS -> "Search customer name or phone..."
+                    DuesTab.SUPPLIERS -> "Search supplier name or phone..."
+                },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
 
@@ -188,7 +237,203 @@ fun DuesScreen(
                 )
             }
 
-            if (selectedTab == DuesTab.CUSTOMERS) {
+            if (selectedTab == DuesTab.PARTIES) {
+                // Unified Business Parties Tab
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Filter Chips Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 20.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = partyRoleFilter == "all",
+                            onClick = { viewModel.selectPartyRoleFilter("all") },
+                            label = { Text("All Roles") }
+                        )
+                        FilterChip(
+                            selected = partyRoleFilter == "both",
+                            onClick = { viewModel.selectPartyRoleFilter("both") },
+                            label = { Text("Both (Cust & Supp)") }
+                        )
+                        FilterChip(
+                            selected = partyRoleFilter == "customer",
+                            onClick = { viewModel.selectPartyRoleFilter("customer") },
+                            label = { Text("Customers Only") }
+                        )
+                        FilterChip(
+                            selected = partyRoleFilter == "supplier",
+                            onClick = { viewModel.selectPartyRoleFilter("supplier") },
+                            label = { Text("Suppliers Only") }
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 20.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = partyBalanceFilter == "all",
+                            onClick = { viewModel.selectPartyBalanceFilter("all") },
+                            label = { Text("All Balances") }
+                        )
+                        FilterChip(
+                            selected = partyBalanceFilter == "dues",
+                            onClick = { viewModel.selectPartyBalanceFilter("dues") },
+                            label = { Text("Has Dues") }
+                        )
+                        FilterChip(
+                            selected = partyBalanceFilter == "settleable",
+                            onClick = { viewModel.selectPartyBalanceFilter("settleable") },
+                            label = { Text("Eligible for Contra") }
+                        )
+                    }
+
+                    when (val state = partiesState) {
+                        is UiState.Loading -> {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                        is UiState.Empty -> {
+                            EmptyStateView(
+                                title = "No Business Parties Found",
+                                description = "Register business parties to manage sales, purchases, and mutual balance settlements",
+                                icon = Icons.Default.Groups,
+                                actionText = "Add Business Party",
+                                onActionClick = { showAddPartyDialog = true }
+                            )
+                        }
+                        is UiState.Error -> {
+                            Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+                                ErrorBanner(message = state.message)
+                            }
+                        }
+                        is UiState.Success -> {
+                            val parties = state.data
+                            val totalReceivable = remember(parties) {
+                                parties.sumOf { it.totalReceivable.toDoubleOrNull() ?: 0.0 }
+                            }
+                            val totalPayable = remember(parties) {
+                                parties.sumOf { it.totalPayable.toDoubleOrNull() ?: 0.0 }
+                            }
+                            val netTotal = totalReceivable - totalPayable
+
+                            LazyColumn(
+                                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 96.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                item {
+                                    Card(
+                                        shape = RoundedCornerShape(20.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(14.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text(
+                                                    text = "Net Directory Position",
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                )
+                                                Text(
+                                                    text = FormatUtils.formatCurrency(kotlin.math.abs(netTotal)),
+                                                    style = MaterialTheme.typography.titleMedium.copy(
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        color = if (netTotal > 0) Emerald600 else if (netTotal < 0) Crimson600 else MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                )
+                                            }
+                                            StatBadge(
+                                                text = if (netTotal > 0) "Net Due: +${FormatUtils.formatCurrency(netTotal)}" else if (netTotal < 0) "Net Payable: -${FormatUtils.formatCurrency(kotlin.math.abs(netTotal))}" else "Settled",
+                                                backgroundColor = if (netTotal > 0) Emerald50 else if (netTotal < 0) Crimson50 else MaterialTheme.colorScheme.surfaceContainer,
+                                                textColor = if (netTotal > 0) Emerald600 else if (netTotal < 0) Crimson600 else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+
+                                items(parties, key = { it.id }) { party ->
+                                    val recv = party.totalReceivable.toDoubleOrNull() ?: 0.0
+                                    val pay = party.totalPayable.toDoubleOrNull() ?: 0.0
+                                    PartyCard(
+                                        party = party,
+                                        onClick = { onNavigateToPartyDetails(party.id) },
+                                        onEdit = if (canUpdateParty) { { editingParty = party } } else null,
+                                        onDelete = if (canDeleteParty) { { deletingParty = party } } else null,
+                                        onCollect = if (recv > 0.009) {
+                                            {
+                                                collectingCustomer = Customer(
+                                                    id = party.id,
+                                                    customerName = party.displayName,
+                                                    phone = party.phone,
+                                                    currentBalance = party.totalReceivable
+                                                )
+                                            }
+                                        } else null,
+                                        onPay = if (pay > 0.009) {
+                                            {
+                                                payingSupplier = Supplier(
+                                                    id = party.id,
+                                                    supplierName = party.displayName,
+                                                    phone = party.phone,
+                                                    outstandingPayable = party.totalPayable
+                                                )
+                                            }
+                                        } else null
+                                    )
+                                }
+
+                                partiesPagination?.let { pag ->
+                                    if (pag.totalPages > 1) {
+                                        item {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 8.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                androidx.compose.material3.OutlinedButton(
+                                                    onClick = { viewModel.previousPartyPage() },
+                                                    enabled = pag.page > 1
+                                                ) {
+                                                    Text("Previous")
+                                                }
+                                                Text(
+                                                    text = "Page ${pag.page} of ${pag.totalPages}",
+                                                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                )
+                                                androidx.compose.material3.OutlinedButton(
+                                                    onClick = { viewModel.nextPartyPage() },
+                                                    enabled = pag.page < pag.totalPages
+                                                ) {
+                                                    Text("Next")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else -> Unit
+                    }
+                }
+            } else if (selectedTab == DuesTab.CUSTOMERS) {
                 when (val state = customersState) {
                     is UiState.Loading -> {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
@@ -384,6 +629,72 @@ fun DuesScreen(
                 }
             }
         }
+    }
+
+    // Add Party Dialog
+    if (showAddPartyDialog) {
+        CreatePartyDialog(
+            isLoading = actionState is UiState.Loading,
+            onDismiss = { showAddPartyDialog = false },
+            onSubmit = { name, phone, email, address, role, recv, pay ->
+                viewModel.createParty(
+                    name = name,
+                    phone = phone,
+                    email = email,
+                    address = address,
+                    role = role,
+                    openingReceivable = recv,
+                    openingPayable = pay,
+                    onSuccess = { showAddPartyDialog = false }
+                )
+            }
+        )
+    }
+
+    // Edit Party Dialog
+    editingParty?.let { party ->
+        EditPartyDialog(
+            party = party,
+            isLoading = actionState is UiState.Loading,
+            onDismiss = { editingParty = null },
+            onSubmit = { name, phone, email, address, role, status ->
+                viewModel.updateParty(
+                    id = party.id,
+                    name = name,
+                    phone = phone,
+                    email = email,
+                    address = address,
+                    role = role,
+                    status = status,
+                    onSuccess = { editingParty = null }
+                )
+            }
+        )
+    }
+
+    // Delete Party Confirmation Dialog
+    deletingParty?.let { party ->
+        AlertDialog(
+            onDismissRequest = { deletingParty = null },
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("Delete Business Party", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Are you sure you want to delete '${party.displayName}'? This action cannot be undone.")
+            },
+            confirmButton = {
+                VyavsaButton(
+                    text = "Delete",
+                    onClick = {
+                        viewModel.deleteParty(party.id, onSuccess = { deletingParty = null })
+                    }
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingParty = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     // Add Customer Dialog

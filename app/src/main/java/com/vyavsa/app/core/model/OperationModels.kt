@@ -276,6 +276,8 @@ data class Purchase(
     @SerialName("tenant_id") val tenantId: String = "",
     @SerialName("customer_id") val customerId: String? = null,
     @SerialName("customer_name") val customerName: String? = null,
+    @SerialName("supplier_id") val supplierId: String? = null,
+    @SerialName("supplier_name") val supplierName: String? = null,
     val item: String = "",
     val quantity: Int = 1,
     @SerialName("total_amount") val totalAmount: String = "0.00",
@@ -288,7 +290,13 @@ data class Purchase(
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = "",
     val payments: List<PurchasePayment> = emptyList()
-)
+) {
+    val effectiveSupplierName: String
+        get() = supplierName?.ifBlank { null } ?: customerName?.ifBlank { null } ?: "Direct / Vendor"
+
+    val effectiveSupplierId: String?
+        get() = supplierId ?: customerId
+}
 
 @Serializable
 data class CreatePurchaseRequest(
@@ -702,8 +710,18 @@ data class Expense(
     val amount: String = "0.00",
     @SerialName("payment_method") val paymentMethod: String = "cash",
     @SerialName("payment_breakdown") val paymentBreakdown: ExpensePaymentBreakdown? = null,
-    @SerialName("created_at") val createdAt: String = ""
-)
+    @SerialName("expense_date") val expenseDate: String? = null,
+    @SerialName("payment_date") val paymentDate: String? = null,
+    val date: String? = null,
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("updated_at") val updatedAt: String = ""
+) {
+    val effectiveDate: String
+        get() = expenseDate?.ifBlank { null }
+            ?: paymentDate?.ifBlank { null }
+            ?: date?.ifBlank { null }
+            ?: createdAt.take(10).ifBlank { "" }
+}
 
 @Serializable
 data class CreateExpenseRequest(
@@ -716,8 +734,27 @@ data class CreateExpenseRequest(
     @SerialName("cash_amount") val cashAmount: String? = null,
     @SerialName("bank_id") val bankId: String? = null,
     @SerialName("bank_name") val bankName: String? = null,
+    @SerialName("expense_date") val expenseDate: String? = null,
     @SerialName("payment_date") val paymentDate: String? = null,
+    val date: String? = null,
     @SerialName("reference_id") val referenceId: String? = null,
+    @SerialName("bank_payments") val bankPayments: List<BankPaymentSplit> = emptyList()
+)
+
+@Serializable
+data class UpdateExpenseRequest(
+    val item: String? = null,
+    val category: String? = null,
+    @SerialName("employee_id") val employeeId: String? = null,
+    @SerialName("total_amount") val totalAmount: String? = null,
+    val amount: String? = null,
+    @SerialName("payment_method") val paymentMethod: String? = null,
+    @SerialName("cash_amount") val cashAmount: String? = null,
+    @SerialName("bank_id") val bankId: String? = null,
+    @SerialName("bank_name") val bankName: String? = null,
+    @SerialName("expense_date") val expenseDate: String? = null,
+    @SerialName("payment_date") val paymentDate: String? = null,
+    val date: String? = null,
     @SerialName("bank_payments") val bankPayments: List<BankPaymentSplit> = emptyList()
 )
 
@@ -1141,13 +1178,17 @@ data class CounterSalePaymentBreakdown(
 @Serializable
 data class Party(
     val id: String = "",
+    @SerialName("tenant_id") val tenantId: String = "",
     val name: String = "",
+    @SerialName("customer_name") val customerName: String? = null,
+    @SerialName("supplier_name") val supplierName: String? = null,
     val phone: String? = null,
     val email: String? = null,
     val address: String? = null,
-    val role: String = "customer", // customer, supplier, both
+    val role: String = "both", // customer, supplier, both
     @SerialName("is_customer") val isCustomer: Boolean = true,
     @SerialName("is_supplier") val isSupplier: Boolean = false,
+    @SerialName("is_both") val isBoth: Boolean = false,
     @SerialName("opening_balance") val openingBalance: String = "0.00",
     @SerialName("opening_payable_balance") val openingPayableBalance: String = "0.00",
     @SerialName("advance_balance") val advanceBalance: String = "0.00",
@@ -1155,9 +1196,43 @@ data class Party(
     @SerialName("total_payable") val totalPayable: String = "0.00",
     @SerialName("net_balance") val netBalance: String = "0.00",
     @SerialName("net_status") val netStatus: String = "settled", // owes_us, we_owe, settled
-    val status: String = "active",
+    val status: String = "active", // active, inactive
     @SerialName("created_at") val createdAt: String = "",
     @SerialName("updated_at") val updatedAt: String = ""
+) {
+    val displayName: String
+        get() = name.ifBlank { customerName ?: supplierName ?: "Unnamed Party" }
+
+    val isDualRole: Boolean
+        get() = isBoth || role.equals("both", ignoreCase = true) || (isCustomer && isSupplier)
+
+    val isSupplierOnly: Boolean
+        get() = (isSupplier || role.equals("supplier", ignoreCase = true)) && !isCustomer && !isBoth
+
+    val isCustomerOnly: Boolean
+        get() = (isCustomer || role.equals("customer", ignoreCase = true)) && !isSupplier && !isBoth
+}
+
+@Serializable
+data class CreatePartyRequest(
+    val name: String,
+    val phone: String? = null,
+    val email: String? = null,
+    val address: String? = null,
+    val role: String = "both",
+    @SerialName("opening_balance") val openingBalance: Double? = null,
+    @SerialName("opening_payable_balance") val openingPayableBalance: Double? = null,
+    val status: String = "active"
+)
+
+@Serializable
+data class UpdatePartyRequest(
+    val name: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    val address: String? = null,
+    val role: String? = null,
+    val status: String? = null
 )
 
 @Immutable
@@ -1168,7 +1243,7 @@ data class PartyFinancialSummary(
     val phone: String? = null,
     val email: String? = null,
     val address: String? = null,
-    val role: String = "customer",
+    val role: String = "both",
     @SerialName("is_customer") val isCustomer: Boolean = true,
     @SerialName("is_supplier") val isSupplier: Boolean = false,
     val status: String = "active",
@@ -1182,6 +1257,37 @@ data class PartyFinancialSummary(
     @SerialName("total_purchases") val totalPurchases: String = "0.00",
     @SerialName("total_purchases_paid") val totalPurchasesPaid: String = "0.00",
     @SerialName("max_contra_settlement") val maxContraSettlement: String = "0.00"
+)
+
+@Immutable
+@Serializable
+data class PartyDetail(
+    val id: String = "",
+    @SerialName("tenant_id") val tenantId: String = "",
+    val name: String = "",
+    val phone: String? = null,
+    val email: String? = null,
+    val address: String? = null,
+    val role: String = "both",
+    @SerialName("is_customer") val isCustomer: Boolean = true,
+    @SerialName("is_supplier") val isSupplier: Boolean = false,
+    @SerialName("is_both") val isBoth: Boolean = false,
+    val status: String = "active",
+    @SerialName("opening_balance") val openingBalance: String = "0.00",
+    @SerialName("current_balance") val currentBalance: String = "0.00",
+    @SerialName("advance_balance") val advanceBalance: String = "0.00",
+    @SerialName("opening_payable_balance") val openingPayableBalance: String = "0.00",
+    @SerialName("total_receivable") val totalReceivable: String = "0.00",
+    @SerialName("total_payable") val totalPayable: String = "0.00",
+    @SerialName("net_balance") val netBalance: String = "0.00",
+    @SerialName("net_status") val netStatus: String = "settled",
+    @SerialName("total_sales") val totalSales: String = "0.00",
+    @SerialName("total_sales_paid") val totalSalesPaid: String = "0.00",
+    @SerialName("total_purchases") val totalPurchases: String = "0.00",
+    @SerialName("total_purchases_paid") val totalPurchasesPaid: String = "0.00",
+    @SerialName("max_contra_settlement") val maxContraSettlement: String = "0.00",
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("updated_at") val updatedAt: String = ""
 )
 
 @Immutable

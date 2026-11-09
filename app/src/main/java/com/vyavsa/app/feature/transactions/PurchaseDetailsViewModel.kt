@@ -54,6 +54,12 @@ class PurchaseDetailsViewModel @Inject constructor(
     val isAdmin: Boolean
         get() = tokenManager?.isTenantAdmin() ?: false
 
+    val canUpdate: Boolean
+        get() = tokenManager?.canUpdatePurchases() ?: true
+
+    val canDelete: Boolean
+        get() = tokenManager?.canDeletePurchases() ?: false
+
     init {
         loadPurchaseDetails()
         loadBanks()

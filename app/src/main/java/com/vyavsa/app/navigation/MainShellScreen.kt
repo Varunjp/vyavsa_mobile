@@ -105,12 +105,16 @@ fun MainShellScreen(
     onNavigateToStatement: (customerId: String, customerName: String) -> Unit,
     onNavigateToSaleDetails: (saleType: String, saleId: String) -> Unit = { _, _ -> },
     onNavigateToCustomerDetails: (customerId: String) -> Unit = {},
+    onNavigateToParties: () -> Unit = {},
+    onNavigateToPartyDetails: (partyId: String) -> Unit = {},
     onNavigateToPlans: () -> Unit = {},
     onNavigateToTenantUsers: () -> Unit = {},
     onNavigateToProducts: () -> Unit = {},
     onNavigateToProductAnalytics: () -> Unit = {},
     onNavigateToLineSaleOverview: () -> Unit = {},
     onNavigateToCounterSaleOverview: () -> Unit = {},
+    onNavigateToPurchases: () -> Unit = {},
+    onNavigateToExpenses: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onLogoutSuccess: () -> Unit,
     settingsPreferences: SettingsPreferences? = null,
@@ -290,7 +294,11 @@ fun MainShellScreen(
                                         viewModel = dashboardViewModel,
                                         onNavigateToCreateLineSale = onNavigateToCreateSale,
                                         onNavigateToLineSales = onNavigateToLineSaleOverview,
-                                        onNavigateToProducts = { selectedDestination = BottomBarDestination.PRODUCTS }
+                                        onNavigateToProducts = { selectedDestination = BottomBarDestination.PRODUCTS },
+                                        onNavigateToCreatePurchase = onNavigateToCreatePurchase,
+                                        onNavigateToCreateExpense = onNavigateToCreateExpense,
+                                        onNavigateToPurchases = onNavigateToPurchases,
+                                        onNavigateToExpenses = onNavigateToExpenses
                                     )
                                 }
                                 UserRole.OFFICE -> {
@@ -347,7 +355,8 @@ fun MainShellScreen(
                             DuesScreen(
                                 viewModel = duesViewModel,
                                 onNavigateToStatement = onNavigateToStatement,
-                                onNavigateToCustomerDetails = onNavigateToCustomerDetails
+                                onNavigateToCustomerDetails = onNavigateToCustomerDetails,
+                                onNavigateToPartyDetails = onNavigateToPartyDetails
                             )
                         }
                         BottomBarDestination.STAFF -> {
@@ -368,6 +377,9 @@ fun MainShellScreen(
                                 viewModel = profileViewModel,
                                 onLogoutSuccess = onLogoutSuccess,
                                 onNavigateToBankAccounts = onNavigateToBankAccounts,
+                                onNavigateToParties = onNavigateToParties,
+                                onNavigateToPurchases = onNavigateToPurchases,
+                                onNavigateToExpenses = onNavigateToExpenses,
                                 onNavigateToPlans = onNavigateToPlans,
                                 onNavigateToTenantUsers = onNavigateToTenantUsers,
                                 onNavigateToProducts = onNavigateToProducts,

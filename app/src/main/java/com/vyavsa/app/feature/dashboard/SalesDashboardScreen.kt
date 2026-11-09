@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
@@ -37,6 +38,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -63,6 +65,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vyavsa.app.core.common.FormatUtils
 import com.vyavsa.app.core.common.UiState
+import com.vyavsa.app.core.designsystem.Amber50
+import com.vyavsa.app.core.designsystem.Amber600
 import com.vyavsa.app.core.designsystem.Blue50
 import com.vyavsa.app.core.designsystem.Blue600
 import com.vyavsa.app.core.designsystem.CompanyLogoImage
@@ -89,6 +93,10 @@ fun SalesDashboardScreen(
     onNavigateToCreateLineSale: () -> Unit,
     onNavigateToLineSales: () -> Unit = {},
     onNavigateToProducts: () -> Unit = {},
+    onNavigateToCreatePurchase: () -> Unit = {},
+    onNavigateToCreateExpense: () -> Unit = {},
+    onNavigateToPurchases: () -> Unit = {},
+    onNavigateToExpenses: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val salesState by viewModel.salesDashboardState.collectAsState()
@@ -120,8 +128,7 @@ fun SalesDashboardScreen(
                 TextButton(
                     onClick = {
                         datePickerState.selectedDateMillis?.let { millis ->
-                            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                            val chosenDate = sdf.format(Date(millis))
+                            val chosenDate = FormatUtils.utcMillisToLocalDateString(millis)
                             viewModel.loadSalesDashboard(chosenDate)
                         }
                         showDatePicker = false
@@ -417,6 +424,40 @@ fun SalesDashboardScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            // Secondary Quick Actions: Add Purchase & Add Expense
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                FilledTonalButton(
+                    onClick = onNavigateToCreatePurchase,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Amber50,
+                        contentColor = Amber600
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Add Purchase", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
+                FilledTonalButton(
+                    onClick = onNavigateToCreateExpense,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Crimson50,
+                        contentColor = Crimson600
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.CallMade, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Add Expense", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+
             // Quick Operational Links
             VyavsaSectionHeader(
                 title = "Sales Operations"
@@ -517,6 +558,114 @@ fun SalesDashboardScreen(
                             )
                             Text(
                                 text = "Prices & items",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Row 2: Purchases & Expenses Operations Links
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Purchases Link
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 1.dp,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .vyavsaClickable { onNavigateToPurchases() }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(14.dp)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Amber50)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingCart,
+                                contentDescription = null,
+                                tint = Amber600,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Purchases",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "Stock & intake",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // Expenses Link
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 1.dp,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .vyavsaClickable { onNavigateToExpenses() }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(14.dp)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Crimson50)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.CallMade,
+                                contentDescription = null,
+                                tint = Crimson600,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Expenses",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "Outflow & bills",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 11.sp

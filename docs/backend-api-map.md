@@ -517,24 +517,34 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
 ## 6. Purchases & Supplier Dues
 
 ### 6.1 Purchases
-- **List**: `GET /api/v1/tenant/purchases?page=1&page_size=20&date=YYYY-MM-DD&search=`
+- **List**: `GET /api/v1/tenant/purchases?page=1&page_size=20&date=YYYY-MM-DD&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD&supplier_id=&search=`
+  - Permissions: `tenant_admin`, `tenant_user`, `sales`
 - **Create**: `POST /api/v1/tenant/purchases`
+  - Permissions: `tenant_admin`, `tenant_user`, `sales`
   - Request:
     ```json
     {
       "customer_id": "optional-uuid-supplier",
+      "supplier_id": "optional-uuid-supplier",
       "item": "Raw Material X",
       "quantity": 10,
       "total_amount": "5000.00",
-      "total_paid": "2000.00"
+      "total_paid": "2000.00",
+      "cash_amount": "1000.00",
+      "bank_payments": [
+        {"bank_id": "uuid", "bank_name": "HDFC Bank", "amount": "1000.00"}
+      ]
     }
     ```
-- **Details**: `GET /api/v1/tenant/purchases/:id`
+  - Auto-contra compensation: When a counterparty is dual-role (`party_type = both`) and has customer dues receivable, recording a purchase triggers auto contra compensation: `contra = min(receivable, billAmount)`, reducing net balance automatically.
+- **Details**: `GET /api/v1/tenant/purchases/:id` (`tenant_admin`, `tenant_user`, `sales`)
 - **Update**: `PUT /api/v1/tenant/purchases/:id`
-  - Request: `{"customer_id": "optional-uuid", "item": "Updated Item", "quantity": 10, "total_amount": "5000.00", "total_paid": "2000.00"}`
-- **Delete**: `DELETE /api/v1/tenant/purchases/:id` (`tenant_admin` or creator)
-- **Payment History**: `GET /api/v1/tenant/purchases/:id/payments`
+  - Permissions: `tenant_admin`, `tenant_user`, `sales`
+  - Request: `{"customer_id": "optional-uuid", "supplier_id": "optional-uuid", "item": "Updated Item", "quantity": 10, "total_amount": "5000.00", "total_paid": "2000.00"}`
+- **Delete**: `DELETE /api/v1/tenant/purchases/:id` (`tenant_admin` only — returns 403 Forbidden for `sales`)
+- **Payment History**: `GET /api/v1/tenant/purchases/:id/payments` (`tenant_admin`, `tenant_user`, `sales`)
 - **Record Settlement Payment**: `POST /api/v1/tenant/purchases/:id/payments`
+  - Permissions: `tenant_admin`, `tenant_user`, `sales`
   - Request: `{"amount": "1000.00", "payment_method": "cash", "bank_id": "optional-uuid", "payment_date": "2026-10-15", "note": "Settlement"}`
 
 ### 6.2 Customer & Supplier Ledger (Dues)
@@ -564,26 +574,70 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
     }
     ```
 
+### 6.3 Business Parties (Unified Customer & Supplier Directory)
+- **List Parties**: `GET /api/v1/tenant/parties?page=1&page_size=20&search=&role=&balance_filter=` (`tenant_admin` or `tenant_user`/`sales`)
+  - Query parameters:
+    - `role`: Filter by party role (`""` / `"all"`, `"customer"`, `"supplier"`, `"both"`).
+    - `balance_filter`: Filter by balance position (`""` / `"all"`, `"dues"`, `"settleable"`).
+    - `search`: Case-insensitive prefix search on name, phone, email, address.
+    - `page`, `page_size`: Standard pagination.
+- **Create Party**: `POST /api/v1/tenant/parties`
+  - Request:
+    ```json
+    {
+      "name": "Sharma Traders",
+      "phone": "9876543210",
+      "email": "sharma@example.com",
+      "address": "42 Market Road",
+      "party_type": "both",
+      "opening_balance": "2500.00",
+      "opening_payable_balance": "1200.00"
+    }
+    ```
+  - `party_type`: `"customer"` (only `opening_balance` applies), `"supplier"` (only `opening_payable_balance` applies), `"both"` (both apply).
+- **Party Details by ID**: `GET /api/v1/tenant/parties/:id`
+  - Returns: `PartyResponse` (`id`, `name`, `phone`, `email`, `address`, `party_type`, `balance`, `payable_balance`, `net_balance`, `created_at`, `updated_at`).
+- **Update Party**: `PUT /api/v1/tenant/parties/:id`
+  - Request:
+    ```json
+    {
+      "name": "Sharma Enterprises",
+      "phone": "9876543210",
+      "email": "sharma@example.com",
+      "address": "44 Market Road",
+      "party_type": "both"
+    }
+    ```
+- **Delete Party**: `DELETE /api/v1/tenant/parties/:id` (`tenant_admin` only)
+- **Party Detailed View**: `GET /api/v1/tenant/parties/:id/details`
+  - Returns aggregated profile, net ledger position, customer breakdown (`total_sales`, `total_received`, `receivable_balance`), and supplier breakdown (`total_purchases`, `total_paid`, `payable_balance`).
+- **Party Financial Summary**: `GET /api/v1/tenant/parties/:id/financial-summary`
+  - Returns `PartyFinancialSummaryResponse` for high-level financial overview.
+
 ---
 
 ## 7. Expenses
 
-- **List**: `GET /api/v1/tenant/expenses?page=1&page_size=20&date=YYYY-MM-DD&search=`
+- **List**: `GET /api/v1/tenant/expenses?page=1&page_size=20&date=YYYY-MM-DD&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD&search=`
+  - Permissions: `tenant_admin`, `tenant_user`, `sales`
 - **Create**: `POST /api/v1/tenant/expenses`
+  - Permissions: `tenant_admin`, `tenant_user`, `sales`
   - Request:
     ```json
     {
       "item": "Fuel for delivery van",
       "category": "transport",
       "total_amount": "450.00",
-      "payment_method": "cash"
+      "payment_method": "cash",
+      "expense_date": "2026-11-09",
+      "bank_payments": []
     }
     ```
   - **Employee Advance via Expense**:
     When `category` is set to `"employee_advance"`, provide `"employee_id": "uuid"`. The backend records the expense, creates a ledger entry in `employee_advances`, updates daily attendance, and adjusts the employee's pending salary balance automatically.
-- **Details**: `GET /api/v1/tenant/expenses/:id`
-- **Update**: `PUT /api/v1/tenant/expenses/:id`
-- **Delete**: `DELETE /api/v1/tenant/expenses/:id`
+- **Details**: `GET /api/v1/tenant/expenses/:id` (`tenant_admin`, `tenant_user`, `sales`)
+- **Update**: `PUT /api/v1/tenant/expenses/:id` (`tenant_admin`, `tenant_user`, `sales`)
+- **Delete**: `DELETE /api/v1/tenant/expenses/:id` (`tenant_admin` only — returns 403 Forbidden for `sales`)
 
 ---
 
