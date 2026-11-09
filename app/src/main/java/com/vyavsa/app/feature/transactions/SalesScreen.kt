@@ -161,9 +161,8 @@ fun SalesScreen(
                         val startMillis = dateRangePickerState.selectedStartDateMillis
                         val endMillis = dateRangePickerState.selectedEndDateMillis ?: startMillis
                         if (startMillis != null && endMillis != null) {
-                            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                            val startStr = sdf.format(Date(startMillis))
-                            val endStr = sdf.format(Date(endMillis))
+                            val startStr = FormatUtils.utcMillisToLocalDateString(startMillis)
+                            val endStr = FormatUtils.utcMillisToLocalDateString(endMillis)
                             val finalStart = if (startStr <= endStr) startStr else endStr
                             val finalEnd = if (startStr <= endStr) endStr else startStr
                             viewModel.setDateRangeFilter(DateFilterType.CUSTOM, finalStart, finalEnd)

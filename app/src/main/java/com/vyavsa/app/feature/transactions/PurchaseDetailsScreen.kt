@@ -130,7 +130,7 @@ fun PurchaseDetailsScreen(
                 navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 onNavigationClick = onNavigateBack,
                 actions = {
-                    if (viewModel.isAdmin) {
+                    if (viewModel.canUpdate) {
                         FilledTonalIconButton(
                             onClick = { showEditDialog = true },
                             shape = CircleShape,
@@ -146,6 +146,8 @@ fun PurchaseDetailsScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                         }
+                    }
+                    if (viewModel.canDelete) {
                         FilledTonalIconButton(
                             onClick = { showDeleteDialog = true },
                             shape = CircleShape,
@@ -199,6 +201,7 @@ fun PurchaseDetailsScreen(
                         purchase = purchase,
                         paymentsState = paymentsState,
                         isAdmin = viewModel.isAdmin,
+                        canUpdate = viewModel.canUpdate,
                         onRecordPaymentClick = { showPaymentDialog = true },
                         onEditClick = { showEditDialog = true }
                     )
@@ -273,6 +276,7 @@ private fun PurchaseDetailsContent(
     purchase: Purchase,
     paymentsState: UiState<List<PurchasePayment>>,
     isAdmin: Boolean,
+    canUpdate: Boolean = isAdmin,
     onRecordPaymentClick: () -> Unit,
     onEditClick: () -> Unit
 ) {
@@ -390,7 +394,7 @@ private fun PurchaseDetailsContent(
                         )
                     }
 
-                    if (isAdmin) {
+                    if (canUpdate) {
                         Spacer(modifier = Modifier.height(10.dp))
                         OutlinedButton(
                             onClick = onEditClick,

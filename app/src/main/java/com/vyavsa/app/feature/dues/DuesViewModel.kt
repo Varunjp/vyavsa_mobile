@@ -8,6 +8,7 @@ import com.vyavsa.app.core.common.OneTimeEventEmitter
 import com.vyavsa.app.core.common.Resource
 import com.vyavsa.app.core.common.UiMessage
 import com.vyavsa.app.core.common.UiState
+import com.vyavsa.app.core.model.ApiPagination
 import com.vyavsa.app.core.model.CreateBankRequest
 import com.vyavsa.app.core.model.Customer
 import com.vyavsa.app.core.model.CustomerAdvanceResponse
@@ -15,6 +16,9 @@ import com.vyavsa.app.core.model.CustomerBalanceAdjustment
 import com.vyavsa.app.core.model.CustomerPaymentResponse
 import com.vyavsa.app.core.model.CustomerStatement
 import com.vyavsa.app.core.model.LineSale
+import com.vyavsa.app.core.model.Party
+import com.vyavsa.app.core.model.PartyDetail
+import com.vyavsa.app.core.model.PartyFinancialSummary
 import com.vyavsa.app.core.model.Supplier
 import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.model.UpdateBankRequest
@@ -23,6 +27,7 @@ import com.vyavsa.app.core.security.TokenManager
 import com.vyavsa.app.core.sync.DataMutation
 import com.vyavsa.app.core.sync.DataRefreshCoordinator
 import com.vyavsa.app.feature.bank.BankRepository
+import com.vyavsa.app.feature.party.PartyRepository
 import com.vyavsa.app.feature.supplier.SupplierRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -36,6 +41,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class DuesTab {
+    PARTIES,
     CUSTOMERS,
     SUPPLIERS
 }
@@ -45,9 +51,35 @@ class DuesViewModel @Inject constructor(
     private val repository: DuesRepository,
     private val supplierRepository: SupplierRepository,
     private val bankRepository: BankRepository,
+    private val partyRepository: PartyRepository,
     private val refreshCoordinator: DataRefreshCoordinator,
     val tokenManager: TokenManager? = null
 ) : ViewModel() {
+
+    // Overload for testing with 4 repositories or fallback
+    constructor(
+        repository: DuesRepository,
+        supplierRepository: SupplierRepository,
+        bankRepository: BankRepository,
+        refreshCoordinator: DataRefreshCoordinator,
+        tokenManager: TokenManager? = null
+    ) : this(
+        repository = repository,
+        supplierRepository = supplierRepository,
+        bankRepository = bankRepository,
+        partyRepository = object : PartyRepository {
+            override fun listParties(page: Int, pageSize: Int, role: String?, search: String?, status: String?): Flow<Resource<List<Party>>> = flowOf(Resource.Success(emptyList()))
+            override fun listPartiesPaginated(page: Int, pageSize: Int, role: String?, search: String?, status: String?): Flow<Resource<Pair<List<Party>, ApiPagination?>>> = flowOf(Resource.Success(Pair(emptyList(), null)))
+            override fun createParty(name: String, phone: String?, email: String?, address: String?, role: String, openingReceivable: Double, openingPayable: Double, status: String): Flow<Resource<Party>> = flowOf(Resource.Error("Not implemented"))
+            override fun getPartyById(id: String): Flow<Resource<Party>> = flowOf(Resource.Error("Not implemented"))
+            override fun updateParty(id: String, name: String?, phone: String?, email: String?, address: String?, role: String?, status: String?): Flow<Resource<Party>> = flowOf(Resource.Error("Not implemented"))
+            override fun deleteParty(id: String): Flow<Resource<Unit>> = flowOf(Resource.Error("Not implemented"))
+            override fun getPartyDetailedView(id: String): Flow<Resource<PartyDetail>> = flowOf(Resource.Error("Not implemented"))
+            override fun getPartyFinancialSummary(id: String): Flow<Resource<PartyFinancialSummary>> = flowOf(Resource.Error("Not implemented"))
+        },
+        refreshCoordinator = refreshCoordinator,
+        tokenManager = tokenManager
+    )
 
     // Overload for testing or fallback
     constructor(
@@ -80,12 +112,39 @@ class DuesViewModel @Inject constructor(
             override fun updateBank(id: String, request: UpdateBankRequest): Flow<Resource<TenantBank>> = flowOf(Resource.Error("Not implemented"))
             override fun deleteBank(id: String): Flow<Resource<Unit>> = flowOf(Resource.Error("Not implemented"))
         },
+        partyRepository = object : PartyRepository {
+            override fun listParties(page: Int, pageSize: Int, role: String?, search: String?, status: String?): Flow<Resource<List<Party>>> = flowOf(Resource.Success(emptyList()))
+            override fun listPartiesPaginated(page: Int, pageSize: Int, role: String?, search: String?, status: String?): Flow<Resource<Pair<List<Party>, ApiPagination?>>> = flowOf(Resource.Success(Pair(emptyList(), null)))
+            override fun createParty(name: String, phone: String?, email: String?, address: String?, role: String, openingReceivable: Double, openingPayable: Double, status: String): Flow<Resource<Party>> = flowOf(Resource.Error("Not implemented"))
+            override fun getPartyById(id: String): Flow<Resource<Party>> = flowOf(Resource.Error("Not implemented"))
+            override fun updateParty(id: String, name: String?, phone: String?, email: String?, address: String?, role: String?, status: String?): Flow<Resource<Party>> = flowOf(Resource.Error("Not implemented"))
+            override fun deleteParty(id: String): Flow<Resource<Unit>> = flowOf(Resource.Error("Not implemented"))
+            override fun getPartyDetailedView(id: String): Flow<Resource<PartyDetail>> = flowOf(Resource.Error("Not implemented"))
+            override fun getPartyFinancialSummary(id: String): Flow<Resource<PartyFinancialSummary>> = flowOf(Resource.Error("Not implemented"))
+        },
         refreshCoordinator = refreshCoordinator,
         tokenManager = tokenManager
     )
 
     private val _selectedTab = MutableStateFlow(DuesTab.CUSTOMERS)
     val selectedTab: StateFlow<DuesTab> = _selectedTab.asStateFlow()
+
+    private val _rawParties = MutableStateFlow<List<Party>>(emptyList())
+
+    private val _partiesState = MutableStateFlow<UiState<List<Party>>>(UiState.Loading)
+    val partiesState: StateFlow<UiState<List<Party>>> = _partiesState.asStateFlow()
+
+    private val _partiesPagination = MutableStateFlow<ApiPagination?>(null)
+    val partiesPagination: StateFlow<ApiPagination?> = _partiesPagination.asStateFlow()
+
+    private val _partyRoleFilter = MutableStateFlow("all")
+    val partyRoleFilter: StateFlow<String> = _partyRoleFilter.asStateFlow()
+
+    private val _partyBalanceFilter = MutableStateFlow("all")
+    val partyBalanceFilter: StateFlow<String> = _partyBalanceFilter.asStateFlow()
+
+    private val _currentPartyPage = MutableStateFlow(1)
+    val currentPartyPage: StateFlow<Int> = _currentPartyPage.asStateFlow()
 
     private val _customersState = MutableStateFlow<UiState<List<Customer>>>(UiState.Loading)
     val customersState: StateFlow<UiState<List<Customer>>> = _customersState.asStateFlow()
@@ -169,7 +228,20 @@ class DuesViewModel @Inject constructor(
     val canViewFinancials: Boolean
         get() = tokenManager?.hasPermission(AppPermission.VIEW_CUSTOMER_FINANCIALS) ?: true
 
+    val canViewParties: Boolean
+        get() = tokenManager?.canViewParties() ?: true
+
+    val canCreateParty: Boolean
+        get() = tokenManager?.canCreateParties() ?: isAdmin
+
+    val canUpdateParty: Boolean
+        get() = tokenManager?.canUpdateParties() ?: isAdmin
+
+    val canDeleteParty: Boolean
+        get() = tokenManager?.canDeleteParties() ?: isAdmin
+
     init {
+        loadParties()
         loadCustomers()
         loadSuppliers()
         loadBanks()
@@ -179,10 +251,10 @@ class DuesViewModel @Inject constructor(
     fun selectTab(tab: DuesTab) {
         _selectedTab.value = tab
         _searchQuery.value = ""
-        if (tab == DuesTab.CUSTOMERS) {
-            loadCustomers()
-        } else {
-            loadSuppliers()
+        when (tab) {
+            DuesTab.PARTIES -> loadParties(1)
+            DuesTab.CUSTOMERS -> loadCustomers()
+            DuesTab.SUPPLIERS -> loadSuppliers()
         }
     }
 
@@ -193,16 +265,231 @@ class DuesViewModel @Inject constructor(
                     DataMutation.DUES,
                     DataMutation.SALES,
                     DataMutation.ALL -> {
+                        loadParties(page = _currentPartyPage.value, isBackgroundRefresh = true)
                         loadCustomers()
                         loadSuppliers()
                     }
                     DataMutation.PURCHASES -> {
+                        loadParties(page = _currentPartyPage.value, isBackgroundRefresh = true)
                         loadSuppliers()
                     }
                     DataMutation.BANK -> {
                         loadBanks()
                     }
                     else -> Unit
+                }
+            }
+        }
+    }
+
+    fun selectPartyRoleFilter(role: String) {
+        if (_partyRoleFilter.value == role) return
+        _partyRoleFilter.value = role
+        loadParties(page = 1)
+    }
+
+    fun selectPartyBalanceFilter(balance: String) {
+        _partyBalanceFilter.value = balance
+        applyPartyBalanceFilter()
+    }
+
+    fun loadParties(page: Int = 1, isBackgroundRefresh: Boolean = false) {
+        _currentPartyPage.value = page
+        viewModelScope.launch {
+            if (!isBackgroundRefresh) {
+                _partiesState.value = UiState.Loading
+            }
+            partyRepository.listPartiesPaginated(
+                page = page,
+                pageSize = 20,
+                role = _partyRoleFilter.value,
+                search = _searchQuery.value,
+                status = null
+            ).collect { resource ->
+                when (resource) {
+                    is Resource.Loading -> {
+                        if (!isBackgroundRefresh) {
+                            _partiesState.value = UiState.Loading
+                        }
+                    }
+                    is Resource.Success -> {
+                        val (parties, pagination) = resource.data
+                        _rawParties.value = parties
+                        _partiesPagination.value = pagination
+                        applyPartyBalanceFilter()
+                    }
+                    is Resource.Error -> {
+                        _partiesState.value = UiState.Error(resource.message)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun applyPartyBalanceFilter() {
+        val raw = _rawParties.value
+        val filter = _partyBalanceFilter.value
+        val filtered = when (filter) {
+            "dues" -> raw.filter { p ->
+                val recv = p.totalReceivable.toDoubleOrNull() ?: 0.0
+                val pay = p.totalPayable.toDoubleOrNull() ?: 0.0
+                recv > 0.009 || pay > 0.009
+            }
+            "settleable" -> raw.filter { p ->
+                val recv = p.totalReceivable.toDoubleOrNull() ?: 0.0
+                val pay = p.totalPayable.toDoubleOrNull() ?: 0.0
+                recv > 0.009 && pay > 0.009
+            }
+            else -> raw
+        }
+
+        _partiesState.value = if (filtered.isEmpty()) {
+            UiState.Empty
+        } else {
+            UiState.Success(filtered)
+        }
+    }
+
+    fun nextPartyPage() {
+        val current = _partiesPagination.value ?: return
+        if (current.page < current.totalPages) {
+            loadParties(current.page + 1)
+        }
+    }
+
+    fun previousPartyPage() {
+        val current = _partiesPagination.value ?: return
+        if (current.page > 1) {
+            loadParties(current.page - 1)
+        }
+    }
+
+    fun createParty(
+        name: String,
+        phone: String?,
+        email: String?,
+        address: String?,
+        role: String,
+        openingReceivable: Double,
+        openingPayable: Double,
+        onSuccess: (() -> Unit)? = null
+    ) {
+        if (_actionState.value is UiState.Loading) return
+        val trimmedName = name.trim()
+        if (trimmedName.length < 2) {
+            sendUiMessage("Party name must be at least 2 characters", MessageType.ERROR)
+            return
+        }
+
+        val trimmedEmail = email?.trim()?.ifBlank { null }
+        if (trimmedEmail != null && !"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}".toRegex().matches(trimmedEmail)) {
+            sendUiMessage("Please enter a valid email address", MessageType.ERROR)
+            return
+        }
+
+        viewModelScope.launch {
+            _actionState.value = UiState.Loading
+            partyRepository.createParty(
+                name = trimmedName,
+                phone = phone?.trim()?.ifBlank { null },
+                email = trimmedEmail,
+                address = address?.trim()?.ifBlank { null },
+                role = role,
+                openingReceivable = openingReceivable,
+                openingPayable = openingPayable,
+                status = "active"
+            ).collect { res ->
+                when (res) {
+                    is Resource.Loading -> _actionState.value = UiState.Loading
+                    is Resource.Success -> {
+                        _actionState.value = UiState.Success(Unit)
+                        sendUiMessage("Business party '${res.data.displayName}' created successfully", MessageType.SUCCESS)
+                        loadParties(1)
+                        loadCustomers()
+                        loadSuppliers()
+                        onSuccess?.invoke()
+                    }
+                    is Resource.Error -> {
+                        _actionState.value = UiState.Error(res.message)
+                        sendUiMessage(res.message, MessageType.ERROR)
+                    }
+                }
+            }
+        }
+    }
+
+    fun updateParty(
+        id: String,
+        name: String?,
+        phone: String?,
+        email: String?,
+        address: String?,
+        role: String?,
+        status: String?,
+        onSuccess: (() -> Unit)? = null
+    ) {
+        if (_actionState.value is UiState.Loading) return
+        val trimmedName = name?.trim()
+        if (trimmedName != null && trimmedName.length < 2) {
+            sendUiMessage("Party name must be at least 2 characters", MessageType.ERROR)
+            return
+        }
+
+        val trimmedEmail = email?.trim()?.ifBlank { null }
+        if (trimmedEmail != null && !"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}".toRegex().matches(trimmedEmail)) {
+            sendUiMessage("Please enter a valid email address", MessageType.ERROR)
+            return
+        }
+
+        viewModelScope.launch {
+            _actionState.value = UiState.Loading
+            partyRepository.updateParty(
+                id = id,
+                name = trimmedName,
+                phone = phone?.trim()?.ifBlank { null },
+                email = trimmedEmail,
+                address = address?.trim()?.ifBlank { null },
+                role = role?.trim(),
+                status = status?.trim()
+            ).collect { res ->
+                when (res) {
+                    is Resource.Loading -> _actionState.value = UiState.Loading
+                    is Resource.Success -> {
+                        _actionState.value = UiState.Success(Unit)
+                        sendUiMessage("Business party updated successfully", MessageType.SUCCESS)
+                        loadParties(_currentPartyPage.value)
+                        loadCustomers()
+                        loadSuppliers()
+                        onSuccess?.invoke()
+                    }
+                    is Resource.Error -> {
+                        _actionState.value = UiState.Error(res.message)
+                        sendUiMessage(res.message, MessageType.ERROR)
+                    }
+                }
+            }
+        }
+    }
+
+    fun deleteParty(id: String, onSuccess: (() -> Unit)? = null) {
+        if (_actionState.value is UiState.Loading) return
+        viewModelScope.launch {
+            _actionState.value = UiState.Loading
+            partyRepository.deleteParty(id).collect { res ->
+                when (res) {
+                    is Resource.Loading -> _actionState.value = UiState.Loading
+                    is Resource.Success -> {
+                        _actionState.value = UiState.Success(Unit)
+                        sendUiMessage("Business party deleted successfully", MessageType.SUCCESS)
+                        loadParties(1)
+                        loadCustomers()
+                        loadSuppliers()
+                        onSuccess?.invoke()
+                    }
+                    is Resource.Error -> {
+                        _actionState.value = UiState.Error(res.message)
+                        sendUiMessage(res.message, MessageType.ERROR)
+                    }
                 }
             }
         }
@@ -416,10 +703,10 @@ class DuesViewModel @Inject constructor(
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             delay(300)
-            if (_selectedTab.value == DuesTab.CUSTOMERS) {
-                loadCustomers(query.ifBlank { null })
-            } else {
-                loadSuppliers(query.ifBlank { null })
+            when (_selectedTab.value) {
+                DuesTab.PARTIES -> loadParties(page = 1)
+                DuesTab.CUSTOMERS -> loadCustomers(query.ifBlank { null })
+                DuesTab.SUPPLIERS -> loadSuppliers(query.ifBlank { null })
             }
         }
     }

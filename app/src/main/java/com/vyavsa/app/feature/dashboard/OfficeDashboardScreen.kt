@@ -134,8 +134,7 @@ fun OfficeDashboardScreen(
                 TextButton(
                     onClick = {
                         datePickerState.selectedDateMillis?.let { millis ->
-                            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                            val chosenDate = sdf.format(Date(millis))
+                            val chosenDate = FormatUtils.utcMillisToLocalDateString(millis)
                             viewModel.loadOfficeDashboard(chosenDate)
                         }
                         showDatePicker = false

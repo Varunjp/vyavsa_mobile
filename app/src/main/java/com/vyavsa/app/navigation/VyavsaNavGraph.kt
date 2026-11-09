@@ -31,6 +31,9 @@ import com.vyavsa.app.feature.cash.CashViewModel
 import com.vyavsa.app.feature.dues.CustomerDetailsScreen
 import com.vyavsa.app.feature.dues.CustomerStatementScreen
 import com.vyavsa.app.feature.dues.DuesViewModel
+import com.vyavsa.app.feature.party.PartiesScreen
+import com.vyavsa.app.feature.party.PartyDetailsScreen
+import com.vyavsa.app.feature.party.PartyViewModel
 import com.vyavsa.app.feature.plans.PlansScreen
 import com.vyavsa.app.feature.plans.PlansViewModel
 import com.vyavsa.app.feature.products.ProductAnalyticsScreen
@@ -39,6 +42,8 @@ import com.vyavsa.app.feature.products.ProductsScreen
 import com.vyavsa.app.feature.transactions.CreateExpenseScreen
 import com.vyavsa.app.feature.transactions.CreateLineSaleScreen
 import com.vyavsa.app.feature.transactions.CreatePurchaseScreen
+import com.vyavsa.app.feature.transactions.ExpensesScreen
+import com.vyavsa.app.feature.transactions.PurchasesScreen
 import com.vyavsa.app.feature.transactions.PurchaseDetailsScreen
 import com.vyavsa.app.feature.transactions.PurchaseDetailsViewModel
 import com.vyavsa.app.feature.transactions.SaleDetailsScreen
@@ -230,6 +235,12 @@ fun VyavsaNavGraph(
                 onNavigateToCustomerDetails = { customerId ->
                     navController.navigate(Screen.CustomerDetails.createRoute(customerId))
                 },
+                onNavigateToParties = {
+                    navController.navigate(Screen.Parties.route)
+                },
+                onNavigateToPartyDetails = { partyId ->
+                    navController.navigate(Screen.PartyDetails.createRoute(partyId))
+                },
                 onNavigateToPlans = {
                     navController.navigate(Screen.Plans.route)
                 },
@@ -247,6 +258,12 @@ fun VyavsaNavGraph(
                 },
                 onNavigateToCounterSaleOverview = {
                     navController.navigate(Screen.CounterSaleOverview.route)
+                },
+                onNavigateToPurchases = {
+                    navController.navigate(Screen.Purchases.route)
+                },
+                onNavigateToExpenses = {
+                    navController.navigate(Screen.Expenses.route)
                 },
                 onNavigateToSettings = {
                     navController.navigate(Screen.Settings.route)
@@ -336,6 +353,43 @@ fun VyavsaNavGraph(
             )
         }
 
+        composable(Screen.Purchases.route) {
+            if (tokenManager != null && !tokenManager.canAccessPurchases()) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                return@composable
+            }
+            val transactionsViewModel: TransactionsViewModel = hiltViewModel()
+            PurchasesScreen(
+                viewModel = transactionsViewModel,
+                onNavigateToCreatePurchase = {
+                    navController.navigate(Screen.CreatePurchase.route)
+                },
+                onNavigateToPurchaseDetails = { purchaseId ->
+                    navController.navigate(Screen.PurchaseDetails.createRoute(purchaseId))
+                },
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Expenses.route) {
+            if (tokenManager != null && !tokenManager.canAccessExpenses()) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                return@composable
+            }
+            val transactionsViewModel: TransactionsViewModel = hiltViewModel()
+            ExpensesScreen(
+                viewModel = transactionsViewModel,
+                onNavigateToCreateExpense = {
+                    navController.navigate(Screen.CreateExpense.route)
+                },
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
         composable(Screen.CashDrawer.route) {
             if (tokenManager != null && !tokenManager.isAdminOrUser()) {
                 androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -379,6 +433,41 @@ fun VyavsaNavGraph(
             CustomerDetailsScreen(
                 customerId = customerId,
                 viewModel = duesViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToStatement = { cid, cname ->
+                    navController.navigate(Screen.CustomerStatement.createRoute(cid, cname))
+                }
+            )
+        }
+
+        composable(Screen.Parties.route) {
+            if (tokenManager != null && !tokenManager.canViewParties()) {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+                return@composable
+            }
+            val partyViewModel: PartyViewModel = hiltViewModel()
+            PartiesScreen(
+                viewModel = partyViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToPartyDetails = { partyId ->
+                    navController.navigate(Screen.PartyDetails.createRoute(partyId))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.PartyDetails.route,
+            arguments = listOf(
+                navArgument("partyId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val partyId = backStackEntry.arguments?.getString("partyId") ?: ""
+            val partyViewModel: PartyViewModel = hiltViewModel()
+            PartyDetailsScreen(
+                partyId = partyId,
+                viewModel = partyViewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToStatement = { cid, cname ->
                     navController.navigate(Screen.CustomerStatement.createRoute(cid, cname))

@@ -146,6 +146,8 @@ open class TokenManager(
 
     open fun isSales(): Boolean = getUserRole() == com.vyavsa.app.core.model.UserRole.SALES || getUserRole() == com.vyavsa.app.core.model.UserRole.LINE
 
+    open fun isSalesStrict(): Boolean = getUserRole() == com.vyavsa.app.core.model.UserRole.SALES
+
     open fun isLine(): Boolean = getUserRole() == com.vyavsa.app.core.model.UserRole.LINE
 
     open fun isOffice(): Boolean = getUserRole() == com.vyavsa.app.core.model.UserRole.OFFICE
@@ -167,13 +169,33 @@ open class TokenManager(
 
     open fun canAccessCounterSales(): Boolean = hasPermission(AppPermission.CREATE_COUNTER_SALE)
 
-    open fun canAccessPurchases(): Boolean = isTenantAdmin() || isOffice()
+    open fun canAccessPurchases(): Boolean = isTenantAdmin() || isOffice() || isSalesStrict() || hasPermission(AppPermission.VIEW_PURCHASES)
 
-    open fun canAccessExpenses(): Boolean = isTenantAdmin() || isOffice()
+    open fun canCreatePurchases(): Boolean = isTenantAdmin() || isOffice() || hasPermission(AppPermission.CREATE_PURCHASE)
+
+    open fun canUpdatePurchases(): Boolean = isTenantAdmin() || isOffice() || hasPermission(AppPermission.UPDATE_PURCHASE)
+
+    open fun canDeletePurchases(): Boolean = isTenantAdmin() || hasPermission(AppPermission.DELETE_PURCHASE)
+
+    open fun canAccessExpenses(): Boolean = isTenantAdmin() || isOffice() || isSalesStrict() || hasPermission(AppPermission.VIEW_EXPENSES)
+
+    open fun canCreateExpenses(): Boolean = isTenantAdmin() || isOffice() || hasPermission(AppPermission.CREATE_EXPENSE)
+
+    open fun canUpdateExpenses(): Boolean = isTenantAdmin() || isOffice() || hasPermission(AppPermission.UPDATE_EXPENSE)
+
+    open fun canDeleteExpenses(): Boolean = isTenantAdmin() || hasPermission(AppPermission.DELETE_EXPENSE)
 
     open fun canAccessStaff(): Boolean = hasPermission(AppPermission.MANAGE_STAFF)
 
     open fun canAccessTenantManagement(): Boolean = isTenantAdmin()
+
+    open fun canViewParties(): Boolean = hasPermission(AppPermission.VIEW_PARTIES)
+
+    open fun canCreateParties(): Boolean = hasPermission(AppPermission.CREATE_PARTIES)
+
+    open fun canUpdateParties(): Boolean = hasPermission(AppPermission.UPDATE_PARTIES)
+
+    open fun canDeleteParties(): Boolean = hasPermission(AppPermission.DELETE_PARTIES)
 
     open fun clearSession() {
         cachedAccessToken = null

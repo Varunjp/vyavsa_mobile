@@ -411,8 +411,7 @@ fun CreateSaleScreen(
                 TextButton(
                     onClick = {
                         datePickerState.selectedDateMillis?.let { millis ->
-                            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                            saleDate = sdf.format(Date(millis))
+                            saleDate = FormatUtils.utcMillisToLocalDateString(millis)
                         }
                         showDatePicker = false
                     }

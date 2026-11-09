@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Inventory2
@@ -36,6 +37,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -50,6 +53,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import com.vyavsa.app.core.designsystem.vyavsaClickable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -103,6 +109,9 @@ fun CreatePurchaseScreen(
 
     var selectedSupplier by remember { mutableStateOf<Supplier?>(null) }
     var supplierDropdownExpanded by remember { mutableStateOf(false) }
+    var supplierSearchText by remember { mutableStateOf("") }
+    var purchaseDate by remember { mutableStateOf(FormatUtils.todayDateString()) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     var item by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("1") }
@@ -140,6 +149,35 @@ fun CreatePurchaseScreen(
     val bankSumVal = bankRows.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
     val totalPaidVal = cashVal + bankSumVal
     val pendingVal = (totalBillVal - totalPaidVal).coerceAtLeast(0.0)
+
+    if (showDatePicker) {
+        val initialMillis = remember(purchaseDate) {
+            FormatUtils.localDateStringToUtcMillis(purchaseDate) ?: System.currentTimeMillis()
+        }
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            purchaseDate = FormatUtils.utcMillisToLocalDateString(millis)
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("Select", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -256,7 +294,10 @@ fun CreatePurchaseScreen(
                                         supplierDropdownExpanded = false
                                     }
                                 )
-                                for (supp in suppliers) {
+                                val filteredSuppliers = if (supplierSearchText.isBlank()) suppliers else suppliers.filter {
+                                    it.displayName.contains(supplierSearchText, ignoreCase = true) || (it.phone?.contains(supplierSearchText) == true)
+                                }
+                                for (supp in filteredSuppliers) {
                                     DropdownMenuItem(
                                         text = {
                                             Column {
@@ -265,6 +306,13 @@ fun CreatePurchaseScreen(
                                                     Text(
                                                         "Payable: ${FormatUtils.formatCurrency(supp.outstandingPayable)}",
                                                         style = MaterialTheme.typography.labelSmall.copy(color = Crimson600)
+                                                    )
+                                                }
+                                                val recv = supp.totalReceivable.toDoubleOrNull() ?: 0.0
+                                                if (recv > 0.0) {
+                                                    Text(
+                                                        "Customer Dues: ${FormatUtils.formatCurrency(supp.totalReceivable)}",
+                                                        style = MaterialTheme.typography.labelSmall.copy(color = Blue600)
                                                     )
                                                 }
                                             }
@@ -283,28 +331,95 @@ fun CreatePurchaseScreen(
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut()
                         ) {
+                            val supp = selectedSupplier
+                            val outPayable = supp?.outstandingPayable?.toDoubleOrNull() ?: 0.0
+                            val custDues = supp?.totalReceivable?.toDoubleOrNull() ?: 0.0
+                            val contraAmount = if (custDues > 0.0 && totalBillVal > 0.0) minOf(custDues, totalBillVal) else 0.0
+                            val resultingDue = (outPayable + totalBillVal - totalPaidVal - contraAmount).coerceAtLeast(0.0)
+
                             Column {
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Surface(
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = Blue50,
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Blue600.copy(alpha = 0.3f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(12.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                    Column(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Text(
-                                            text = "Current Outstanding Payable",
-                                            style = MaterialTheme.typography.bodySmall.copy(color = Blue600, fontWeight = FontWeight.Medium)
-                                        )
-                                        Text(
-                                            text = FormatUtils.formatCurrency(selectedSupplier?.outstandingPayable ?: "0.00"),
-                                            style = MaterialTheme.typography.bodySmall.copy(color = Blue600, fontWeight = FontWeight.ExtraBold)
-                                        )
+                                        if (custDues > 0.0) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("Customer Dues (Receivable)", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                                                Text(FormatUtils.formatCurrency(custDues.toString()), style = MaterialTheme.typography.bodySmall.copy(color = Crimson600, fontWeight = FontWeight.Bold))
+                                            }
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Current Outstanding Payable", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                                            Text(FormatUtils.formatCurrency(outPayable.toString()), style = MaterialTheme.typography.bodySmall.copy(color = Blue600, fontWeight = FontWeight.Bold))
+                                        }
+
+                                        if (contraAmount > 0.0) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("⚡ Auto Contra Offset", style = MaterialTheme.typography.bodySmall.copy(color = Emerald600, fontWeight = FontWeight.SemiBold))
+                                                Text("- ${FormatUtils.formatCurrency(contraAmount.toString())}", style = MaterialTheme.typography.bodySmall.copy(color = Emerald600, fontWeight = FontWeight.Bold))
+                                            }
+                                        }
+
+                                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 2.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Resulting Payable Balance", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                            Text(FormatUtils.formatCurrency(resultingDue.toString()), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold, color = Blue600))
+                                        }
                                     }
                                 }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Purchase Date Selector
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .vyavsaClickable { showDatePicker = true }
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(16.dp))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text("Invoice / Purchase Date", style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                                        Text(FormatUtils.formatDateForDisplay(purchaseDate), style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                }
+                                Text("Change", style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold))
                             }
                         }
 

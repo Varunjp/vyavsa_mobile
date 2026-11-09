@@ -6,6 +6,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -69,6 +70,51 @@ object FormatUtils {
 
     fun todayDateString(): String {
         return LocalDate.now().format(isoDateFormatter)
+    }
+
+    /**
+     * Converts UTC epoch milliseconds (e.g. from Material 3 DatePicker) to a YYYY-MM-DD date string.
+     * Guarantees zero timezone drift across all local device timezones.
+     */
+    fun utcMillisToLocalDateString(utcMillis: Long): String {
+        return Instant.ofEpochMilli(utcMillis)
+            .atZone(ZoneOffset.UTC)
+            .toLocalDate()
+            .format(isoDateFormatter)
+    }
+
+    /**
+     * Converts a YYYY-MM-DD date string to UTC epoch milliseconds for Material 3 DatePicker initialization.
+     * Guarantees zero timezone drift across all local device timezones.
+     */
+    fun localDateStringToUtcMillis(dateString: String?): Long? {
+        if (dateString.isNullOrBlank()) return null
+        return try {
+            val trimmed = dateString.trim()
+            val localDate = when {
+                trimmed.length == 10 && trimmed[4] == '-' -> LocalDate.parse(trimmed, isoDateFormatter)
+                trimmed.contains("T") -> LocalDate.parse(trimmed.substringBefore("T"), isoDateFormatter)
+                else -> parseToLocalDate(trimmed)
+            } ?: return null
+            localDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Validates whether the given string is in strict YYYY-MM-DD ISO format.
+     */
+    fun isValidIsoDate(dateString: String?): Boolean {
+        if (dateString.isNullOrBlank()) return false
+        val trimmed = dateString.trim()
+        if (trimmed.length != 10 || trimmed[4] != '-' || trimmed[7] != '-') return false
+        return try {
+            val parsed = LocalDate.parse(trimmed, isoDateFormatter)
+            parsed.format(isoDateFormatter) == trimmed
+        } catch (_: Exception) {
+            false
+        }
     }
 
     fun formatDateForDisplay(dateString: String?): String {

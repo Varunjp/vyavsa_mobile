@@ -29,6 +29,7 @@ import com.vyavsa.app.core.model.Supplier
 import com.vyavsa.app.core.model.SupplierPaymentResponse
 import com.vyavsa.app.core.model.TenantBank
 import com.vyavsa.app.core.model.UpdateCounterSaleRequest
+import com.vyavsa.app.core.model.UpdateExpenseRequest
 import com.vyavsa.app.core.model.UpdateLineSaleRequest
 import com.vyavsa.app.core.model.UpdatePurchaseRequest
 import com.vyavsa.app.core.sync.DataMutation
@@ -858,6 +859,188 @@ class TransactionsViewModelTest {
     }
 
     @Test
+    fun testCreateExpense_defaultsToTodayWhenDateNotSpecified() = runTest {
+        val today = FormatUtils.todayDateString()
+        viewModel.createExpense(
+            item = "Office Snacks",
+            category = "operations",
+            amount = "450.00",
+            paymentMethod = "cash"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.createActionState.value
+        assertTrue("Expected Success, got $state", state is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreateExpenseRequest
+        assertNotNull(lastReq)
+        assertEquals(today, lastReq?.expenseDate)
+        assertEquals(today, lastReq?.paymentDate)
+        assertEquals(today, lastReq?.date)
+        assertEquals("Office Snacks", lastReq?.item)
+    }
+
+    @Test
+    fun testCreateExpense_withExplicitPastDate() = runTest {
+        val pastDate = "2026-11-02"
+        viewModel.createExpense(
+            item = "Hardware Tools",
+            category = "operations",
+            amount = "3200.00",
+            paymentMethod = "cash",
+            expenseDate = pastDate
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.createActionState.value
+        assertTrue("Expected Success, got $state", state is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreateExpenseRequest
+        assertNotNull(lastReq)
+        assertEquals("2026-11-02", lastReq?.expenseDate)
+        assertEquals("2026-11-02", lastReq?.paymentDate)
+        assertEquals("2026-11-02", lastReq?.date)
+        assertEquals("3200.00", lastReq?.totalAmount)
+    }
+
+    @Test
+    fun testCreateExpense_rejectsInvalidDateFormat() = runTest {
+        val initialCallCount = fakeRepo.expenses.size
+        viewModel.createExpense(
+            item = "Bad Date Expense",
+            category = "operations",
+            amount = "100.00",
+            paymentMethod = "cash",
+            expenseDate = "2026/11/05"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.createActionState.value
+        assertTrue(state is UiState.Error)
+        assertEquals("Expense date must be in YYYY-MM-DD format", (state as UiState.Error).message)
+        assertEquals(initialCallCount, fakeRepo.expenses.size)
+    }
+
+    @Test
+    fun testCreateExpense_preventsDuplicateSubmissionWhileLoading() = runTest {
+        fakeRepo.delayResponse = true
+
+        // First click
+        viewModel.createExpense(
+            item = "Fast Taps Item",
+            category = "operations",
+            amount = "500.00",
+            paymentMethod = "cash"
+        )
+        // Immediately tap again before first completes
+        viewModel.createExpense(
+            item = "Fast Taps Item",
+            category = "operations",
+            amount = "500.00",
+            paymentMethod = "cash"
+        )
+
+        testDispatcher.scheduler.advanceUntilIdle()
+        fakeRepo.delayResponse = false
+    }
+
+    @Test
+    fun testUpdateExpense_withExistingAndNewDate() = runTest {
+        fakeRepo.expenses.add(
+            Expense(
+                id = "exp-99",
+                item = "Old Expense",
+                category = "operations",
+                totalAmount = "1000.00",
+                paymentMethod = "cash",
+                expenseDate = "2026-10-25"
+            )
+        )
+
+        viewModel.updateExpense(
+            id = "exp-99",
+            item = "Renamed Expense",
+            category = "operations",
+            amount = "1500.00",
+            paymentMethod = "cash",
+            expenseDate = "2026-10-30"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val updateState = viewModel.updateExpenseActionState.value
+        assertTrue("Expected update Success, got $updateState", updateState is UiState.Success)
+
+        val lastUpdate = fakeRepo.lastUpdateExpenseRequest
+        assertNotNull(lastUpdate)
+        assertEquals("Renamed Expense", lastUpdate?.item)
+        assertEquals("1500.00", lastUpdate?.totalAmount)
+        assertEquals("2026-10-30", lastUpdate?.expenseDate)
+    }
+
+    @Test
+    fun testUpdateExpense_preservesDateWhenUpdatingUnrelatedFields() = runTest {
+        fakeRepo.expenses.add(
+            Expense(
+                id = "exp-101",
+                item = "Maintenance",
+                category = "operations",
+                totalAmount = "800.00",
+                paymentMethod = "cash",
+                expenseDate = "2026-10-20"
+            )
+        )
+
+        // Update item description only, without changing date
+        viewModel.updateExpense(
+            id = "exp-101",
+            item = "Maintenance & Repairs",
+            category = "operations",
+            amount = "800.00",
+            paymentMethod = "cash",
+            expenseDate = "2026-10-20"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val updateState = viewModel.updateExpenseActionState.value
+        assertTrue(updateState is UiState.Success)
+
+        val updated = fakeRepo.expenses.first { it.id == "exp-101" }
+        assertEquals("Maintenance & Repairs", updated.item)
+        assertEquals("2026-10-20", updated.expenseDate)
+    }
+
+    @Test
+    fun testUpdateExpense_rejectsInvalidDateFormat() = runTest {
+        viewModel.updateExpense(
+            id = "exp-101",
+            item = "Invalid Date Update",
+            category = "operations",
+            amount = "250.00",
+            paymentMethod = "cash",
+            expenseDate = "invalid-date"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.updateExpenseActionState.value
+        assertTrue(state is UiState.Error)
+        assertEquals("Expense date must be in YYYY-MM-DD format", (state as UiState.Error).message)
+        assertEquals(0, fakeRepo.updateExpenseCallCount)
+    }
+
+    @Test
+    fun testUpdateExpense_preventsDuplicateSubmissionWhileLoading() = runTest {
+        viewModel.updateExpense(
+            id = "exp-1",
+            item = "Quick Click",
+            category = "operations",
+            amount = "200.00",
+            paymentMethod = "cash"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, fakeRepo.updateExpenseCallCount)
+    }
+
+    @Test
     fun testSetDateFilterLoadsFilteredPurchases() = runTest {
         fakeRepo.purchases.add(
             Purchase(
@@ -1266,6 +1449,116 @@ class TransactionsViewModelTest {
         assertTrue(refreshed is UiState.Success)
         assertEquals("0.00", (refreshed as UiState.Success).data.currentBalance)
     }
+
+    @Test
+    fun testSetPurchaseSupplierFilter_updatesFilterAndReloads() = runTest {
+        val p1 = Purchase(
+            id = "purch-1",
+            item = "Basmati Rice",
+            quantity = 10,
+            totalAmount = "10000.00",
+            customerId = "supp-1",
+            customerName = "Vendor Alpha",
+            createdAt = "2026-10-15"
+        )
+        val p2 = Purchase(
+            id = "purch-2",
+            item = "Sugar",
+            quantity = 5,
+            totalAmount = "4000.00",
+            customerId = "supp-2",
+            customerName = "Vendor Beta",
+            createdAt = "2026-10-15"
+        )
+        fakeRepo.purchases.clear()
+        fakeRepo.purchases.addAll(listOf(p1, p2))
+
+        viewModel.selectTab(TransactionTab.PURCHASES)
+        viewModel.setDateRangeFilter(DateFilterType.ALL_TIME)
+        viewModel.setPurchaseSupplierFilter("supp-1")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("supp-1", viewModel.selectedPurchaseSupplierId.value)
+        val state = viewModel.purchasesState.value
+        assertTrue("Expected Success, got $state", state is UiState.Success)
+        val list = (state as UiState.Success).data
+        assertEquals(1, list.size)
+        assertEquals("purch-1", list[0].id)
+    }
+
+    @Test
+    fun testSetExpenseCategoryFilter_updatesCategoryState() = runTest {
+        val e1 = Expense(
+            id = "exp-1",
+            item = "Shop Rent",
+            category = "rent",
+            totalAmount = "8000.00",
+            createdAt = "2026-10-15"
+        )
+        val e2 = Expense(
+            id = "exp-2",
+            item = "Electricity Bill",
+            category = "electricity",
+            totalAmount = "1500.00",
+            createdAt = "2026-10-15"
+        )
+        fakeRepo.expenses.clear()
+        fakeRepo.expenses.addAll(listOf(e1, e2))
+
+        viewModel.selectTab(TransactionTab.EXPENSES)
+        viewModel.setDateRangeFilter(DateFilterType.ALL_TIME)
+        viewModel.setExpenseCategoryFilter("rent")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("rent", viewModel.selectedExpenseCategory.value)
+        val state = viewModel.expensesState.value
+        assertTrue("Expected Success, got $state", state is UiState.Success)
+        val list = (state as UiState.Success).data
+        assertEquals(1, list.size)
+        assertEquals("exp-1", list[0].id)
+    }
+
+    @Test
+    fun testSelectExpenseForDetails_setsAndClearsSelection() = runTest {
+        val expense = Expense(
+            id = "exp-details-1",
+            item = "Logistics diesel fuel",
+            category = "transport",
+            totalAmount = "2200.00",
+            createdAt = "2026-10-15"
+        )
+
+        viewModel.selectExpenseForDetails(expense)
+        assertEquals("exp-details-1", viewModel.selectedExpenseForDetails.value?.id)
+
+        viewModel.selectExpenseForDetails(null)
+        assertEquals(null, viewModel.selectedExpenseForDetails.value)
+    }
+
+    @Test
+    fun testCreatePurchase_withSupplierId_populatesRequest() = runTest {
+        viewModel.createPurchase(
+            supplierId = "supp-10",
+            item = "Mustard Oil Cans",
+            quantity = "15",
+            totalAmount = "18000.00",
+            cashAmount = "18000.00",
+            customerId = "supp-10"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.createActionState.value
+        assertTrue("Expected Success, got $state", state is UiState.Success)
+
+        val lastReq = fakeRepo.lastCreatePurchaseRequest
+        assertNotNull(lastReq)
+        assertEquals("supp-10", lastReq?.supplierId)
+        assertEquals("supp-10", lastReq?.customerId)
+        assertEquals("Mustard Oil Cans", lastReq?.item)
+        assertEquals(15, lastReq?.quantity)
+        assertEquals("18000.00", lastReq?.totalAmount)
+        assertEquals("18000.00", lastReq?.totalPaid)
+    }
 }
 
 class FakeTransactionsRepository : TransactionsRepository {
@@ -1312,6 +1605,8 @@ class FakeTransactionsRepository : TransactionsRepository {
     var lastUpdateCounterSaleRequest: UpdateCounterSaleRequest? = null
     var lastCreatePurchaseRequest: CreatePurchaseRequest? = null
     var lastCreateExpenseRequest: CreateExpenseRequest? = null
+    var lastUpdateExpenseRequest: UpdateExpenseRequest? = null
+    var updateExpenseCallCount = 0
     var createLineSaleCallCount = 0
     var getCustomerBalanceCallCount = 0
     var lastGetCustomerBalanceId: String? = null
@@ -1507,7 +1802,16 @@ class FakeTransactionsRepository : TransactionsRepository {
         }
     }
 
-    override fun listPurchases(date: String?, search: String?, customerId: String?): Flow<Resource<List<Purchase>>> = flow {
+    override fun listPurchases(
+        date: String?,
+        search: String?,
+        customerId: String?,
+        fromDate: String?,
+        toDate: String?,
+        supplierId: String?,
+        page: Int,
+        pageSize: Int
+    ): Flow<Resource<List<Purchase>>> = flow {
         emit(Resource.Loading)
         var filtered = purchases.toList()
         if (!date.isNullOrBlank()) {
@@ -1516,8 +1820,9 @@ class FakeTransactionsRepository : TransactionsRepository {
         if (!search.isNullOrBlank()) {
             filtered = filtered.filter { it.item.contains(search, ignoreCase = true) || (it.customerName?.contains(search, ignoreCase = true) == true) }
         }
-        if (!customerId.isNullOrBlank()) {
-            filtered = filtered.filter { it.customerId == customerId }
+        val effectiveSupplierId = supplierId ?: customerId
+        if (!effectiveSupplierId.isNullOrBlank()) {
+            filtered = filtered.filter { it.customerId == effectiveSupplierId || it.supplierId == effectiveSupplierId }
         }
         emit(Resource.Success(filtered))
     }
@@ -1589,9 +1894,23 @@ class FakeTransactionsRepository : TransactionsRepository {
         )))
     }
 
-    override fun listExpenses(date: String?, search: String?): Flow<Resource<List<Expense>>> = flow {
+    override fun listExpenses(
+        date: String?,
+        search: String?,
+        fromDate: String?,
+        toDate: String?,
+        page: Int,
+        pageSize: Int
+    ): Flow<Resource<List<Expense>>> = flow {
         emit(Resource.Loading)
-        emit(Resource.Success(expenses.toList()))
+        var filtered = expenses.toList()
+        if (!date.isNullOrBlank()) {
+            filtered = filtered.filter { (it.expenseDate ?: it.createdAt).startsWith(date) }
+        }
+        if (!search.isNullOrBlank()) {
+            filtered = filtered.filter { it.item.contains(search, ignoreCase = true) || (it.category?.contains(search, ignoreCase = true) == true) }
+        }
+        emit(Resource.Success(filtered))
     }
 
     override fun createExpense(request: CreateExpenseRequest): Flow<Resource<Expense>> = flow {
@@ -1605,10 +1924,60 @@ class FakeTransactionsRepository : TransactionsRepository {
             paymentMethod = request.paymentMethod,
             employeeId = request.employeeId,
             employeeName = if (request.employeeId == "emp-1") "Suresh Kumar" else null,
+            expenseDate = request.expenseDate,
+            paymentDate = request.paymentDate,
+            date = request.date,
             createdAt = "2026-10-15"
         )
         expenses.add(exp)
         emit(Resource.Success(exp))
+    }
+
+    override fun updateExpense(id: String, request: UpdateExpenseRequest): Flow<Resource<Expense>> = flow {
+        emit(Resource.Loading)
+        lastUpdateExpenseRequest = request
+        updateExpenseCallCount++
+        val existingIndex = expenses.indexOfFirst { it.id == id }
+        val updated = if (existingIndex >= 0) {
+            val old = expenses[existingIndex]
+            val effectiveDate = request.expenseDate ?: request.paymentDate ?: request.date ?: old.expenseDate
+            val newExp = old.copy(
+                item = request.item ?: old.item,
+                category = request.category ?: old.category,
+                totalAmount = request.totalAmount ?: old.totalAmount,
+                paymentMethod = request.paymentMethod ?: old.paymentMethod,
+                employeeId = request.employeeId ?: old.employeeId,
+                expenseDate = effectiveDate,
+                paymentDate = effectiveDate,
+                date = effectiveDate
+            )
+            expenses[existingIndex] = newExp
+            newExp
+        } else {
+            Expense(
+                id = id,
+                item = request.item ?: "Expense",
+                category = request.category,
+                totalAmount = request.totalAmount ?: "0.00",
+                paymentMethod = request.paymentMethod ?: "cash",
+                expenseDate = request.expenseDate ?: request.paymentDate ?: request.date,
+                paymentDate = request.paymentDate,
+                date = request.date
+            )
+        }
+        emit(Resource.Success(updated))
+    }
+
+    override fun getExpenseById(id: String): Flow<Resource<Expense>> = flow {
+        emit(Resource.Loading)
+        val exp = expenses.firstOrNull { it.id == id }
+        if (exp != null) emit(Resource.Success(exp)) else emit(Resource.Error("Expense not found", "404"))
+    }
+
+    override fun deleteExpense(id: String): Flow<Resource<Unit>> = flow {
+        emit(Resource.Loading)
+        expenses.removeAll { it.id == id }
+        emit(Resource.Success(Unit))
     }
 
     override fun listCustomers(search: String?, page: Int, pageSize: Int): Flow<Resource<List<Customer>>> = flow {

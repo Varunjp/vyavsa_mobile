@@ -21,7 +21,19 @@ enum class AppPermission {
     PRINT_DOWNLOAD_INVOICE,
     VIEW_REPORTS,
     MANAGE_STAFF,
-    MANAGE_SUPPLIERS;
+    MANAGE_SUPPLIERS,
+    VIEW_PARTIES,
+    CREATE_PARTIES,
+    UPDATE_PARTIES,
+    DELETE_PARTIES,
+    VIEW_PURCHASES,
+    CREATE_PURCHASE,
+    UPDATE_PURCHASE,
+    DELETE_PURCHASE,
+    VIEW_EXPENSES,
+    CREATE_EXPENSE,
+    UPDATE_EXPENSE,
+    DELETE_EXPENSE;
 
     companion object {
         fun permissionsForRole(role: UserRole): Set<AppPermission> {
@@ -39,9 +51,16 @@ enum class AppPermission {
                     PRINT_DOWNLOAD_INVOICE,
                     VIEW_REPORTS,
                     MANAGE_STAFF,
-                    MANAGE_SUPPLIERS
+                    MANAGE_SUPPLIERS,
+                    VIEW_PARTIES,
+                    VIEW_PURCHASES,
+                    CREATE_PURCHASE,
+                    UPDATE_PURCHASE,
+                    VIEW_EXPENSES,
+                    CREATE_EXPENSE,
+                    UPDATE_EXPENSE
                 )
-                UserRole.SALES, UserRole.LINE -> setOf(
+                UserRole.SALES -> setOf(
                     VIEW_CUSTOMERS,
                     VIEW_CUSTOMER_FINANCIALS,
                     COLLECT_CUSTOMER_PAYMENT,
@@ -49,14 +68,35 @@ enum class AppPermission {
                     VIEW_PAYMENT_HISTORY,
                     VIEW_INVOICES,
                     CREATE_LINE_SALE,
-                    PRINT_DOWNLOAD_INVOICE
+                    PRINT_DOWNLOAD_INVOICE,
+                    VIEW_PARTIES,
+                    CREATE_PARTIES,
+                    UPDATE_PARTIES,
+                    VIEW_PURCHASES,
+                    CREATE_PURCHASE,
+                    UPDATE_PURCHASE,
+                    VIEW_EXPENSES,
+                    CREATE_EXPENSE,
+                    UPDATE_EXPENSE
+                )
+                UserRole.LINE -> setOf(
+                    VIEW_CUSTOMERS,
+                    VIEW_CUSTOMER_FINANCIALS,
+                    COLLECT_CUSTOMER_PAYMENT,
+                    COLLECT_CUSTOMER_ADVANCE,
+                    VIEW_PAYMENT_HISTORY,
+                    VIEW_INVOICES,
+                    CREATE_LINE_SALE,
+                    PRINT_DOWNLOAD_INVOICE,
+                    VIEW_PARTIES
                 )
                 UserRole.USER -> setOf(
                     VIEW_INVOICES,
                     CREATE_LINE_SALE,
                     CREATE_COUNTER_SALE,
                     PRINT_DOWNLOAD_INVOICE,
-                    VIEW_REPORTS
+                    VIEW_REPORTS,
+                    VIEW_PARTIES
                 )
             }
         }

@@ -24,6 +24,8 @@ sealed class Screen(val route: String) {
     object CreateCounterSale : Screen("create_counter_sale")
     object CreateExpense : Screen("create_expense")
     object CreatePurchase : Screen("create_purchase")
+    object Purchases : Screen("purchases")
+    object Expenses : Screen("expenses")
     object CustomerStatement : Screen("customer_statement/{customerId}/{customerName}") {
         fun createRoute(customerId: String, customerName: String) =
             "customer_statement/$customerId/$customerName"
@@ -38,6 +40,10 @@ sealed class Screen(val route: String) {
     }
     object CustomerDetails : Screen("customer_details/{customerId}") {
         fun createRoute(customerId: String) = "customer_details/$customerId"
+    }
+    object Parties : Screen("parties")
+    object PartyDetails : Screen("party_details/{partyId}") {
+        fun createRoute(partyId: String) = "party_details/$partyId"
     }
     object Plans : Screen("plans")
     object TenantUsers : Screen("tenant_users")

@@ -15,6 +15,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,22 +31,30 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CallMade
 import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -61,12 +70,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.vyavsa.app.core.common.FormatUtils
@@ -85,6 +96,7 @@ import com.vyavsa.app.core.designsystem.StatBadge
 import com.vyavsa.app.core.designsystem.VyavsaSearchBar
 import com.vyavsa.app.core.designsystem.VyavsaSectionHeader
 import com.vyavsa.app.core.designsystem.VyavsaSegmentedTabs
+import com.vyavsa.app.core.designsystem.VyavsaTextField
 import com.vyavsa.app.core.designsystem.VyavsaTopAppBar
 import com.vyavsa.app.core.designsystem.vyavsaClickable
 import com.vyavsa.app.core.model.CashTransaction
@@ -93,6 +105,7 @@ import com.vyavsa.app.core.model.Expense
 import com.vyavsa.app.core.model.LineSale
 import com.vyavsa.app.core.model.PlanTransaction
 import com.vyavsa.app.core.model.Purchase
+import com.vyavsa.app.core.model.TenantBank
 
 @Composable
 fun TransactionsScreen(
@@ -155,6 +168,19 @@ fun TransactionsScreen(
     val showFab = selectedTab == TransactionTab.PURCHASES ||
         selectedTab == TransactionTab.EXPENSES
 
+    val banksState by viewModel.banksState.collectAsState()
+    val banks = (banksState as? UiState.Success)?.data ?: emptyList()
+    val updateExpenseActionState by viewModel.updateExpenseActionState.collectAsState()
+    var editingExpense by remember { mutableStateOf<Expense?>(null) }
+    var selectedExpenseForDetails by remember { mutableStateOf<Expense?>(null) }
+
+    LaunchedEffect(updateExpenseActionState) {
+        if (updateExpenseActionState is UiState.Success) {
+            editingExpense = null
+            viewModel.resetUpdateExpenseState()
+        }
+    }
+
     var showDatePicker by remember { mutableStateOf(false) }
 
     if (showDatePicker) {
@@ -165,8 +191,7 @@ fun TransactionsScreen(
                 TextButton(
                     onClick = {
                         datePickerState.selectedDateMillis?.let { millis ->
-                            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-                            val chosenDate = sdf.format(java.util.Date(millis))
+                            val chosenDate = FormatUtils.utcMillisToLocalDateString(millis)
                             viewModel.setDateFilter(chosenDate)
                         }
                         showDatePicker = false
@@ -183,6 +208,44 @@ fun TransactionsScreen(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    if (editingExpense != null) {
+        val expenseToEdit = editingExpense!!
+        EditExpenseDialog(
+            expense = expenseToEdit,
+            banks = banks,
+            isLoading = updateExpenseActionState is UiState.Loading,
+            errorMessage = (updateExpenseActionState as? UiState.Error)?.message,
+            onDismiss = {
+                editingExpense = null
+                viewModel.resetUpdateExpenseState()
+            },
+            onConfirm = { item, category, amount, paymentMethod, bankId, expenseDate ->
+                viewModel.updateExpense(
+                    id = expenseToEdit.id,
+                    item = item,
+                    category = category,
+                    amount = amount,
+                    paymentMethod = paymentMethod,
+                    employeeId = expenseToEdit.employeeId,
+                    expenseDate = expenseDate,
+                    bankId = bankId
+                )
+            }
+        )
+    }
+
+    if (selectedExpenseForDetails != null) {
+        ExpenseDetailsDialog(
+            expense = selectedExpenseForDetails!!,
+            onDismiss = { selectedExpenseForDetails = null },
+            onEditClick = {
+                val exp = selectedExpenseForDetails
+                selectedExpenseForDetails = null
+                editingExpense = exp
+            }
+        )
     }
 
     Scaffold(
@@ -372,7 +435,9 @@ fun TransactionsScreen(
                     TransactionTab.EXPENSES -> {
                         ExpensesListContent(
                             expensesState = expensesState,
-                            onAddExpense = onNavigateToCreateExpense
+                            onAddExpense = onNavigateToCreateExpense,
+                            onExpenseClick = { selectedExpenseForDetails = it },
+                            onEditExpense = { editingExpense = it }
                         )
                     }
                     TransactionTab.CASH_BOOK -> {
@@ -818,7 +883,9 @@ private fun PurchaseCard(
 @Composable
 private fun ExpensesListContent(
     expensesState: UiState<List<Expense>>,
-    onAddExpense: () -> Unit
+    onAddExpense: () -> Unit,
+    onExpenseClick: (Expense) -> Unit,
+    onEditExpense: (Expense) -> Unit
 ) {
     when (expensesState) {
         is UiState.Loading -> {
@@ -860,7 +927,9 @@ private fun ExpensesListContent(
                     contentType = { _, _ -> "expense" }
                 ) { _, expense ->
                     ExpenseCard(
-                        expense = expense
+                        expense = expense,
+                        onClick = { onExpenseClick(expense) },
+                        onEditClick = { onEditExpense(expense) }
                     )
                 }
             }
@@ -872,6 +941,8 @@ private fun ExpensesListContent(
 @Composable
 private fun ExpenseCard(
     expense: Expense,
+    onClick: () -> Unit = {},
+    onEditClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val isAdvance = expense.category.equals("employee_advance", ignoreCase = true) || !expense.employeeName.isNullOrBlank()
@@ -879,6 +950,7 @@ private fun ExpenseCard(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        onClick = { onClick() },
         modifier = modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f), RoundedCornerShape(22.dp))
@@ -917,9 +989,9 @@ private fun ExpenseCard(
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = when {
-                            !expense.employeeName.isNullOrBlank() -> "Staff: ${expense.employeeName} • ${FormatUtils.formatDateForDisplay(expense.createdAt)}"
-                            !expense.category.isNullOrBlank() -> "${expense.category.replace('_', ' ').uppercase()} • ${FormatUtils.formatDateForDisplay(expense.createdAt)}"
-                            else -> FormatUtils.formatDateForDisplay(expense.createdAt)
+                            !expense.employeeName.isNullOrBlank() -> "Staff: ${expense.employeeName} • ${FormatUtils.formatDateForDisplay(expense.effectiveDate)}"
+                            !expense.category.isNullOrBlank() -> "${expense.category.replace('_', ' ').uppercase()} • ${FormatUtils.formatDateForDisplay(expense.effectiveDate)}"
+                            else -> FormatUtils.formatDateForDisplay(expense.effectiveDate)
                         },
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                         maxLines = 1,
@@ -940,7 +1012,10 @@ private fun ExpenseCard(
                     )
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     if (isAdvance) {
                         StatBadge(
                             text = "ADVANCE",
@@ -953,10 +1028,293 @@ private fun ExpenseCard(
                         backgroundColor = Blue50,
                         textColor = Blue600
                     )
+                    if (onEditClick != null) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit Expense",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditExpenseDialog(
+    expense: Expense,
+    banks: List<TenantBank>,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onDismiss: () -> Unit,
+    onConfirm: (item: String, category: String, amount: String, paymentMethod: String, bankId: String?, expenseDate: String) -> Unit
+) {
+    var item by rememberSaveable { mutableStateOf(expense.item) }
+    var category by rememberSaveable { mutableStateOf(expense.category ?: "operations") }
+    var amount by rememberSaveable {
+        mutableStateOf(if (expense.totalAmount != "0.00") expense.totalAmount else expense.amount)
+    }
+    var paymentMethod by rememberSaveable { mutableStateOf(expense.paymentMethod) }
+    var selectedBankId by rememberSaveable {
+        mutableStateOf(expense.paymentBreakdown?.banks?.firstOrNull()?.bankAccountId)
+    }
+    var expenseDate by rememberSaveable { mutableStateOf(expense.effectiveDate) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var localError by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val categories = remember {
+        listOf(
+            "operations" to "Operations",
+            "transport" to "Transport",
+            "office" to "Office",
+            "salary" to "Salary",
+            "rent" to "Rent",
+            "misc" to "Misc"
+        )
+    }
+
+    if (showDatePicker) {
+        val initialMillis = remember(expenseDate) {
+            FormatUtils.localDateStringToUtcMillis(expenseDate) ?: System.currentTimeMillis()
+        }
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            expenseDate = FormatUtils.utcMillisToLocalDateString(millis)
+                            localError = null
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("Select", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = {
+            Text(
+                text = "Edit Expense",
+                fontWeight = FontWeight.ExtraBold,
+                style = MaterialTheme.typography.titleLarge
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                if (errorMessage != null || localError != null) {
+                    ErrorBanner(message = localError ?: errorMessage ?: "")
+                }
+
+                VyavsaTextField(
+                    value = item,
+                    onValueChange = {
+                        item = it
+                        localError = null
+                    },
+                    label = "Expense Item Description *"
+                )
+
+                VyavsaTextField(
+                    value = amount,
+                    onValueChange = {
+                        amount = it
+                        localError = null
+                    },
+                    label = "Amount (₹) *",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+
+                // Transaction Date Picker
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                    ),
+                    onClick = { showDatePicker = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+                            RoundedCornerShape(14.dp)
+                        )
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarToday,
+                                contentDescription = "Select Date",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "Transaction Date *",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+                                Text(
+                                    text = FormatUtils.formatDateForDisplay(expenseDate),
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
+                        }
+                        TextButton(onClick = { showDatePicker = true }) {
+                            Text("Change", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                        }
+                    }
+                }
+
+                // Category Selection
+                Text(
+                    text = "Category",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                ) {
+                    categories.forEach { (catKey, catLabel) ->
+                        val isCatSelected = category == catKey
+                        FilterChip(
+                            selected = isCatSelected,
+                            onClick = { category = catKey },
+                            shape = CircleShape,
+                            label = { Text(catLabel, style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+                }
+
+                // Payment Method
+                Text(
+                    text = "Paid From",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = paymentMethod == "cash",
+                        onClick = { paymentMethod = "cash" },
+                        shape = CircleShape,
+                        label = { Text("Cash Till") }
+                    )
+                    FilterChip(
+                        selected = paymentMethod == "bank",
+                        onClick = {
+                            paymentMethod = "bank"
+                            if (selectedBankId == null && banks.isNotEmpty()) {
+                                selectedBankId = banks.first().id
+                            }
+                        },
+                        shape = CircleShape,
+                        label = { Text("Bank Account") }
+                    )
+                }
+
+                if (paymentMethod == "bank" && banks.isNotEmpty()) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                    ) {
+                        banks.forEach { bank ->
+                            val isBankSelected = selectedBankId == bank.id
+                            FilterChip(
+                                selected = isBankSelected,
+                                onClick = { selectedBankId = bank.id },
+                                shape = CircleShape,
+                                label = { Text(bank.bankName, style = MaterialTheme.typography.labelSmall) }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amt = amount.trim().toDoubleOrNull()
+                    if (item.isBlank()) {
+                        localError = "Expense item name is required"
+                        return@Button
+                    }
+                    if (amt == null || amt <= 0.0) {
+                        localError = "Please enter an amount greater than zero"
+                        return@Button
+                    }
+                    if (paymentMethod == "bank" && selectedBankId.isNullOrBlank()) {
+                        localError = "Please select a bank account"
+                        return@Button
+                    }
+                    if (!FormatUtils.isValidIsoDate(expenseDate)) {
+                        localError = "Expense date must be in YYYY-MM-DD format"
+                        return@Button
+                    }
+                    localError = null
+                    onConfirm(item, category, amount, paymentMethod, if (paymentMethod == "bank") selectedBankId else null, expenseDate)
+                },
+                enabled = !isLoading,
+                shape = CircleShape
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text("Save Changes", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isLoading
+            ) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
