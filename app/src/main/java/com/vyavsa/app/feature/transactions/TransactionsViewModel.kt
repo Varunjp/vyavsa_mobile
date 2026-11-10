@@ -331,6 +331,9 @@ class TransactionsViewModel @Inject constructor(
     val isAdmin: Boolean
         get() = tokenManager?.isTenantAdmin() ?: false
 
+    val defaultSalesmanName: String
+        get() = tokenManager?.getUserProfile()?.name?.trim().orEmpty()
+
     init {
         loadData()
         loadCustomers()
@@ -1220,7 +1223,7 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 
-    fun createCounterSale(
+    fun validateAndBuildCounterSaleRequest(
         item: String,
         price: String?,
         totalAmount: String,
@@ -1235,10 +1238,8 @@ class TransactionsViewModel @Inject constructor(
         customerName: String? = null,
         saleDate: String? = null,
         advanceToApply: String? = null,
-        onSuccess: ((CounterSale) -> Unit)? = null
-    ) {
-        if (_createActionState.value is UiState.Loading) return
-
+        salesman: String? = null
+    ): Result<CreateCounterSaleRequest> {
         val calculatedItemsSubtotal = if (items.isNotEmpty()) {
             items.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
         } else null
@@ -1251,28 +1252,24 @@ class TransactionsViewModel @Inject constructor(
 
         val trimmedItem = item.trim()
         if ((trimmedItem.isBlank() && items.isEmpty()) || rawSubtotal.isBlank()) {
-            _createActionState.value = UiState.Error("Item description and total amount are required")
-            return
+            return Result.failure(IllegalArgumentException("Item description and total amount are required"))
         }
 
         val calcResult = SaleCalculationUtils.calculateResult(rawSubtotal, discount)
         if (!calcResult.isValid) {
-            _createActionState.value = UiState.Error(calcResult.errorMessage ?: "Invalid discount or subtotal")
-            return
+            return Result.failure(IllegalArgumentException(calcResult.errorMessage ?: "Invalid discount or subtotal"))
         }
 
         val subtotalVal = calcResult.subtotal.toDouble()
         if (subtotalVal <= 0.0) {
-            _createActionState.value = UiState.Error("Total sale amount must be greater than zero")
-            return
+            return Result.failure(IllegalArgumentException("Total sale amount must be greater than zero"))
         }
 
         val effectiveTotalAmount = calcResult.finalAmountString
 
         val cashVal = cash.trim().ifBlank { "0.00" }.toDoubleOrNull() ?: 0.0
         if (cashVal < 0.0) {
-            _createActionState.value = UiState.Error("Payment amounts cannot be negative")
-            return
+            return Result.failure(IllegalArgumentException("Payment amounts cannot be negative"))
         }
 
         val effectiveBankSplits: List<BankPaymentSplit>
@@ -1282,21 +1279,18 @@ class TransactionsViewModel @Inject constructor(
         if (bankPayments.isNotEmpty()) {
             for (bp in bankPayments) {
                 if (bp.bankId.isBlank()) {
-                    _createActionState.value = UiState.Error("Please select a bank account for all bank payment rows")
-                    return
+                    return Result.failure(IllegalArgumentException("Please select a bank account for all bank payment rows"))
                 }
                 val amt = bp.amount.trim().toDoubleOrNull()
                 if (amt == null || amt <= 0.0) {
-                    _createActionState.value = UiState.Error("Bank payment amount must be greater than zero")
-                    return
+                    return Result.failure(IllegalArgumentException("Bank payment amount must be greater than zero"))
                 }
             }
 
             val seenBanks = mutableSetOf<String>()
             for (bp in bankPayments) {
                 if (!seenBanks.add(bp.bankId.trim())) {
-                    _createActionState.value = UiState.Error("Each bank account can only be selected once per sale")
-                    return
+                    return Result.failure(IllegalArgumentException("Each bank account can only be selected once per sale"))
                 }
             }
 
@@ -1306,14 +1300,12 @@ class TransactionsViewModel @Inject constructor(
         } else {
             val bankVal = bankAmount.trim().ifBlank { "0.00" }.toDoubleOrNull() ?: 0.0
             if (bankVal < 0.0) {
-                _createActionState.value = UiState.Error("Payment amounts cannot be negative")
-                return
+                return Result.failure(IllegalArgumentException("Payment amounts cannot be negative"))
             }
 
             val bId = bankId?.trim()?.ifBlank { null }
             if (bankVal > 0.0 && bId == null) {
-                _createActionState.value = UiState.Error("Please select a bank account for bank payment")
-                return
+                return Result.failure(IllegalArgumentException("Please select a bank account for bank payment"))
             }
 
             effectiveBankTotal = bankVal
@@ -1329,27 +1321,74 @@ class TransactionsViewModel @Inject constructor(
         val itemPrice = price?.trim()?.ifBlank { calcResult.subtotalString } ?: calcResult.subtotalString
         val formattedBankAmount = String.format(java.util.Locale.US, "%.2f", effectiveBankTotal)
 
+        val req = CreateCounterSaleRequest(
+            customerId = customerId?.trim()?.ifBlank { null },
+            customerName = customerName?.trim()?.ifBlank { null },
+            salesman = salesman?.trim()?.ifBlank { null },
+            item = trimmedItem.ifBlank { if (items.isNotEmpty()) items.first().productId else "Sale Item" },
+            price = itemPrice,
+            subtotal = calcResult.subtotalString,
+            discount = calcResult.discountString,
+            discountAmount = calcResult.discountString,
+            totalAmount = effectiveTotalAmount,
+            paymentMethod = method,
+            cash = cash.trim().ifBlank { "0.00" },
+            cashAmount = cash.trim().ifBlank { "0.00" },
+            bankAmount = formattedBankAmount,
+            bankId = resolvedBankId,
+            account = formattedBankAmount,
+            bankPayments = effectiveBankSplits,
+            items = items,
+            saleDate = saleDate?.trim()?.ifBlank { null },
+            advanceToApply = advanceToApply?.trim()?.ifBlank { null }
+        )
+        return Result.success(req)
+    }
+
+    fun createCounterSale(
+        item: String,
+        price: String?,
+        totalAmount: String,
+        cash: String,
+        bankAmount: String = "0.00",
+        bankId: String? = null,
+        bankPayments: List<BankPaymentSplit> = emptyList(),
+        items: List<SaleItemRequest> = emptyList(),
+        subtotal: String? = null,
+        discount: String? = null,
+        customerId: String? = null,
+        customerName: String? = null,
+        saleDate: String? = null,
+        advanceToApply: String? = null,
+        salesman: String? = null,
+        onSuccess: ((CounterSale) -> Unit)? = null
+    ) {
+        if (_createActionState.value is UiState.Loading) return
+
+        val validationResult = validateAndBuildCounterSaleRequest(
+            item = item,
+            price = price,
+            totalAmount = totalAmount,
+            cash = cash,
+            bankAmount = bankAmount,
+            bankId = bankId,
+            bankPayments = bankPayments,
+            items = items,
+            subtotal = subtotal,
+            discount = discount,
+            customerId = customerId,
+            customerName = customerName,
+            saleDate = saleDate,
+            advanceToApply = advanceToApply,
+            salesman = salesman
+        )
+
+        val req = validationResult.getOrElse { error ->
+            _createActionState.value = UiState.Error(error.message ?: "Validation failed")
+            return
+        }
+
         viewModelScope.launch {
-            val req = CreateCounterSaleRequest(
-                customerId = customerId?.trim()?.ifBlank { null },
-                customerName = customerName?.trim()?.ifBlank { null },
-                item = trimmedItem.ifBlank { if (items.isNotEmpty()) items.first().productId else "Sale Item" },
-                price = itemPrice,
-                subtotal = calcResult.subtotalString,
-                discount = calcResult.discountString,
-                discountAmount = calcResult.discountString,
-                totalAmount = effectiveTotalAmount,
-                paymentMethod = method,
-                cash = cash.trim().ifBlank { "0.00" },
-                cashAmount = cash.trim().ifBlank { "0.00" },
-                bankAmount = formattedBankAmount,
-                bankId = resolvedBankId,
-                account = formattedBankAmount,
-                bankPayments = effectiveBankSplits,
-                items = items,
-                saleDate = saleDate?.trim()?.ifBlank { null },
-                advanceToApply = advanceToApply?.trim()?.ifBlank { null }
-            )
             repository.createCounterSale(req).collect { res ->
                 _createActionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading

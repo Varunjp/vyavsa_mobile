@@ -453,6 +453,7 @@ class SalesSerializationTest {
     @Test
     fun testUpdateCounterSaleRequestSerialization() {
         val req = UpdateCounterSaleRequest(
+            salesman = "Pooja Sharma",
             item = "Edited Item",
             subtotal = "300.00",
             discount = "30.00",
@@ -461,10 +462,50 @@ class SalesSerializationTest {
         )
 
         val serialized = json.encodeToString(req)
+        assertTrue(serialized.contains("\"salesman\":\"Pooja Sharma\""))
         assertTrue(serialized.contains("\"item\":\"Edited Item\""))
         assertTrue(serialized.contains("\"subtotal\":\"300.00\""))
         assertTrue(serialized.contains("\"discount\":\"30.00\""))
         assertTrue(serialized.contains("\"discount_amount\":\"30.00\""))
         assertTrue(serialized.contains("\"total_amount\":\"270.00\""))
+    }
+
+    @Test
+    fun testCreateCounterSaleRequestSerializationWithSalesman() {
+        val req = CreateCounterSaleRequest(
+            salesman = "Kavita Raman",
+            item = "Counter Item 1",
+            price = "500.00",
+            totalAmount = "500.00",
+            cash = "500.00"
+        )
+
+        val serialized = json.encodeToString(req)
+        assertTrue(serialized.contains("\"salesman\":\"Kavita Raman\""))
+        assertTrue(serialized.contains("\"item\":\"Counter Item 1\""))
+        assertTrue(serialized.contains("\"total_amount\":\"500.00\""))
+    }
+
+    @Test
+    fun testCounterSaleDeserializationWithSalesman() {
+        val rawJson = """
+            {
+                "id": "counter-sale-999",
+                "invoice_number": "CS-2026-001",
+                "customer_name": "Walk-in Buyer",
+                "salesman": "Kavita Raman",
+                "item": "Rice Bag 25kg",
+                "price": "1400.00",
+                "total_amount": "1400.00",
+                "cash": "1400.00"
+            }
+        """.trimIndent()
+
+        val parsed = json.decodeFromString<CounterSale>(rawJson)
+        assertEquals("counter-sale-999", parsed.id)
+        assertEquals("CS-2026-001", parsed.invoiceNumber)
+        assertEquals("Walk-in Buyer", parsed.customerName)
+        assertEquals("Kavita Raman", parsed.salesman)
+        assertEquals("1400.00", parsed.totalAmount)
     }
 }

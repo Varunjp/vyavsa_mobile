@@ -173,6 +173,7 @@ object InvoiceDataMapper {
             invoiceDate = if (!sale.saleDate.isNullOrBlank()) sale.saleDate else FormatUtils.formatDateTimeForDisplay(sale.createdAt),
             customerName = if (!sale.customerName.isNullOrBlank()) sale.customerName else "Walk-in Counter Customer",
             customerPhone = null,
+            salesman = sale.salesman?.ifBlank { null },
             items = sale.items.map {
                 PrintItem(
                     name = it.productNameSnapshot,

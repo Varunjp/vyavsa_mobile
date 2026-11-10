@@ -454,6 +454,9 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
   - Request:
     ```json
     {
+      "customer_id": "optional-uuid",
+      "customer_name": "Walk-in Customer",
+      "salesman": "Pooja",
       "item": "Product A",
       "price": "300.00",
       "subtotal": "300.00",
@@ -477,7 +480,7 @@ All bank account operations require `Authorization: Bearer <access_token>` and t
     ```
 - **Update**: `PUT /api/v1/tenant/counter-sales/:id`
 - **Details**: `GET /api/v1/tenant/counter-sales/:id`
-  - Response includes `item`, `price`, `subtotal`, `discount`, `total_amount`, `payment_method`, `cash`, `bank_amount`, `account`, `items`, `payments`.
+  - Response includes `salesman`, `item`, `price`, `subtotal`, `discount`, `total_amount`, `payment_method`, `cash`, `bank_amount`, `account`, `items`, `payments`.
 - **Payments**: `GET /api/v1/tenant/counter-sales/:id/payments`
 - **Add Payment**: `POST /api/v1/tenant/counter-sales/:id/payments`
 - **Payment Breakdown**: `GET /api/v1/tenant/counter-sales/breakdown?date=YYYY-MM-DD&start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
