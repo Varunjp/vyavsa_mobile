@@ -101,6 +101,7 @@ data class LineSale(
 @Serializable
 data class BankPaymentSplit(
     @SerialName("bank_id") val bankId: String,
+    @SerialName("bank_account_id") val bankAccountId: String? = null,
     @SerialName("bank_name") val bankName: String? = null,
     val amount: String,
     val note: String? = null

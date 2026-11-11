@@ -2679,7 +2679,7 @@ fun VyavsaSwitchRow(
         }
         VyavsaSwitch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = null,
             enabled = enabled
         )
     }
