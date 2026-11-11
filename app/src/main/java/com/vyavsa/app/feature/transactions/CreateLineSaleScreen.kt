@@ -1,6 +1,9 @@
 @file:Suppress("DEPRECATION")
 package com.vyavsa.app.feature.transactions
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.vyavsa.app.core.security.SessionState
+import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -232,8 +235,10 @@ fun CreateSaleScreen(
     var customerSelectorTarget by remember { mutableStateOf(SaleType.LINE_SALE) }
     var customerSearchQuery by remember { mutableStateOf("") }
     var showQuickAddCustomerDialog by remember { mutableStateOf(false) }
+    val defaultSalesman = remember(viewModel) { viewModel.defaultSalesmanName }
     var route by remember { mutableStateOf("") }
-    var salesman by remember { mutableStateOf("") }
+    var salesman by rememberSaveable { mutableStateOf(defaultSalesman) }
+    var hasUserModifiedLineSalesman by rememberSaveable { mutableStateOf(false) }
     var lineSubtotal by remember { mutableStateOf("") }
     var lineDiscount by remember { mutableStateOf("0.00") }
     var lineTotalAmount by remember { mutableStateOf("") }
@@ -245,6 +250,8 @@ fun CreateSaleScreen(
 
     // Form fields for Counter Sale
     var counterSelectedCustomer by remember { mutableStateOf<Customer?>(null) }
+    var counterSalesman by rememberSaveable { mutableStateOf(defaultSalesman) }
+    var hasUserModifiedCounterSalesman by rememberSaveable { mutableStateOf(false) }
     var counterItem by remember { mutableStateOf("") }
     var counterPrice by remember { mutableStateOf("") }
     var counterSubtotal by remember { mutableStateOf("") }
@@ -255,6 +262,17 @@ fun CreateSaleScreen(
     var counterBankEntries by remember { mutableStateOf<List<BankPaymentEntry>>(emptyList()) }
     var counterItems by remember { mutableStateOf<List<SaleItemEntry>>(emptyList()) }
     var itemToFocusId by remember { mutableStateOf<String?>(null) }
+
+    val sessionState by (viewModel.tokenManager?.sessionState ?: MutableStateFlow(SessionState.Unauthenticated)).collectAsState()
+    LaunchedEffect(sessionState, defaultSalesman) {
+        val currentDefault = viewModel.defaultSalesmanName
+        if (!hasUserModifiedLineSalesman && salesman.isBlank() && currentDefault.isNotBlank()) {
+            salesman = currentDefault
+        }
+        if (!hasUserModifiedCounterSalesman && counterSalesman.isBlank() && currentDefault.isNotBlank()) {
+            counterSalesman = currentDefault
+        }
+    }
 
     val lineCustomerBalanceState by viewModel.lineSaleCustomerBalanceState.collectAsState()
     val counterCustomerBalanceState by viewModel.counterSaleCustomerBalanceState.collectAsState()
@@ -693,7 +711,8 @@ fun CreateSaleScreen(
                                     customerId = counterSelectedCustomer?.id,
                                     customerName = counterSelectedCustomer?.customerName,
                                     saleDate = saleDate,
-                                    advanceToApply = if (counterSelectedCustomer != null) counterPosPreview.advanceAppliedString else null
+                                    advanceToApply = if (counterSelectedCustomer != null) counterPosPreview.advanceAppliedString else null,
+                                    salesman = counterSalesman
                                 )
                             },
                             isLoading = createActionState is UiState.Loading
@@ -990,7 +1009,10 @@ fun CreateSaleScreen(
                                     )
                                     VyavsaTextField(
                                         value = salesman,
-                                        onValueChange = { salesman = it },
+                                        onValueChange = {
+                                            salesman = it
+                                            hasUserModifiedLineSalesman = true
+                                        },
                                         label = "Salesman",
                                         placeholder = "e.g. Ramesh",
                                         modifier = Modifier.weight(1f)
@@ -1392,6 +1414,20 @@ fun CreateSaleScreen(
                                         }
                                     }
                                 }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Salesman Row for Counter Sale
+                                VyavsaTextField(
+                                    value = counterSalesman,
+                                    onValueChange = {
+                                        counterSalesman = it
+                                        hasUserModifiedCounterSalesman = true
+                                    },
+                                    label = "Salesman",
+                                    placeholder = "e.g. Cashier / Staff name",
+                                    modifier = Modifier.fillMaxWidth()
+                                )
 
                                 Spacer(modifier = Modifier.height(14.dp))
 

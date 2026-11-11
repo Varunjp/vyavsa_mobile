@@ -40,6 +40,7 @@ import com.vyavsa.app.core.common.MessageType
 import com.vyavsa.app.core.common.OneTimeEventEmitter
 import com.vyavsa.app.core.common.UiMessage
 import com.vyavsa.app.core.designsystem.LogoMemoryCache
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.DayOfWeek
 import java.time.temporal.TemporalAdjusters
@@ -330,6 +331,9 @@ class TransactionsViewModel @Inject constructor(
 
     val isAdmin: Boolean
         get() = tokenManager?.isTenantAdmin() ?: false
+
+    val defaultSalesmanName: String
+        get() = tokenManager?.getUserProfile()?.name?.trim().orEmpty()
 
     init {
         loadData()
@@ -1220,7 +1224,7 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 
-    fun createCounterSale(
+    fun validateAndBuildCounterSaleRequest(
         item: String,
         price: String?,
         totalAmount: String,
@@ -1235,10 +1239,8 @@ class TransactionsViewModel @Inject constructor(
         customerName: String? = null,
         saleDate: String? = null,
         advanceToApply: String? = null,
-        onSuccess: ((CounterSale) -> Unit)? = null
-    ) {
-        if (_createActionState.value is UiState.Loading) return
-
+        salesman: String? = null
+    ): Result<CreateCounterSaleRequest> {
         val calculatedItemsSubtotal = if (items.isNotEmpty()) {
             items.sumOf { (it.quantity.toDoubleOrNull() ?: 0.0) * (it.unitPrice.toDoubleOrNull() ?: 0.0) }
         } else null
@@ -1251,28 +1253,24 @@ class TransactionsViewModel @Inject constructor(
 
         val trimmedItem = item.trim()
         if ((trimmedItem.isBlank() && items.isEmpty()) || rawSubtotal.isBlank()) {
-            _createActionState.value = UiState.Error("Item description and total amount are required")
-            return
+            return Result.failure(IllegalArgumentException("Item description and total amount are required"))
         }
 
         val calcResult = SaleCalculationUtils.calculateResult(rawSubtotal, discount)
         if (!calcResult.isValid) {
-            _createActionState.value = UiState.Error(calcResult.errorMessage ?: "Invalid discount or subtotal")
-            return
+            return Result.failure(IllegalArgumentException(calcResult.errorMessage ?: "Invalid discount or subtotal"))
         }
 
         val subtotalVal = calcResult.subtotal.toDouble()
         if (subtotalVal <= 0.0) {
-            _createActionState.value = UiState.Error("Total sale amount must be greater than zero")
-            return
+            return Result.failure(IllegalArgumentException("Total sale amount must be greater than zero"))
         }
 
         val effectiveTotalAmount = calcResult.finalAmountString
 
         val cashVal = cash.trim().ifBlank { "0.00" }.toDoubleOrNull() ?: 0.0
         if (cashVal < 0.0) {
-            _createActionState.value = UiState.Error("Payment amounts cannot be negative")
-            return
+            return Result.failure(IllegalArgumentException("Payment amounts cannot be negative"))
         }
 
         val effectiveBankSplits: List<BankPaymentSplit>
@@ -1282,21 +1280,18 @@ class TransactionsViewModel @Inject constructor(
         if (bankPayments.isNotEmpty()) {
             for (bp in bankPayments) {
                 if (bp.bankId.isBlank()) {
-                    _createActionState.value = UiState.Error("Please select a bank account for all bank payment rows")
-                    return
+                    return Result.failure(IllegalArgumentException("Please select a bank account for all bank payment rows"))
                 }
                 val amt = bp.amount.trim().toDoubleOrNull()
                 if (amt == null || amt <= 0.0) {
-                    _createActionState.value = UiState.Error("Bank payment amount must be greater than zero")
-                    return
+                    return Result.failure(IllegalArgumentException("Bank payment amount must be greater than zero"))
                 }
             }
 
             val seenBanks = mutableSetOf<String>()
             for (bp in bankPayments) {
                 if (!seenBanks.add(bp.bankId.trim())) {
-                    _createActionState.value = UiState.Error("Each bank account can only be selected once per sale")
-                    return
+                    return Result.failure(IllegalArgumentException("Each bank account can only be selected once per sale"))
                 }
             }
 
@@ -1306,14 +1301,12 @@ class TransactionsViewModel @Inject constructor(
         } else {
             val bankVal = bankAmount.trim().ifBlank { "0.00" }.toDoubleOrNull() ?: 0.0
             if (bankVal < 0.0) {
-                _createActionState.value = UiState.Error("Payment amounts cannot be negative")
-                return
+                return Result.failure(IllegalArgumentException("Payment amounts cannot be negative"))
             }
 
             val bId = bankId?.trim()?.ifBlank { null }
             if (bankVal > 0.0 && bId == null) {
-                _createActionState.value = UiState.Error("Please select a bank account for bank payment")
-                return
+                return Result.failure(IllegalArgumentException("Please select a bank account for bank payment"))
             }
 
             effectiveBankTotal = bankVal
@@ -1329,27 +1322,74 @@ class TransactionsViewModel @Inject constructor(
         val itemPrice = price?.trim()?.ifBlank { calcResult.subtotalString } ?: calcResult.subtotalString
         val formattedBankAmount = String.format(java.util.Locale.US, "%.2f", effectiveBankTotal)
 
+        val req = CreateCounterSaleRequest(
+            customerId = customerId?.trim()?.ifBlank { null },
+            customerName = customerName?.trim()?.ifBlank { null },
+            salesman = salesman?.trim()?.ifBlank { null },
+            item = trimmedItem.ifBlank { if (items.isNotEmpty()) items.first().productId else "Sale Item" },
+            price = itemPrice,
+            subtotal = calcResult.subtotalString,
+            discount = calcResult.discountString,
+            discountAmount = calcResult.discountString,
+            totalAmount = effectiveTotalAmount,
+            paymentMethod = method,
+            cash = cash.trim().ifBlank { "0.00" },
+            cashAmount = cash.trim().ifBlank { "0.00" },
+            bankAmount = formattedBankAmount,
+            bankId = resolvedBankId,
+            account = formattedBankAmount,
+            bankPayments = effectiveBankSplits,
+            items = items,
+            saleDate = saleDate?.trim()?.ifBlank { null },
+            advanceToApply = advanceToApply?.trim()?.ifBlank { null }
+        )
+        return Result.success(req)
+    }
+
+    fun createCounterSale(
+        item: String,
+        price: String?,
+        totalAmount: String,
+        cash: String,
+        bankAmount: String = "0.00",
+        bankId: String? = null,
+        bankPayments: List<BankPaymentSplit> = emptyList(),
+        items: List<SaleItemRequest> = emptyList(),
+        subtotal: String? = null,
+        discount: String? = null,
+        customerId: String? = null,
+        customerName: String? = null,
+        saleDate: String? = null,
+        advanceToApply: String? = null,
+        salesman: String? = null,
+        onSuccess: ((CounterSale) -> Unit)? = null
+    ) {
+        if (_createActionState.value is UiState.Loading) return
+
+        val validationResult = validateAndBuildCounterSaleRequest(
+            item = item,
+            price = price,
+            totalAmount = totalAmount,
+            cash = cash,
+            bankAmount = bankAmount,
+            bankId = bankId,
+            bankPayments = bankPayments,
+            items = items,
+            subtotal = subtotal,
+            discount = discount,
+            customerId = customerId,
+            customerName = customerName,
+            saleDate = saleDate,
+            advanceToApply = advanceToApply,
+            salesman = salesman
+        )
+
+        val req = validationResult.getOrElse { error ->
+            _createActionState.value = UiState.Error(error.message ?: "Validation failed")
+            return
+        }
+
         viewModelScope.launch {
-            val req = CreateCounterSaleRequest(
-                customerId = customerId?.trim()?.ifBlank { null },
-                customerName = customerName?.trim()?.ifBlank { null },
-                item = trimmedItem.ifBlank { if (items.isNotEmpty()) items.first().productId else "Sale Item" },
-                price = itemPrice,
-                subtotal = calcResult.subtotalString,
-                discount = calcResult.discountString,
-                discountAmount = calcResult.discountString,
-                totalAmount = effectiveTotalAmount,
-                paymentMethod = method,
-                cash = cash.trim().ifBlank { "0.00" },
-                cashAmount = cash.trim().ifBlank { "0.00" },
-                bankAmount = formattedBankAmount,
-                bankId = resolvedBankId,
-                account = formattedBankAmount,
-                bankPayments = effectiveBankSplits,
-                items = items,
-                saleDate = saleDate?.trim()?.ifBlank { null },
-                advanceToApply = advanceToApply?.trim()?.ifBlank { null }
-            )
             repository.createCounterSale(req).collect { res ->
                 _createActionState.value = when (res) {
                     is Resource.Loading -> UiState.Loading
@@ -1486,16 +1526,179 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 
+    data class ValidatedExpensePayment(
+        val paymentMethod: String,
+        val cashAmount: String?,
+        val bankPayments: List<BankPaymentSplit>,
+        val bankId: String?
+    )
+
+    fun validateExpensePaymentBreakdown(
+        totalAmountBd: BigDecimal,
+        paymentMethod: String,
+        cashAmount: String?,
+        bankPayments: List<BankPaymentSplit>,
+        bankId: String?
+    ): Result<ValidatedExpensePayment> {
+        val normalizedMethod = paymentMethod.trim().lowercase()
+        val totalFormatted = String.format(java.util.Locale.US, "%.2f", totalAmountBd)
+
+        when (normalizedMethod) {
+            "cash" -> {
+                if (bankPayments.isNotEmpty()) {
+                    return Result.failure(IllegalArgumentException("Bank payment allocations must be empty for cash payment"))
+                }
+                if (!cashAmount.isNullOrBlank()) {
+                    val cBd = SaleCalculationUtils.parseAmount(cashAmount)
+                    if (cBd.compareTo(totalAmountBd) != 0) {
+                        return Result.failure(IllegalArgumentException("Cash amount must equal total expense amount for cash payment"))
+                    }
+                }
+                return Result.success(
+                    ValidatedExpensePayment(
+                        paymentMethod = "cash",
+                        cashAmount = totalFormatted,
+                        bankPayments = emptyList(),
+                        bankId = null
+                    )
+                )
+            }
+            "bank" -> {
+                if (!cashAmount.isNullOrBlank()) {
+                    val cBd = SaleCalculationUtils.parseAmount(cashAmount)
+                    if (cBd > BigDecimal.ZERO) {
+                        return Result.failure(IllegalArgumentException("Cash amount must be zero for bank payment"))
+                    }
+                }
+
+                val effectiveBankSplits = mutableListOf<BankPaymentSplit>()
+                var bankSum = BigDecimal.ZERO
+
+                if (bankPayments.isEmpty()) {
+                    if (bankId.isNullOrBlank()) {
+                        return Result.failure(IllegalArgumentException("Please select a bank account for bank payment"))
+                    }
+                    val singleBank = BankPaymentSplit(
+                        bankId = bankId.trim(),
+                        bankAccountId = bankId.trim(),
+                        amount = totalFormatted
+                    )
+                    effectiveBankSplits.add(singleBank)
+                    bankSum = totalAmountBd
+                } else {
+                    val seenBanks = mutableSetOf<String>()
+                    for (bp in bankPayments) {
+                        if (bp.bankId.isBlank()) {
+                            return Result.failure(IllegalArgumentException("Please select a bank account for all bank payment allocations"))
+                        }
+                        val bpAmt = SaleCalculationUtils.parseAmount(bp.amount)
+                        if (bpAmt <= BigDecimal.ZERO) {
+                            return Result.failure(IllegalArgumentException("Bank payment allocation amount must be greater than zero"))
+                        }
+                        if (!seenBanks.add(bp.bankId.trim())) {
+                            return Result.failure(IllegalArgumentException("Duplicate bank account selected: each bank account can only appear once"))
+                        }
+                        bankSum = bankSum.add(bpAmt)
+                        effectiveBankSplits.add(
+                            bp.copy(
+                                bankId = bp.bankId.trim(),
+                                bankAccountId = bp.bankAccountId?.trim()?.ifBlank { null } ?: bp.bankId.trim(),
+                                amount = String.format(java.util.Locale.US, "%.2f", bpAmt)
+                            )
+                        )
+                    }
+                }
+
+                if (bankSum.compareTo(totalAmountBd) != 0) {
+                    return if (bankSum < totalAmountBd) {
+                        Result.failure(IllegalArgumentException("Total allocated amount must equal the expense amount"))
+                    } else {
+                        Result.failure(IllegalArgumentException("Total allocated amount cannot exceed expense amount"))
+                    }
+                }
+
+                return Result.success(
+                    ValidatedExpensePayment(
+                        paymentMethod = "bank",
+                        cashAmount = null,
+                        bankPayments = effectiveBankSplits,
+                        bankId = effectiveBankSplits.firstOrNull()?.bankId
+                    )
+                )
+            }
+            "cash_bank" -> {
+                if (cashAmount.isNullOrBlank()) {
+                    return Result.failure(IllegalArgumentException("Cash amount must be greater than zero for cash + bank payment"))
+                }
+                val cashBd = SaleCalculationUtils.parseAmount(cashAmount)
+                if (cashBd <= BigDecimal.ZERO) {
+                    return Result.failure(IllegalArgumentException("Cash amount must be greater than zero for cash + bank payment"))
+                }
+
+                if (bankPayments.isEmpty()) {
+                    return Result.failure(IllegalArgumentException("At least one bank payment allocation is required for cash + bank payment"))
+                }
+
+                val effectiveBankSplits = mutableListOf<BankPaymentSplit>()
+                val seenBanks = mutableSetOf<String>()
+                var bankSum = BigDecimal.ZERO
+
+                for (bp in bankPayments) {
+                    if (bp.bankId.isBlank()) {
+                        return Result.failure(IllegalArgumentException("Please select a bank account for all bank payment allocations"))
+                    }
+                    val bpAmt = SaleCalculationUtils.parseAmount(bp.amount)
+                    if (bpAmt <= BigDecimal.ZERO) {
+                        return Result.failure(IllegalArgumentException("Bank payment allocation amount must be greater than zero"))
+                    }
+                    if (!seenBanks.add(bp.bankId.trim())) {
+                        return Result.failure(IllegalArgumentException("Duplicate bank account selected: each bank account can only appear once"))
+                    }
+                    bankSum = bankSum.add(bpAmt)
+                    effectiveBankSplits.add(
+                        bp.copy(
+                            bankId = bp.bankId.trim(),
+                            bankAccountId = bp.bankAccountId?.trim()?.ifBlank { null } ?: bp.bankId.trim(),
+                            amount = String.format(java.util.Locale.US, "%.2f", bpAmt)
+                        )
+                    )
+                }
+
+                val totalPaid = cashBd.add(bankSum)
+                if (totalPaid.compareTo(totalAmountBd) != 0) {
+                    return if (totalPaid < totalAmountBd) {
+                        Result.failure(IllegalArgumentException("Total allocated amount must equal the expense amount"))
+                    } else {
+                        Result.failure(IllegalArgumentException("Total allocated amount cannot exceed expense amount"))
+                    }
+                }
+
+                return Result.success(
+                    ValidatedExpensePayment(
+                        paymentMethod = "cash_bank",
+                        cashAmount = String.format(java.util.Locale.US, "%.2f", cashBd),
+                        bankPayments = effectiveBankSplits,
+                        bankId = effectiveBankSplits.firstOrNull()?.bankId
+                    )
+                )
+            }
+            else -> {
+                return Result.failure(IllegalArgumentException("Unsupported payment method: $paymentMethod"))
+            }
+        }
+    }
+
     fun createExpense(
         item: String,
         category: String?,
         amount: String,
-        paymentMethod: String,
+        paymentMethod: String = "cash",
         employeeId: String? = null,
         expenseDate: String? = null,
         paymentDate: String? = null,
         bankId: String? = null,
         referenceId: String? = null,
+        cashAmount: String? = null,
         bankPayments: List<BankPaymentSplit> = emptyList()
     ) {
         if (_createActionState.value is UiState.Loading) return
@@ -1506,8 +1709,8 @@ class TransactionsViewModel @Inject constructor(
             return
         }
 
-        val amt = amount.trim().toDoubleOrNull()
-        if (amt == null || amt <= 0.0) {
+        val totalAmountBd = SaleCalculationUtils.parseAmount(amount)
+        if (totalAmountBd <= BigDecimal.ZERO) {
             _createActionState.value = UiState.Error("Expense amount must be greater than zero")
             return
         }
@@ -1515,11 +1718,6 @@ class TransactionsViewModel @Inject constructor(
         val isAdvance = category == "employee_advance"
         if (isAdvance && employeeId.isNullOrBlank()) {
             _createActionState.value = UiState.Error("Please select a staff member for the advance payment")
-            return
-        }
-
-        if (paymentMethod == "bank" && bankId.isNullOrBlank() && bankPayments.isEmpty()) {
-            _createActionState.value = UiState.Error("Please select a bank account for bank payment")
             return
         }
 
@@ -1532,22 +1730,37 @@ class TransactionsViewModel @Inject constructor(
             return
         }
 
+        val validationResult = validateExpensePaymentBreakdown(
+            totalAmountBd = totalAmountBd,
+            paymentMethod = paymentMethod,
+            cashAmount = cashAmount,
+            bankPayments = bankPayments,
+            bankId = bankId
+        )
+
+        val validatedPayment = validationResult.getOrElse { error ->
+            _createActionState.value = UiState.Error(error.message ?: "Invalid payment allocation")
+            return
+        }
+
+        val totalAmountStr = String.format(java.util.Locale.US, "%.2f", totalAmountBd)
+
         _createActionState.value = UiState.Loading
         viewModelScope.launch {
             val req = CreateExpenseRequest(
                 item = trimmedItem,
                 category = category?.ifBlank { null },
                 employeeId = employeeId?.trim()?.ifBlank { null },
-                totalAmount = amount.trim(),
-                amount = amount.trim(),
-                paymentMethod = paymentMethod,
-                cashAmount = if (paymentMethod == "cash") amount.trim() else null,
-                bankId = bankId?.trim()?.ifBlank { null },
+                totalAmount = totalAmountStr,
+                amount = totalAmountStr,
+                paymentMethod = validatedPayment.paymentMethod,
+                cashAmount = validatedPayment.cashAmount,
+                bankId = validatedPayment.bankId,
                 expenseDate = effectiveDateStr,
                 paymentDate = effectiveDateStr,
                 date = effectiveDateStr,
                 referenceId = referenceId?.trim()?.ifBlank { null },
-                bankPayments = bankPayments
+                bankPayments = validatedPayment.bankPayments
             )
             repository.createExpense(req).collect { res ->
                 _createActionState.value = when (res) {
@@ -1567,11 +1780,12 @@ class TransactionsViewModel @Inject constructor(
         item: String,
         category: String?,
         amount: String,
-        paymentMethod: String,
+        paymentMethod: String = "cash",
         employeeId: String? = null,
         expenseDate: String? = null,
         paymentDate: String? = null,
         bankId: String? = null,
+        cashAmount: String? = null,
         bankPayments: List<BankPaymentSplit> = emptyList()
     ) {
         if (_updateExpenseActionState.value is UiState.Loading) return
@@ -1587,8 +1801,8 @@ class TransactionsViewModel @Inject constructor(
             return
         }
 
-        val amt = amount.trim().toDoubleOrNull()
-        if (amt == null || amt <= 0.0) {
+        val totalAmountBd = SaleCalculationUtils.parseAmount(amount)
+        if (totalAmountBd <= BigDecimal.ZERO) {
             _updateExpenseActionState.value = UiState.Error("Expense amount must be greater than zero")
             return
         }
@@ -1599,16 +1813,26 @@ class TransactionsViewModel @Inject constructor(
             return
         }
 
-        if (paymentMethod == "bank" && bankId.isNullOrBlank() && bankPayments.isEmpty()) {
-            _updateExpenseActionState.value = UiState.Error("Please select a bank account for bank payment")
-            return
-        }
-
         val cleanDate = (expenseDate?.ifBlank { null } ?: paymentDate?.ifBlank { null })?.trim()
         if (cleanDate != null && !FormatUtils.isValidIsoDate(cleanDate)) {
             _updateExpenseActionState.value = UiState.Error("Expense date must be in YYYY-MM-DD format")
             return
         }
+
+        val validationResult = validateExpensePaymentBreakdown(
+            totalAmountBd = totalAmountBd,
+            paymentMethod = paymentMethod,
+            cashAmount = cashAmount,
+            bankPayments = bankPayments,
+            bankId = bankId
+        )
+
+        val validatedPayment = validationResult.getOrElse { error ->
+            _updateExpenseActionState.value = UiState.Error(error.message ?: "Invalid payment allocation")
+            return
+        }
+
+        val totalAmountStr = String.format(java.util.Locale.US, "%.2f", totalAmountBd)
 
         _updateExpenseActionState.value = UiState.Loading
         viewModelScope.launch {
@@ -1616,15 +1840,15 @@ class TransactionsViewModel @Inject constructor(
                 item = trimmedItem,
                 category = category?.ifBlank { null },
                 employeeId = employeeId?.trim()?.ifBlank { null },
-                totalAmount = amount.trim(),
-                amount = amount.trim(),
-                paymentMethod = paymentMethod,
-                cashAmount = if (paymentMethod == "cash") amount.trim() else null,
-                bankId = bankId?.trim()?.ifBlank { null },
+                totalAmount = totalAmountStr,
+                amount = totalAmountStr,
+                paymentMethod = validatedPayment.paymentMethod,
+                cashAmount = validatedPayment.cashAmount,
+                bankId = validatedPayment.bankId,
                 expenseDate = cleanDate,
                 paymentDate = cleanDate,
                 date = cleanDate,
-                bankPayments = bankPayments
+                bankPayments = validatedPayment.bankPayments
             )
             repository.updateExpense(id, req).collect { res ->
                 _updateExpenseActionState.value = when (res) {

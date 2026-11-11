@@ -28,6 +28,9 @@ import com.vyavsa.app.core.model.SaleItemRequest
 import com.vyavsa.app.core.model.Supplier
 import com.vyavsa.app.core.model.SupplierPaymentResponse
 import com.vyavsa.app.core.model.TenantBank
+import com.vyavsa.app.core.model.UserProfile
+import com.vyavsa.app.core.model.UserRole
+import com.vyavsa.app.core.security.TokenManager
 import com.vyavsa.app.core.model.UpdateCounterSaleRequest
 import com.vyavsa.app.core.model.UpdateExpenseRequest
 import com.vyavsa.app.core.model.UpdateLineSaleRequest
@@ -1559,6 +1562,125 @@ class TransactionsViewModelTest {
         assertEquals("18000.00", lastReq?.totalAmount)
         assertEquals("18000.00", lastReq?.totalPaid)
     }
+
+    @Test
+    fun testDefaultSalesmanNameWithoutTokenManager() {
+        // viewModel initialized with no tokenManager
+        assertEquals("", viewModel.defaultSalesmanName)
+    }
+
+    @Test
+    fun testDefaultSalesmanNameWithAuthenticatedUser() {
+        val fakeTokenManager = FakeTransactionsTokenManager(
+            profileData = UserProfile(id = "user-1", name = "Rohan Sharma", email = "rohan@vyavsa.com")
+        )
+        val vm = TransactionsViewModel(
+            repository = fakeRepo,
+            bankRepository = fakeBankRepo,
+            refreshCoordinator = refreshCoordinator,
+            tokenManager = fakeTokenManager,
+            productRepository = null
+        )
+        assertEquals("Rohan Sharma", vm.defaultSalesmanName)
+    }
+
+    @Test
+    fun testDefaultSalesmanNameWithNullOrBlankProfile() {
+        val fakeTokenManager = FakeTransactionsTokenManager(profileData = null)
+        val vm = TransactionsViewModel(
+            repository = fakeRepo,
+            bankRepository = fakeBankRepo,
+            refreshCoordinator = refreshCoordinator,
+            tokenManager = fakeTokenManager,
+            productRepository = null
+        )
+        assertEquals("", vm.defaultSalesmanName)
+
+        val blankProfileTokenManager = FakeTransactionsTokenManager(
+            profileData = UserProfile(id = "user-2", name = "   ", email = "blank@vyavsa.com")
+        )
+        val vmBlank = TransactionsViewModel(
+            repository = fakeRepo,
+            bankRepository = fakeBankRepo,
+            refreshCoordinator = refreshCoordinator,
+            tokenManager = blankProfileTokenManager,
+            productRepository = null
+        )
+        assertEquals("", vmBlank.defaultSalesmanName)
+    }
+
+    @Test
+    fun testValidateAndBuildLineSaleRequestWithSalesman() {
+        val result = viewModel.validateAndBuildLineSaleRequest(
+            customerId = "cust-1",
+            totalAmount = "1000.00",
+            cashIn = "1000.00",
+            route = "Route North",
+            salesman = "Kavita Raman"
+        )
+        assertTrue(result.isSuccess)
+        val req = result.getOrNull()
+        assertNotNull(req)
+        assertEquals("Kavita Raman", req?.salesman)
+        assertEquals("Route North", req?.route)
+    }
+
+    @Test
+    fun testValidateAndBuildCounterSaleRequestWithSalesman() {
+        val result = viewModel.validateAndBuildCounterSaleRequest(
+            item = "Product X",
+            price = "200.00",
+            totalAmount = "200.00",
+            cash = "200.00",
+            salesman = "Pooja Counter Rep"
+        )
+        assertTrue(result.isSuccess)
+        val req = result.getOrNull()
+        assertNotNull(req)
+        assertEquals("Pooja Counter Rep", req?.salesman)
+        assertEquals("Product X", req?.item)
+    }
+
+    @Test
+    fun testCreateLineSalePassesSalesmanToRepository() = runTest {
+        viewModel.createLineSale(
+            customerId = "cust-1",
+            totalAmount = "500.00",
+            cashIn = "500.00",
+            salesman = "Suresh Line Rep"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val lastReq = fakeRepo.lastCreateLineSaleRequest
+        assertNotNull(lastReq)
+        assertEquals("Suresh Line Rep", lastReq?.salesman)
+    }
+
+    @Test
+    fun testCreateCounterSalePassesSalesmanToRepository() = runTest {
+        viewModel.createCounterSale(
+            item = "Retail Item",
+            price = "350.00",
+            totalAmount = "350.00",
+            cash = "350.00",
+            salesman = "Amitabh Counter Rep"
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val lastReq = fakeRepo.lastCreateCounterSaleRequest
+        assertNotNull(lastReq)
+        assertEquals("Amitabh Counter Rep", lastReq?.salesman)
+    }
+}
+
+class FakeTransactionsTokenManager(
+    var profileData: UserProfile? = null
+) : TokenManager() {
+    override fun getUserProfile(): UserProfile? = profileData
+    override fun getUserRole(): UserRole = profileData?.userRole ?: UserRole.ADMIN
+    override fun isTenantAdmin(): Boolean = getUserRole() == UserRole.ADMIN
+    override fun isSales(): Boolean = getUserRole() == UserRole.SALES
+    override fun isOffice(): Boolean = getUserRole() == UserRole.OFFICE
 }
 
 class FakeTransactionsRepository : TransactionsRepository {

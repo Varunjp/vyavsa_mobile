@@ -315,6 +315,8 @@ fun MainShellScreen(
                                     DashboardScreen(
                                         viewModel = dashboardViewModel,
                                         onNavigateToCreateSale = onNavigateToCreateSale,
+                                        onNavigateToCreateCounterSale = onNavigateToCreateCounterSale,
+                                        onNavigateToCreatePurchase = onNavigateToCreatePurchase,
                                         onNavigateToCreateExpense = onNavigateToCreateExpense,
                                         onNavigateToCashDrawer = onNavigateToCashDrawer,
                                         onNavigateToStaff = { selectedDestination = BottomBarDestination.STAFF },

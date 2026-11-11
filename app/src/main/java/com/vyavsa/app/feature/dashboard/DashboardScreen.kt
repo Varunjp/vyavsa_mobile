@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Warning
@@ -96,6 +97,8 @@ fun DashboardScreen(
     onNavigateToProductAnalytics: () -> Unit = {},
     onNavigateToLineSales: () -> Unit = {},
     onNavigateToCounterSales: () -> Unit = {},
+    onNavigateToCreateCounterSale: () -> Unit = {},
+    onNavigateToCreatePurchase: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val metricsState by viewModel.metricsState.collectAsState()
@@ -214,7 +217,9 @@ fun DashboardScreen(
                         onNavigateToProducts = onNavigateToProducts,
                         onNavigateToProductAnalytics = onNavigateToProductAnalytics,
                         onNavigateToLineSales = onNavigateToLineSales,
-                        onNavigateToCounterSales = onNavigateToCounterSales
+                        onNavigateToCounterSales = onNavigateToCounterSales,
+                        onNavigateToCreateCounterSale = onNavigateToCreateCounterSale,
+                        onNavigateToCreatePurchase = onNavigateToCreatePurchase
                     )
                 }
                 else -> {}
@@ -237,7 +242,9 @@ private fun DashboardBody(
     onNavigateToProducts: () -> Unit = {},
     onNavigateToProductAnalytics: () -> Unit = {},
     onNavigateToLineSales: () -> Unit = {},
-    onNavigateToCounterSales: () -> Unit = {}
+    onNavigateToCounterSales: () -> Unit = {},
+    onNavigateToCreateCounterSale: () -> Unit = {},
+    onNavigateToCreatePurchase: () -> Unit = {}
 ) {
     val totalLiquidity = remember(metrics.cashBalance, metrics.bankBalance) {
         val cashVal = metrics.cashBalance.toDoubleOrNull() ?: 0.0
@@ -724,108 +731,106 @@ private fun DashboardBody(
 
         // 4. Quick Actions
         if (showQuickActions) {
-            val showSale = enabledQuickActions.isEmpty() || QuickActionItem.CREATE_LINE_SALE.id in enabledQuickActions
-            val showExpense = enabledQuickActions.isEmpty() || QuickActionItem.CREATE_EXPENSE.id in enabledQuickActions
-            val showCashDrawer = enabledQuickActions.isEmpty() || QuickActionItem.CASH_DRAWER.id in enabledQuickActions
-            val showBank = enabledQuickActions.isEmpty() || QuickActionItem.BANK_ACCOUNTS.id in enabledQuickActions
-            val showProducts = enabledQuickActions.isEmpty() || QuickActionItem.PRODUCTS.id in enabledQuickActions
+            val activeActions = QuickActionItem.values().filter { it.id in enabledQuickActions }
 
-            if (showSale || showExpense || showCashDrawer || showBank || showProducts) {
+            if (activeActions.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(22.dp))
 
-                // Quick Actions (2x2 Aligned Grid)
+                // Quick Actions (Aligned Grid)
                 VyavsaSectionHeader(title = "Quick Actions")
 
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    if (showSale || showExpense) {
+                    activeActions.chunked(2).forEach { rowActions ->
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            if (showSale) {
-                                QuickActionButton(
-                                    label = "Record Sale",
-                                    subtitle = "Line & POS",
-                                    icon = Icons.Default.Add,
-                                    backgroundColor = Emerald50,
-                                    iconTint = Emerald600,
-                                    onClick = onNavigateToCreateSale,
-                                    modifier = Modifier.weight(1f)
-                                )
+                            rowActions.forEach { action ->
+                                when (action) {
+                                    QuickActionItem.CREATE_LINE_SALE -> {
+                                        QuickActionButton(
+                                            label = "Record Sale",
+                                            subtitle = "Line & POS",
+                                            icon = Icons.Default.Add,
+                                            backgroundColor = Emerald50,
+                                            iconTint = Emerald600,
+                                            onClick = onNavigateToCreateSale,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    QuickActionItem.CREATE_COUNTER_SALE -> {
+                                        QuickActionButton(
+                                            label = "Counter Sale",
+                                            subtitle = "POS retail bill",
+                                            icon = Icons.Default.PointOfSale,
+                                            backgroundColor = MaterialTheme.colorScheme.primaryContainer,
+                                            iconTint = MaterialTheme.colorScheme.primary,
+                                            onClick = onNavigateToCreateCounterSale,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    QuickActionItem.CREATE_EXPENSE -> {
+                                        QuickActionButton(
+                                            label = "Add Expense",
+                                            subtitle = "Bills & Advances",
+                                            icon = Icons.Default.Receipt,
+                                            backgroundColor = Crimson50,
+                                            iconTint = Crimson600,
+                                            onClick = onNavigateToCreateExpense,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    QuickActionItem.CREATE_PURCHASE -> {
+                                        QuickActionButton(
+                                            label = "Add Purchase",
+                                            subtitle = "Supplier inventory",
+                                            icon = Icons.Default.ShoppingCart,
+                                            backgroundColor = Amber50,
+                                            iconTint = Amber600,
+                                            onClick = onNavigateToCreatePurchase,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    QuickActionItem.CASH_DRAWER -> {
+                                        QuickActionButton(
+                                            label = "Cash Drawer",
+                                            subtitle = "Add & Reconcile",
+                                            icon = Icons.Default.PointOfSale,
+                                            backgroundColor = Amber50,
+                                            iconTint = Amber600,
+                                            onClick = onNavigateToCashDrawer,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    QuickActionItem.BANK_ACCOUNTS -> {
+                                        QuickActionButton(
+                                            label = "Bank Accounts",
+                                            subtitle = "UPI & Ledgers",
+                                            icon = Icons.Default.AccountBalance,
+                                            backgroundColor = Blue50,
+                                            iconTint = Blue600,
+                                            onClick = onNavigateToBankAccounts,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    QuickActionItem.PRODUCTS -> {
+                                        QuickActionButton(
+                                            label = "Product Catalog",
+                                            subtitle = "Items & Pricing",
+                                            icon = Icons.Default.Inventory2,
+                                            backgroundColor = MaterialTheme.colorScheme.primaryContainer,
+                                            iconTint = MaterialTheme.colorScheme.primary,
+                                            onClick = onNavigateToProducts,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
                             }
-                            if (showExpense) {
-                                QuickActionButton(
-                                    label = "Add Expense",
-                                    subtitle = "Bills & Advances",
-                                    icon = Icons.Default.Receipt,
-                                    backgroundColor = Crimson50,
-                                    iconTint = Crimson600,
-                                    onClick = onNavigateToCreateExpense,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            } else if (!showSale) {
+                            if (rowActions.size == 1) {
                                 Spacer(modifier = Modifier.weight(1f))
                             }
-                        }
-                    }
-
-                    if (showCashDrawer || showBank) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            if (showCashDrawer) {
-                                QuickActionButton(
-                                    label = "Cash Drawer",
-                                    subtitle = "Add & Reconcile",
-                                    icon = Icons.Default.PointOfSale,
-                                    backgroundColor = Amber50,
-                                    iconTint = Amber600,
-                                    onClick = onNavigateToCashDrawer,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            if (showBank) {
-                                QuickActionButton(
-                                    label = "Bank Accounts",
-                                    subtitle = "UPI & Ledgers",
-                                    icon = Icons.Default.AccountBalance,
-                                    backgroundColor = Blue50,
-                                    iconTint = Blue600,
-                                    onClick = onNavigateToBankAccounts,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            } else if (!showCashDrawer) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
-
-                    if (showProducts) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            QuickActionButton(
-                                label = "Product Catalog",
-                                subtitle = "Items & Pricing",
-                                icon = Icons.Default.Inventory2,
-                                backgroundColor = MaterialTheme.colorScheme.primaryContainer,
-                                iconTint = MaterialTheme.colorScheme.primary,
-                                onClick = onNavigateToProducts,
-                                modifier = Modifier.weight(1f)
-                            )
-                            QuickActionButton(
-                                label = "Product Analytics",
-                                subtitle = "Sales & Top Items",
-                                icon = Icons.Default.TrendingUp,
-                                backgroundColor = Emerald50,
-                                iconTint = Emerald600,
-                                onClick = onNavigateToProductAnalytics,
-                                modifier = Modifier.weight(1f)
-                            )
                         }
                     }
                 }

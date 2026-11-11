@@ -58,10 +58,18 @@ class SettingsPreferences @Inject constructor(
     val showQuickActions: StateFlow<Boolean> = _showQuickActions.asStateFlow()
 
     private val _enabledQuickActions = MutableStateFlow(
-        prefs.getStringSet(KEY_QUICK_ACTIONS, null)?.toSet()
-            ?: QuickActionItem.values().filter { it.defaultEnabled }.map { it.id }.toSet()
+        loadSavedQuickActions()
     )
     val enabledQuickActions: StateFlow<Set<String>> = _enabledQuickActions.asStateFlow()
+
+    private fun loadSavedQuickActions(): Set<String> {
+        if (!prefs.contains(KEY_QUICK_ACTIONS)) {
+            return QuickActionItem.values().filter { it.defaultEnabled }.map { it.id }.toSet()
+        }
+        val set = prefs.getStringSet(KEY_QUICK_ACTIONS, null) ?: return QuickActionItem.values().filter { it.defaultEnabled }.map { it.id }.toSet()
+        val validIds = QuickActionItem.values().map { it.id }.toSet()
+        return set.filter { it in validIds }.toSet()
+    }
 
     private val _customDockOrder = MutableStateFlow<List<BottomBarDestination>>(
         loadSavedDockOrder()
@@ -130,7 +138,7 @@ class SettingsPreferences @Inject constructor(
         val current = _enabledQuickActions.value.toMutableSet()
         if (enabled) current.add(actionId) else current.remove(actionId)
         val copy = current.toSet()
-        prefs.edit().putStringSet(KEY_QUICK_ACTIONS, copy).apply()
+        prefs.edit().putStringSet(KEY_QUICK_ACTIONS, HashSet(copy)).apply()
         _enabledQuickActions.value = copy
     }
 

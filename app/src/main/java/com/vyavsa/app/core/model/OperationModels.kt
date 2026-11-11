@@ -101,6 +101,7 @@ data class LineSale(
 @Serializable
 data class BankPaymentSplit(
     @SerialName("bank_id") val bankId: String,
+    @SerialName("bank_account_id") val bankAccountId: String? = null,
     @SerialName("bank_name") val bankName: String? = null,
     val amount: String,
     val note: String? = null
@@ -167,6 +168,7 @@ data class CounterSale(
     @SerialName("invoice_number") val invoiceNumber: String? = null,
     @SerialName("customer_id") val customerId: String? = null,
     @SerialName("customer_name") val customerName: String? = null,
+    val salesman: String? = null,
     val item: String = "",
     val price: String = "0.00",
     val subtotal: String = "0.00",
@@ -198,6 +200,7 @@ data class CounterSale(
 data class CreateCounterSaleRequest(
     @SerialName("customer_id") val customerId: String? = null,
     @SerialName("customer_name") val customerName: String? = null,
+    val salesman: String? = null,
     val item: String = "",
     val price: String = "0.00",
     val subtotal: String? = null,
@@ -220,6 +223,7 @@ data class CreateCounterSaleRequest(
 
 @Serializable
 data class UpdateCounterSaleRequest(
+    val salesman: String? = null,
     val item: String? = null,
     val price: String? = null,
     val subtotal: String? = null,
